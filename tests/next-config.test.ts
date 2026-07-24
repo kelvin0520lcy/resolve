@@ -45,7 +45,7 @@ describe("mobile development origins", () => {
           },
         ],
       }),
-    ).toEqual(["192.168.0.6"]);
+    ).toEqual(["localhost", "127.0.0.1", "192.168.0.6"]);
   });
 
   it("places discovered LAN addresses in Next's development allowlist", () => {

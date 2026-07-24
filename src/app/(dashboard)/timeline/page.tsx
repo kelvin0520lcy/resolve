@@ -20,7 +20,7 @@ import { formatDate, getSemesterWeek } from "@/lib/utils";
 import type { SemesterEvent } from "@/types";
 
 export default function TimelinePage() {
-  const { semester, tasks, goals, milestones } = useResolve();
+  const { semester, tasks } = useResolve();
   const stats = getSemesterWeek(semester.startDate, semester.endDate);
   const events: SemesterEvent[] = [
     {
@@ -72,17 +72,6 @@ export default function TimelinePage() {
         category: task.category,
         type: "deadline" as const,
       })),
-    ...milestones
-      .filter((milestone) => milestone.deadline)
-      .map((milestone) => ({
-        id: `milestone-${milestone.id}`,
-        title: milestone.title,
-        date: milestone.deadline!,
-        category:
-          goals.find((goal) => goal.id === milestone.goalId)?.category ??
-          "personal",
-        type: "milestone" as const,
-      })),
     {
       id: "semester-end",
       title: "Semester finale",
@@ -99,7 +88,7 @@ export default function TimelinePage() {
         <PageIntro
           eyebrow="Semester episode guide"
           title="See the whole season at once"
-          description="Deadlines, breaks, exams, and personal milestones share one chronological story."
+          description="Task deadlines, breaks, exams, and semester dates share one chronological story."
         />
 
         <div className="grid gap-4 sm:grid-cols-3">
@@ -112,7 +101,7 @@ export default function TimelinePage() {
           <MetricCard
             label="Upcoming events"
             value={upcoming.length}
-            detail="deadlines and milestones ahead"
+            detail="deadlines and semester dates ahead"
             icon={<Flag className="h-5 w-5" />}
           />
           <MetricCard

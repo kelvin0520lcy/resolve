@@ -125,13 +125,3 @@ export function resolveCharacterState(ctx: DialogueContext): CharacterState {
     triggerReason: "default",
   };
 }
-
-export const DEMO_CHARACTER_CONTEXT: DialogueContext = {
-  tasksCompletedToday: 1,
-  tasksTotalToday: 3,
-  overdueTasks: 0,
-  upcomingDeadlines: 2,
-  habitStreak: 4,
-  weeklyWorkloadHours: 28,
-  hourOfDay: new Date().getHours(),
-};

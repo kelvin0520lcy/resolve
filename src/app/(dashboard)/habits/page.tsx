@@ -1,7 +1,9 @@
 "use client";
 
-import { Check, Flame, Heart, TrendingUp } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { Check, Flame, Heart, Plus, TrendingUp, X } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -11,15 +13,21 @@ import {
 } from "@/components/ui/card";
 import {
   CategoryBadge,
+  EmptyState,
   MetricCard,
   PageIntro,
+  fieldClassName,
 } from "@/components/ui/resolve";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
 
 const DAYS = [-6, -5, -4, -3, -2, -1, 0];
 
 export default function HabitsPage() {
-  const { habits, habitLogs, toggleHabit } = useResolve();
+  const { habits, habitLogs, toggleHabit, addHabit } = useResolve();
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("health");
+  const [schedule, setSchedule] = useState("daily");
   const dates = DAYS.map((day) => offsetDate(day));
   const isScheduled = (habitId: string, date: string) => {
     const habit = habits.find((item) => item.id === habitId);
@@ -57,6 +65,20 @@ export default function HabitsPage() {
     return bCount - aCount;
   })[0];
 
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!title.trim()) return;
+    addHabit({
+      title,
+      category,
+      measurementType: "boolean",
+      targetDays:
+        schedule === "weekdays" ? [1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6],
+    });
+    setTitle("");
+    setShowForm(false);
+  }
+
   return (
     <PageShell title="Habits">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -64,7 +86,61 @@ export default function HabitsPage() {
           eyebrow="Consistency studio"
           title="Aim for rhythm, not perfection"
           description="Weekly consistency stays visible even when one missed day breaks a traditional streak."
+          action={
+            <Button onClick={() => setShowForm((value) => !value)}>
+              {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {showForm ? "Close" : "Add habit"}
+            </Button>
+          }
         />
+
+        {showForm && (
+          <Card className="border-accent/30">
+            <CardHeader>
+              <CardTitle>Add a repeatable rhythm</CardTitle>
+              <CardDescription>
+                Choose something easy to recognise and quick to check in.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={submit}
+                className="grid gap-3 sm:grid-cols-[1fr_160px_150px_auto]"
+              >
+                <input
+                  className={fieldClassName}
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  aria-label="Habit title"
+                  autoFocus
+                  required
+                />
+                <select
+                  className={fieldClassName}
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                  aria-label="Habit category"
+                >
+                  <option value="health">Health</option>
+                  <option value="personal">Personal</option>
+                  <option value="academics">Academics</option>
+                  <option value="guitar">Guitar</option>
+                  <option value="career">Career</option>
+                </select>
+                <select
+                  className={fieldClassName}
+                  value={schedule}
+                  onChange={(event) => setSchedule(event.target.value)}
+                  aria-label="Habit schedule"
+                >
+                  <option value="daily">Every day</option>
+                  <option value="weekdays">Weekdays</option>
+                </select>
+                <Button type="submit">Add</Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-3">
           <MetricCard
@@ -95,7 +171,7 @@ export default function HabitsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
-            <div className="min-w-[660px]">
+            {habits.length ? <div className="min-w-[660px]">
               <div className="grid grid-cols-[220px_repeat(7,1fr)] gap-2 pb-3 text-center text-xs font-bold text-muted">
                 <div />
                 {dates.map((date) => (
@@ -153,7 +229,14 @@ export default function HabitsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </div> : (
+              <EmptyState
+                icon={<Heart className="h-6 w-6" />}
+                title="No habits yet"
+                description="Add one rhythm you want to repeat, then check it in from Today or this weekly grid."
+                action={<Button onClick={() => setShowForm(true)}>Add habit</Button>}
+              />
+            )}
           </CardContent>
         </Card>
 

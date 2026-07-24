@@ -21,7 +21,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MetricCard, PageIntro } from "@/components/ui/resolve";
+import {
+  EmptyState,
+  MetricCard,
+  PageIntro,
+} from "@/components/ui/resolve";
 import { GOAL_CATEGORIES } from "@/lib/constants/categories";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
 
@@ -99,16 +103,27 @@ export default function AnalyticsPage() {
     (sum, session) => sum + session.durationMinutes,
     0,
   );
-  const insights = [
-    actualMinutes < plannedMinutes * 0.75
+  const hasActivity =
+    tasks.length > 0 ||
+    goals.length > 0 ||
+    habits.length > 0 ||
+    guitarSessions.length > 0;
+  const insights = hasActivity ? [
+    plannedMinutes > 0 && actualMinutes < plannedMinutes * 0.75
       ? `Actual logged time is ${Math.round((actualMinutes / Math.max(plannedMinutes, 1)) * 100)}% of planned time. Reduce estimates or log completed sessions more consistently.`
-      : "Planned and actual time are tracking within a realistic range.",
+      : plannedMinutes > 0
+        ? "Planned and actual time are tracking within a realistic range."
+        : "Add estimated time to tasks to compare planning with reality.",
     guitarTotal && guitarTechniqueMinutes / guitarTotal < 0.4
       ? "Repertoire dominates guitar practice. Protect one technique-only session next week."
       : "Guitar practice includes a healthy amount of technique work.",
     goals.some((goal) => goal.status === "at_risk")
       ? "At least one goal is at risk. Give it a specific task on the weekly board."
-      : "Every active goal currently has a healthy status.",
+      : goals.length
+        ? "Every active goal currently has a healthy status."
+        : "Create a measurable goal to unlock progress analysis.",
+  ] : [
+    "Add your first task, goal, habit, or practice session. Analytics will explain patterns only after real activity exists.",
   ];
 
   return (
@@ -190,7 +205,7 @@ export default function AnalyticsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
+              {categoryTime.length ? <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={categoryTime}
@@ -213,7 +228,14 @@ export default function AnalyticsPage() {
                     }}
                   />
                 </PieChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer> : (
+                <div className="flex h-full items-center">
+                  <EmptyState
+                    title="No time distribution yet"
+                    description="Add estimated time to tasks or log practice to reveal where the week is going."
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -6,15 +6,19 @@ type NetworkMap = ReturnType<typeof networkInterfaces>;
 export function getLocalDevOrigins(interfaces: NetworkMap = networkInterfaces()) {
   return Array.from(
     new Set(
-      Object.values(interfaces)
-        .flatMap((addresses) => addresses ?? [])
-        .filter(
-          (address) =>
-            address.family === "IPv4" &&
-            !address.internal &&
-            Boolean(address.address),
-        )
-        .map((address) => address.address),
+      [
+        "localhost",
+        "127.0.0.1",
+        ...Object.values(interfaces)
+          .flatMap((addresses) => addresses ?? [])
+          .filter(
+            (address) =>
+              address.family === "IPv4" &&
+              !address.internal &&
+              Boolean(address.address),
+          )
+          .map((address) => address.address),
+      ],
     ),
   );
 }

@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -16,19 +17,38 @@ import {
   toDateKey,
 } from "@/lib/date";
 import {
+  addAssessmentToData,
+  addAlgorithmLogToData,
+  addApplicationToData,
   addGoalToData,
   addGuitarSessionToData,
+  addHabitToData,
+  addModuleToData,
   addTaskToData,
   moveTaskInData,
   saveReflectionToData,
   toggleHabitInData,
   toggleTaskInData,
+  updateApplicationStageInData,
+  updateAssessmentProgressInData,
   updateGoalProgressInData,
+  updateModuleStudyMinutesInData,
   updatePrioritiesInData,
   updateSemesterInData,
+  updateTaskActualMinutesInData,
+  type NewAlgorithmLogInput,
+  type NewApplicationInput,
+  type NewAssessmentInput,
   type NewGoalInput,
+  type NewHabitInput,
+  type NewModuleInput,
   type NewTaskInput,
 } from "@/lib/resolve-actions";
+import {
+  saveWorkspace,
+  subscribeToWorkspace,
+  WORKSPACE_SCHEMA_VERSION,
+} from "@/lib/firebase/workspace";
 import type {
   AcademicModule,
   AlgorithmLog,
@@ -59,12 +79,37 @@ export type ResolveData = {
 };
 
 type ResolveContextValue = ResolveData & {
-  storageMode: "browser-demo" | "account-browser";
+  storageMode: "browser" | "cloud";
+  syncStatus:
+    | "demo"
+    | "connecting"
+    | "saving"
+    | "synced"
+    | "offline"
+    | "error";
+  syncError: string;
+  lastSyncedAt: string | null;
   addTask: (task: NewTaskInput) => void;
   toggleTask: (taskId: string) => void;
   moveTask: (taskId: string, scheduledDate: string) => void;
   addGoal: (goal: NewGoalInput) => void;
+  addHabit: (habit: NewHabitInput) => void;
+  addModule: (module: NewModuleInput) => void;
+  addAssessment: (assessment: NewAssessmentInput) => void;
+  addAlgorithmLog: (log: NewAlgorithmLogInput) => void;
+  addApplication: (application: NewApplicationInput) => void;
+  updateApplicationStage: (
+    applicationId: string,
+    stage: JobApplication["stage"],
+  ) => void;
+  updateAssessmentProgress: (
+    moduleId: string,
+    assessmentId: string,
+    progress: number,
+  ) => void;
+  updateModuleStudyMinutes: (moduleId: string, minutes: number) => void;
   updateGoalProgress: (goalId: string, value: number) => void;
+  updateTaskActualMinutes: (taskId: string, minutes: number) => void;
   toggleHabit: (habitId: string, date: string) => void;
   addGuitarSession: (
     session: Omit<GuitarPracticeSession, "id" | "userId" | "semesterId">,
@@ -77,478 +122,37 @@ type ResolveContextValue = ResolveData & {
   ) => void;
   updateSemester: (semester: Semester) => void;
   updatePriorities: (priorities: string[]) => void;
-  resetDemo: () => void;
+  resetWorkspace: () => void;
 };
 
 const ResolveContext = createContext<ResolveContextValue | null>(null);
 
 export { getWeekDateKeys, offsetDate, toDateKey };
 
-export function createSeedData(userId = "demo-user"): ResolveData {
-  const now = new Date().toISOString();
-  const semesterId = "semester-2026-s1";
 
+export function createEmptyData(userId: string): ResolveData {
+  const year = new Date().getFullYear();
   return {
     semester: {
-      id: semesterId,
+      id: `semester-${userId}`,
       userId,
-      name: "AY2026/2027 Semester 1",
-      academicYear: "2026/2027",
-      startDate: offsetDate(-24),
-      endDate: offsetDate(94),
-      recessWeekStart: offsetDate(31),
-      readingWeekStart: offsetDate(80),
-      examPeriodStart: offsetDate(87),
-      theme: "Building consistency",
-      mainResolution:
-        "Show up deliberately for academics, career preparation, music, and health.",
-      targetGpa: 4.5,
+      name: "My semester",
+      academicYear: `${year}/${year + 1}`,
+      startDate: offsetDate(0),
+      endDate: offsetDate(112),
       status: "active",
     },
-    goals: [
-      {
-        id: "goal-academics",
-        userId,
-        semesterId,
-        title: "Stay ahead in every module",
-        description: "Complete every weekly review before Sunday evening.",
-        motivation: "Make assessment weeks feel prepared, not panicked.",
-        category: "academics",
-        priority: "high",
-        measurementType: "count",
-        targetValue: 13,
-        currentValue: 4,
-        unit: "weekly reviews",
-        startDate: offsetDate(-24),
-        deadline: offsetDate(78),
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: "goal-career",
-        userId,
-        semesterId,
-        title: "Solve 60 interview problems",
-        description: "Build repeatable pattern recognition across core topics.",
-        motivation: "Be interview-ready before application season peaks.",
-        category: "career",
-        priority: "high",
-        measurementType: "count",
-        targetValue: 60,
-        currentValue: 18,
-        unit: "problems",
-        startDate: offsetDate(-24),
-        deadline: offsetDate(88),
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: "goal-guitar",
-        userId,
-        semesterId,
-        title: "Record a complete guitar solo",
-        description: "Play cleanly at full tempo with controlled bends and vibrato.",
-        motivation: "Turn practice fragments into one finished performance.",
-        category: "guitar",
-        priority: "medium",
-        measurementType: "percentage",
-        targetValue: 100,
-        currentValue: 42,
-        unit: "%",
-        startDate: offsetDate(-20),
-        deadline: offsetDate(70),
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: "goal-health",
-        userId,
-        semesterId,
-        title: "Exercise three times each week",
-        description: "Protect energy and sleep through consistent movement.",
-        category: "health",
-        priority: "medium",
-        measurementType: "count",
-        targetValue: 30,
-        currentValue: 9,
-        unit: "sessions",
-        startDate: offsetDate(-24),
-        deadline: offsetDate(80),
-        status: "at_risk",
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    milestones: [
-      {
-        id: "milestone-guitar-1",
-        goalId: "goal-guitar",
-        title: "Clean bends at 90 BPM",
-        completed: true,
-        completedAt: offsetDate(-7),
-        order: 1,
-      },
-      {
-        id: "milestone-guitar-2",
-        goalId: "goal-guitar",
-        title: "Learn the full solo",
-        deadline: offsetDate(28),
-        completed: false,
-        order: 2,
-      },
-      {
-        id: "milestone-guitar-3",
-        goalId: "goal-guitar",
-        title: "Record final performance",
-        deadline: offsetDate(70),
-        completed: false,
-        order: 3,
-      },
-    ],
-    tasks: [
-      {
-        id: "task-review",
-        userId,
-        semesterId,
-        goalId: "goal-academics",
-        title: "Review CS2040 lecture notes",
-        category: "academics",
-        scheduledDate: offsetDate(0),
-        deadline: offsetDate(0),
-        estimatedMinutes: 60,
-        priority: "high",
-        difficulty: 3,
-        status: "planned",
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: "task-leetcode",
-        userId,
-        semesterId,
-        goalId: "goal-career",
-        title: "Solve two graph problems",
-        category: "career",
-        scheduledDate: offsetDate(0),
-        estimatedMinutes: 75,
-        actualMinutes: 68,
-        priority: "high",
-        difficulty: 4,
-        status: "completed",
-        completedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: "task-guitar",
-        userId,
-        semesterId,
-        goalId: "goal-guitar",
-        title: "Alternate picking at 100 BPM",
-        category: "guitar",
-        scheduledDate: offsetDate(0),
-        estimatedMinutes: 35,
-        priority: "medium",
-        difficulty: 3,
-        status: "planned",
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: "task-assignment",
-        userId,
-        semesterId,
-        goalId: "goal-academics",
-        title: "Finish CS2103T user stories",
-        category: "academics",
-        scheduledDate: offsetDate(1),
-        deadline: offsetDate(3),
-        estimatedMinutes: 120,
-        priority: "high",
-        difficulty: 4,
-        status: "planned",
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: "task-portfolio",
-        userId,
-        semesterId,
-        goalId: "goal-career",
-        title: "Polish portfolio case study",
-        category: "career",
-        scheduledDate: offsetDate(2),
-        deadline: offsetDate(6),
-        estimatedMinutes: 90,
-        priority: "medium",
-        difficulty: 3,
-        status: "planned",
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: "task-exercise",
-        userId,
-        semesterId,
-        goalId: "goal-health",
-        title: "30-minute easy run",
-        category: "health",
-        scheduledDate: offsetDate(4),
-        estimatedMinutes: 30,
-        priority: "medium",
-        difficulty: 2,
-        status: "planned",
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    habits: [
-      {
-        id: "habit-plan",
-        userId,
-        semesterId,
-        title: "Plan tomorrow",
-        category: "personal",
-        measurementType: "boolean",
-        targetDays: [0, 1, 2, 3, 4, 5, 6],
-        isActive: true,
-      },
-      {
-        id: "habit-sleep",
-        userId,
-        semesterId,
-        title: "Sleep before 12:30",
-        category: "health",
-        measurementType: "boolean",
-        targetDays: [0, 1, 2, 3, 4, 5, 6],
-        isActive: true,
-      },
-      {
-        id: "habit-guitar",
-        userId,
-        semesterId,
-        title: "Guitar practice",
-        category: "guitar",
-        measurementType: "duration",
-        targetValue: 30,
-        unit: "min",
-        targetDays: [1, 3, 5, 6],
-        isActive: true,
-      },
-      {
-        id: "habit-review",
-        userId,
-        semesterId,
-        title: "Lecture review",
-        category: "academics",
-        measurementType: "boolean",
-        targetDays: [1, 2, 3, 4, 5],
-        isActive: true,
-      },
-    ],
-    habitLogs: [
-      ...[-6, -5, -4, -3, -2, -1].map((day) => ({
-        id: `habit-plan-${day}`,
-        habitId: "habit-plan",
-        userId,
-        date: offsetDate(day),
-        completed: day !== -3,
-      })),
-      ...[-6, -5, -4, -3, -2, -1].map((day) => ({
-        id: `habit-sleep-${day}`,
-        habitId: "habit-sleep",
-        userId,
-        date: offsetDate(day),
-        completed: day !== -2 && day !== -5,
-      })),
-      ...[-5, -3, -1].map((day) => ({
-        id: `habit-guitar-${day}`,
-        habitId: "habit-guitar",
-        userId,
-        date: offsetDate(day),
-        completed: true,
-        value: 35,
-      })),
-    ],
-    guitarSessions: [
-      {
-        id: "guitar-1",
-        userId,
-        semesterId,
-        date: offsetDate(-5),
-        durationMinutes: 35,
-        instrument: "Electric guitar",
-        category: "Lead guitar",
-        techniques: ["Alternate picking", "Bends"],
-        song: "Original solo study",
-        startingBpm: 84,
-        endingBpm: 92,
-        cleanBpm: 88,
-        difficulty: 4,
-        confidence: 3,
-        notes: "Bends are landing more consistently.",
-        nextFocus: "Relax the picking hand above 90 BPM.",
-      },
-      {
-        id: "guitar-2",
-        userId,
-        semesterId,
-        date: offsetDate(-2),
-        durationMinutes: 42,
-        instrument: "Electric guitar",
-        category: "Repertoire",
-        techniques: ["Vibrato", "Slides"],
-        song: "Original solo study",
-        startingBpm: 88,
-        endingBpm: 96,
-        cleanBpm: 92,
-        difficulty: 3,
-        confidence: 4,
-        notes: "First half is now memorised.",
-        nextFocus: "Connect the transition into phrase three.",
-      },
-    ],
+    goals: [],
+    milestones: [],
+    tasks: [],
+    habits: [],
+    habitLogs: [],
+    guitarSessions: [],
     reflections: [],
-    modules: [
-      {
-        id: "module-cs2040",
-        userId,
-        semesterId,
-        code: "CS2040",
-        name: "Data Structures and Algorithms",
-        lecturer: "Dr Lim",
-        credits: 4,
-        targetGrade: "A",
-        estimatedGrade: "A-",
-        color: "#7c83fd",
-        weeklyStudyMinutes: 270,
-        assessments: [
-          {
-            id: "assessment-cs2040-quiz",
-            moduleId: "module-cs2040",
-            title: "Graph Algorithms Quiz",
-            type: "quiz",
-            weight: 15,
-            deadline: offsetDate(8),
-            progress: 65,
-            status: "in_progress",
-            targetScore: 85,
-          },
-        ],
-      },
-      {
-        id: "module-cs2103t",
-        userId,
-        semesterId,
-        code: "CS2103T",
-        name: "Software Engineering",
-        lecturer: "Prof Tan",
-        credits: 4,
-        targetGrade: "A-",
-        estimatedGrade: "B+",
-        color: "#ff6b9d",
-        weeklyStudyMinutes: 220,
-        assessments: [
-          {
-            id: "assessment-cs2103t-project",
-            moduleId: "module-cs2103t",
-            title: "Team Project Milestone",
-            type: "project",
-            weight: 30,
-            deadline: offsetDate(3),
-            progress: 72,
-            status: "in_progress",
-            targetScore: 80,
-          },
-        ],
-      },
-      {
-        id: "module-is1108",
-        userId,
-        semesterId,
-        code: "IS1108",
-        name: "Digital Ethics and Society",
-        lecturer: "Dr Wong",
-        credits: 4,
-        targetGrade: "A-",
-        estimatedGrade: "A-",
-        color: "#34c88a",
-        weeklyStudyMinutes: 120,
-        assessments: [
-          {
-            id: "assessment-is1108-essay",
-            moduleId: "module-is1108",
-            title: "Position Paper",
-            type: "assignment",
-            weight: 25,
-            deadline: offsetDate(15),
-            progress: 20,
-            status: "in_progress",
-            targetScore: 82,
-          },
-        ],
-      },
-    ],
-    algorithmLogs: [
-      {
-        id: "algorithm-1",
-        userId,
-        semesterId,
-        platform: "LeetCode",
-        problemName: "Number of Islands",
-        topic: "Graphs",
-        difficulty: "Medium",
-        completedDate: offsetDate(-1),
-        minutes: 38,
-        usedHints: false,
-        confidence: 4,
-        lesson: "Mark nodes as visited when enqueued, not when dequeued.",
-      },
-      {
-        id: "algorithm-2",
-        userId,
-        semesterId,
-        platform: "LeetCode",
-        problemName: "Course Schedule",
-        topic: "Topological sort",
-        difficulty: "Medium",
-        completedDate: offsetDate(-4),
-        minutes: 52,
-        usedHints: true,
-        confidence: 3,
-        lesson: "Indegree is the cleanest signal for Kahn's algorithm.",
-      },
-    ],
-    applications: [
-      {
-        id: "application-1",
-        userId,
-        company: "Northstar Labs",
-        role: "Software Engineering Intern",
-        applicationDate: offsetDate(-6),
-        stage: "assessment",
-        nextAction: "Complete coding assessment",
-        nextActionDate: offsetDate(5),
-      },
-      {
-        id: "application-2",
-        userId,
-        company: "Orbit AI",
-        role: "Machine Learning Intern",
-        applicationDate: offsetDate(-2),
-        stage: "applied",
-        nextAction: "Send portfolio follow-up",
-        nextActionDate: offsetDate(7),
-      },
-    ],
-    weeklyPriorities: [
-      "Ship the CS2103T project milestone",
-      "Complete two graph-problem sessions",
-      "Practise the full guitar solo at 92 BPM",
-    ],
+    modules: [],
+    algorithmLogs: [],
+    applications: [],
+    weeklyPriorities: ["", "", ""],
   };
 }
 
@@ -556,7 +160,7 @@ export function normalizeStoredData(
   value: unknown,
   userId: string,
 ): ResolveData {
-  const seed = createSeedData(userId);
+  const seed = createEmptyData(userId);
   if (!value || typeof value !== "object" || Array.isArray(value)) return seed;
 
   const stored = value as Partial<ResolveData>;
@@ -566,7 +170,7 @@ export function normalizeStoredData(
     Array.isArray(stored.weeklyPriorities) &&
     stored.weeklyPriorities.length === 3 &&
     stored.weeklyPriorities.every(
-      (priority) => typeof priority === "string" && priority.trim(),
+      (priority) => typeof priority === "string",
     )
       ? stored.weeklyPriorities.map((priority) => priority.trim())
       : seed.weeklyPriorities;
@@ -600,27 +204,147 @@ export function normalizeStoredData(
 export function ResolveProvider({ children }: { children: ReactNode }) {
   const { user, isConfigured } = useAuth();
   const identity = user?.id ?? "demo-user";
-  const storageKey = `resolve-data-v1:${identity}`;
-  const [data, setData] = useState<ResolveData>(() => createSeedData(identity));
+  const storageKey = `resolve-data-v2:${identity}`;
+  const accountSyncEnabled = isConfigured && Boolean(user);
+  const [data, setData] = useState<ResolveData>(() =>
+    createEmptyData(identity),
+  );
   const [hydratedKey, setHydratedKey] = useState<string | null>(null);
+  const [cloudReadyKey, setCloudReadyKey] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] =
+    useState<ResolveContextValue["syncStatus"]>(
+      accountSyncEnabled ? "connecting" : "demo",
+    );
+  const [syncError, setSyncError] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const dataRef = useRef(data);
+  const lastRemoteJson = useRef("");
+  const writeSequence = useRef(0);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  useEffect(() => {
+    let unsubscribe = () => {};
+    let disposed = false;
+    let missingHandled = false;
+
+    const startupId = window.setTimeout(() => {
+      let initial = createEmptyData(identity);
       try {
         const stored = window.localStorage.getItem(storageKey);
         if (stored) {
-          setData(normalizeStoredData(JSON.parse(stored), identity));
-        } else {
-          setData(createSeedData(identity));
+          initial = normalizeStoredData(JSON.parse(stored), identity);
         }
       } catch {
-        setData(createSeedData(identity));
-      } finally {
-        setHydratedKey(storageKey);
+        initial = createEmptyData(identity);
       }
+
+      dataRef.current = initial;
+      setData(initial);
+      setHydratedKey(storageKey);
+      setCloudReadyKey(null);
+      lastRemoteJson.current = "";
+      setSyncError("");
+      setLastSyncedAt(null);
+
+      if (!accountSyncEnabled) {
+        setSyncStatus("demo");
+        return;
+      }
+
+      setSyncStatus("connecting");
+      unsubscribe = subscribeToWorkspace<ResolveData>(
+        identity,
+        ({
+          data: remoteData,
+          schemaVersion,
+          hasPendingWrites,
+          fromCache,
+        }) => {
+          if (disposed) return;
+
+          if (schemaVersion !== WORKSPACE_SCHEMA_VERSION) {
+            const freshData = createEmptyData(identity);
+            const freshJson = JSON.stringify(freshData);
+            dataRef.current = freshData;
+            lastRemoteJson.current = freshJson;
+            setData(freshData);
+            setCloudReadyKey(storageKey);
+            setSyncStatus("saving");
+            setSyncError("");
+            void saveWorkspace(identity, freshData)
+              .then(() => {
+                if (disposed) return;
+                setSyncStatus("synced");
+                setLastSyncedAt(new Date().toISOString());
+              })
+              .catch((error: unknown) => {
+                if (disposed) return;
+                setSyncStatus("error");
+                setSyncError(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not reset the cloud workspace.",
+                );
+              });
+            return;
+          }
+
+          const normalized = normalizeStoredData(remoteData, identity);
+          const remoteJson = JSON.stringify(normalized);
+          lastRemoteJson.current = remoteJson;
+          dataRef.current = normalized;
+          setData(normalized);
+          setCloudReadyKey(storageKey);
+          setSyncStatus(
+            hasPendingWrites ? "saving" : fromCache ? "offline" : "synced",
+          );
+          if (!hasPendingWrites && !fromCache) {
+            setLastSyncedAt(new Date().toISOString());
+          }
+        },
+        () => {
+          if (disposed || missingHandled) return;
+          missingHandled = true;
+          const initialData = dataRef.current;
+          const initialJson = JSON.stringify(initialData);
+          setSyncStatus("saving");
+          void saveWorkspace(identity, initialData)
+            .then(() => {
+              if (disposed) return;
+              lastRemoteJson.current = initialJson;
+              setCloudReadyKey(storageKey);
+              setSyncStatus("synced");
+              setLastSyncedAt(new Date().toISOString());
+            })
+            .catch((error: unknown) => {
+              if (disposed) return;
+              setCloudReadyKey(storageKey);
+              setSyncStatus("error");
+              setSyncError(
+                error instanceof Error
+                  ? error.message
+                  : "Could not create the cloud workspace.",
+              );
+            });
+        },
+        (error) => {
+          if (disposed) return;
+          setCloudReadyKey(storageKey);
+          setSyncStatus("offline");
+          setSyncError(error.message);
+        },
+      );
     }, 0);
-    return () => window.clearTimeout(timeoutId);
-  }, [identity, storageKey]);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(startupId);
+      unsubscribe();
+    };
+  }, [accountSyncEnabled, identity, storageKey]);
 
   useEffect(() => {
     if (hydratedKey === storageKey) {
@@ -632,10 +356,57 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
     }
   }, [data, hydratedKey, storageKey]);
 
+  useEffect(() => {
+    if (
+      !accountSyncEnabled ||
+      cloudReadyKey !== storageKey ||
+      hydratedKey !== storageKey
+    ) {
+      return;
+    }
+
+    const nextJson = JSON.stringify(data);
+    if (nextJson === lastRemoteJson.current) return;
+
+    const sequence = ++writeSequence.current;
+    const saveTimer = window.setTimeout(() => {
+      setSyncStatus("saving");
+      setSyncError("");
+      void saveWorkspace(identity, data)
+        .then(() => {
+          if (sequence !== writeSequence.current) return;
+          lastRemoteJson.current = nextJson;
+          setSyncStatus("synced");
+          setLastSyncedAt(new Date().toISOString());
+        })
+        .catch((error: unknown) => {
+          if (sequence !== writeSequence.current) return;
+          setSyncStatus("offline");
+          setSyncError(
+            error instanceof Error
+              ? error.message
+              : "Cloud sync failed. Changes remain saved in this browser.",
+          );
+        });
+    }, 450);
+
+    return () => window.clearTimeout(saveTimer);
+  }, [
+    accountSyncEnabled,
+    cloudReadyKey,
+    data,
+    hydratedKey,
+    identity,
+    storageKey,
+  ]);
+
   const value = useMemo<ResolveContextValue>(
     () => ({
       ...data,
-      storageMode: isConfigured ? "account-browser" : "browser-demo",
+      storageMode: accountSyncEnabled ? "cloud" : "browser",
+      syncStatus,
+      syncError,
+      lastSyncedAt,
       addTask(task) {
         setData((current) =>
           addTaskToData(current, task, { identity }),
@@ -654,6 +425,51 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           addGoalToData(current, goal, { identity }),
         );
       },
+      addHabit(habit) {
+        setData((current) =>
+          addHabitToData(current, habit, { identity }),
+        );
+      },
+      addModule(module) {
+        setData((current) =>
+          addModuleToData(current, module, { identity }),
+        );
+      },
+      addAssessment(assessment) {
+        setData((current) =>
+          addAssessmentToData(current, assessment, { identity }),
+        );
+      },
+      addAlgorithmLog(log) {
+        setData((current) =>
+          addAlgorithmLogToData(current, log, { identity }),
+        );
+      },
+      addApplication(application) {
+        setData((current) =>
+          addApplicationToData(current, application, { identity }),
+        );
+      },
+      updateApplicationStage(applicationId, stage) {
+        setData((current) =>
+          updateApplicationStageInData(current, applicationId, stage),
+        );
+      },
+      updateAssessmentProgress(moduleId, assessmentId, progress) {
+        setData((current) =>
+          updateAssessmentProgressInData(
+            current,
+            moduleId,
+            assessmentId,
+            progress,
+          ),
+        );
+      },
+      updateModuleStudyMinutes(moduleId, minutes) {
+        setData((current) =>
+          updateModuleStudyMinutesInData(current, moduleId, minutes),
+        );
+      },
       updateGoalProgress(goalId, progress) {
         setData((current) =>
           updateGoalProgressInData(current, goalId, progress),
@@ -662,6 +478,11 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       toggleHabit(habitId, date) {
         setData((current) =>
           toggleHabitInData(current, habitId, date, { identity }),
+        );
+      },
+      updateTaskActualMinutes(taskId, minutes) {
+        setData((current) =>
+          updateTaskActualMinutesInData(current, taskId, minutes),
         );
       },
       addGuitarSession(session) {
@@ -684,11 +505,18 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           updatePrioritiesInData(current, priorities),
         );
       },
-      resetDemo() {
-        setData(createSeedData(identity));
+      resetWorkspace() {
+        setData(createEmptyData(identity));
       },
     }),
-    [data, identity, isConfigured],
+    [
+      accountSyncEnabled,
+      data,
+      identity,
+      lastSyncedAt,
+      syncError,
+      syncStatus,
+    ],
   );
 
   if (hydratedKey !== storageKey) {

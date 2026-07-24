@@ -16,23 +16,33 @@ import {
 import { ProgressBar } from "@/components/ui/badge";
 import {
   CategoryBadge,
+  EmptyState,
   MetricCard,
   PageIntro,
   fieldClassName,
 } from "@/components/ui/resolve";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
 import { resolveCharacterState } from "@/lib/character/dialogue";
+import { getCharacterTask } from "@/lib/character-tasks";
 import { formatDate } from "@/lib/utils";
 import type { GoalCategory } from "@/types";
 
 export default function TodayPage() {
-  const { tasks, habits, habitLogs, addTask, toggleTask, toggleHabit } =
-    useResolve();
+  const {
+    tasks,
+    habits,
+    habitLogs,
+    addTask,
+    toggleTask,
+    toggleHabit,
+    updateTaskActualMinutes,
+  } = useResolve();
   const today = offsetDate(0);
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<GoalCategory>("academics");
   const [minutes, setMinutes] = useState("45");
+  const [deadline, setDeadline] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -61,16 +71,28 @@ export default function TodayPage() {
         log.habitId === habit.id && log.date === today && log.completed,
     ),
   ).length;
-  const state = resolveCharacterState({
+  let habitStreak = 0;
+  for (let day = 0; day < 365; day += 1) {
+    const date = offsetDate(-day);
+    if (habitLogs.some((log) => log.date === date && log.completed)) {
+      habitStreak += 1;
+    } else {
+      break;
+    }
+  }
+  const state = {
+    ...resolveCharacterState({
     tasksCompletedToday: complete,
     tasksTotalToday: todayTasks.length,
     overdueTasks: 0,
     upcomingDeadlines: todayTasks.filter((task) => task.deadline === today)
       .length,
-    habitStreak: 4,
+    habitStreak,
     weeklyWorkloadHours: totalMinutes / 60,
     hourOfDay: new Date().getHours(),
-  });
+    }),
+    dialogue: getCharacterTask("nijika", todayTasks).dialogue,
+  };
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -80,9 +102,11 @@ export default function TodayPage() {
       category,
       priority: "medium",
       scheduledDate: today,
+      deadline: deadline || undefined,
       estimatedMinutes: Number(minutes) || 0,
     });
     setTitle("");
+    setDeadline("");
     setShowAdd(false);
     router.replace("/today", { scroll: false });
   }
@@ -122,13 +146,12 @@ export default function TodayPage() {
             <CardContent>
               <form
                 onSubmit={submit}
-                className="grid gap-3 md:grid-cols-[1fr_180px_120px_auto]"
+                className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_170px_120px_170px_auto]"
               >
                 <input
                   className={fieldClassName}
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  placeholder="e.g. Draft the project introduction"
                   aria-label="Task title"
                   autoFocus
                   required
@@ -157,6 +180,14 @@ export default function TodayPage() {
                   step="5"
                   aria-label="Estimated minutes"
                   required
+                />
+                <input
+                  className={fieldClassName}
+                  value={deadline}
+                  onChange={(event) => setDeadline(event.target.value)}
+                  type="date"
+                  min={today}
+                  aria-label="Task deadline (optional)"
                 />
                 <Button type="submit">Add to today</Button>
               </form>
@@ -210,35 +241,68 @@ export default function TodayPage() {
                 return (
                   <div
                     key={task.id}
-                    className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-4"
+                    className="rounded-2xl border border-border bg-surface p-4"
                   >
-                    <button
-                      type="button"
-                      onClick={() => toggleTask(task.id)}
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-2 ${
-                        done
-                          ? "border-success bg-success text-white"
-                          : "border-border text-muted hover:border-accent"
-                      }`}
-                      aria-label={`Toggle ${task.title}`}
-                    >
-                      {done ? <Check className="h-4 w-4" /> : index + 1}
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`font-bold ${done ? "text-muted line-through" : ""}`}
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => toggleTask(task.id)}
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-2 ${
+                          done
+                            ? "border-success bg-success text-white"
+                            : "border-border text-muted hover:border-accent"
+                        }`}
+                        aria-label={`Toggle ${task.title}`}
                       >
-                        {task.title}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        {task.estimatedMinutes ?? 0} minutes · difficulty{" "}
-                        {task.difficulty ?? 2}/5
-                      </p>
+                        {done ? <Check className="h-4 w-4" /> : index + 1}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`font-bold ${done ? "text-muted line-through" : ""}`}
+                        >
+                          {task.title}
+                        </p>
+                        <p className="mt-1 text-xs text-muted">
+                          {task.estimatedMinutes ?? 0} planned minutes ·
+                          difficulty {task.difficulty ?? 2}/5
+                        </p>
+                      </div>
+                      <CategoryBadge category={task.category} />
                     </div>
-                    <CategoryBadge category={task.category} />
+                    {done && (
+                      <label className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3 text-xs font-bold text-muted sm:ml-12 sm:justify-start">
+                        Time actually spent
+                        <input
+                          key={`${task.id}-${task.actualMinutes ?? "new"}`}
+                          className="h-8 w-24 rounded-lg border border-border bg-surface-muted px-2 text-foreground outline-none focus:border-accent"
+                          type="number"
+                          min="0"
+                          max="720"
+                          step="5"
+                          defaultValue={
+                            task.actualMinutes ?? task.estimatedMinutes ?? 0
+                          }
+                          onBlur={(event) =>
+                            updateTaskActualMinutes(
+                              task.id,
+                              Number(event.target.value),
+                            )
+                          }
+                          aria-label={`Actual minutes for ${task.title}`}
+                        />
+                        <span>min</span>
+                      </label>
+                    )}
                   </div>
                 );
               })}
+              {!todayTasks.length && (
+                <EmptyState
+                  title="Today’s setlist is clear"
+                  description="Add one focused action instead of filling the day with an unrealistic queue."
+                  action={<Button onClick={() => setShowAdd(true)}>Add today’s first task</Button>}
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -282,6 +346,12 @@ export default function TodayPage() {
                     </button>
                   );
                 })}
+                {!habits.length && (
+                  <EmptyState
+                    title="No daily rhythms yet"
+                    description="Create habits from Nijika’s Habits page, then check them in here."
+                  />
+                )}
               </CardContent>
             </Card>
           </div>

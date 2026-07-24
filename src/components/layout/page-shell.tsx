@@ -22,17 +22,6 @@ export function PageShell({
       data-character={theme.key}
     >
       <AppHeader title={title} theme={theme} />
-      <motion.div
-        key={`cut-${pathname}`}
-        initial={{ opacity: 0.92, clipPath: "inset(0 0 0 0)" }}
-        animate={{ opacity: 0, clipPath: "inset(0 0 100% 0)" }}
-        transition={{ duration: 0.72, delay: 0.12, ease: [0.7, 0, 0.2, 1] }}
-        className="anime-cut-in"
-        aria-hidden="true"
-      >
-        <span>SCENE START</span>
-        <strong>{theme.name.toUpperCase()} ROUTE</strong>
-      </motion.div>
       <motion.main
         key={pathname}
         initial={{ opacity: 0, y: 10 }}

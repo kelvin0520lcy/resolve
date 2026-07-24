@@ -36,14 +36,11 @@ beforeEach(() => {
 });
 
 describe("character arc navigation components", () => {
-  it("shows all four character arcs from the ensemble dashboard", () => {
-    render(<CharacterArcBar pathname="/dashboard" />);
-    expect(
-      screen.getByRole("region", { name: "Character arcs" }),
-    ).toBeInTheDocument();
-    for (const character of ["Nijika", "Bocchi", "Ryo", "Kita"]) {
-      expect(screen.getByText(character)).toBeInTheDocument();
-    }
+  it("does not add a redundant arc switcher to common pages", () => {
+    const { container } = render(
+      <CharacterArcBar pathname="/dashboard" />,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("shows only coherent sibling pages inside a character route", () => {
@@ -72,13 +69,17 @@ describe("character arc navigation components", () => {
     expect(
       screen.getByRole("region", { name: "Kita’s Spotlight" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/settings",
+    );
   });
 
   it("keeps one mobile entry point for the band and each character", () => {
     render(<MobileNav />);
     const nav = screen.getByRole("navigation");
     expect(nav.querySelectorAll("a")).toHaveLength(6);
-    expect(screen.getByRole("link", { name: "Band Dashboard" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/dashboard",
     );

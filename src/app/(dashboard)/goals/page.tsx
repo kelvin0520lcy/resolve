@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import {
   CategoryBadge,
+  EmptyState,
   MetricCard,
   PageIntro,
   fieldClassName,
@@ -21,16 +22,18 @@ import {
 } from "@/components/ui/resolve";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
 import { formatDate } from "@/lib/utils";
-import type { GoalCategory } from "@/types";
+import type { Goal, GoalCategory } from "@/types";
 
 export default function GoalsPage() {
-  const { goals, milestones, addGoal, updateGoalProgress } = useResolve();
+  const { goals, addGoal, updateGoalProgress } = useResolve();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<GoalCategory>("academics");
   const [target, setTarget] = useState("10");
   const [unit, setUnit] = useState("sessions");
+  const [priority, setPriority] = useState<Goal["priority"]>("medium");
+  const [deadline, setDeadline] = useState(offsetDate(60));
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -39,10 +42,10 @@ export default function GoalsPage() {
       title: title.trim(),
       description: description.trim(),
       category,
-      priority: "medium",
+      priority,
       targetValue: Number(target) || 1,
       unit: unit.trim() || "steps",
-      deadline: offsetDate(60),
+      deadline,
     });
     setTitle("");
     setDescription("");
@@ -95,56 +98,88 @@ export default function GoalsPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-                <input
-                  className={fieldClassName}
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Goal title"
-                  aria-label="Goal title"
-                  autoFocus
-                  required
-                />
-                <select
-                  className={fieldClassName}
-                  value={category}
-                  onChange={(event) =>
-                    setCategory(event.target.value as GoalCategory)
-                  }
-                  aria-label="Goal category"
-                >
-                  <option value="academics">Academics</option>
-                  <option value="career">Career</option>
-                  <option value="technical">Technical skills</option>
-                  <option value="guitar">Guitar</option>
-                  <option value="health">Health</option>
-                  <option value="personal">Personal project</option>
-                </select>
-                <textarea
-                  className={`${textAreaClassName} md:col-span-2`}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder="What does done look like?"
-                  aria-label="Goal description"
-                  required
-                />
-                <input
-                  className={fieldClassName}
-                  value={target}
-                  onChange={(event) => setTarget(event.target.value)}
-                  type="number"
-                  min="1"
-                  max="1000000"
-                  aria-label="Target value"
-                  required
-                />
-                <input
-                  className={fieldClassName}
-                  value={unit}
-                  onChange={(event) => setUnit(event.target.value)}
-                  placeholder="Unit, e.g. sessions"
-                  aria-label="Target unit"
-                  required
-                />
+                <label className="text-sm font-bold">
+                  Goal title
+                  <input
+                    className={`${fieldClassName} mt-2`}
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label className="text-sm font-bold">
+                  Category
+                  <select
+                    className={`${fieldClassName} mt-2`}
+                    value={category}
+                    onChange={(event) =>
+                      setCategory(event.target.value as GoalCategory)
+                    }
+                  >
+                    <option value="academics">Academics</option>
+                    <option value="career">Career</option>
+                    <option value="technical">Technical skills</option>
+                    <option value="guitar">Guitar</option>
+                    <option value="health">Health</option>
+                    <option value="personal">Personal project</option>
+                  </select>
+                </label>
+                <label className="text-sm font-bold md:col-span-2">
+                  What does done look like?
+                  <textarea
+                    className={`${textAreaClassName} mt-2`}
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="text-sm font-bold">
+                  Target value
+                  <input
+                    className={`${fieldClassName} mt-2`}
+                    value={target}
+                    onChange={(event) => setTarget(event.target.value)}
+                    type="number"
+                    min="1"
+                    max="1000000"
+                    required
+                  />
+                </label>
+                <label className="text-sm font-bold">
+                  Unit
+                  <input
+                    className={`${fieldClassName} mt-2`}
+                    value={unit}
+                    onChange={(event) => setUnit(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="text-sm font-bold">
+                  Priority
+                  <select
+                    className={`${fieldClassName} mt-2`}
+                    value={priority}
+                    onChange={(event) =>
+                      setPriority(event.target.value as Goal["priority"])
+                    }
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label className="text-sm font-bold">
+                  Deadline
+                  <input
+                    className={`${fieldClassName} mt-2`}
+                    value={deadline}
+                    onChange={(event) => setDeadline(event.target.value)}
+                    type="date"
+                    min={offsetDate(0)}
+                    required
+                  />
+                </label>
                 <Button className="md:col-span-2" type="submit">
                   Add semester goal
                 </Button>
@@ -153,15 +188,12 @@ export default function GoalsPage() {
           </Card>
         )}
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        {goals.length ? <div className="grid gap-5 lg:grid-cols-2">
           {goals.map((goal) => {
             const progress =
               ((goal.currentValue ?? 0) /
                 Math.max(goal.targetValue ?? 1, 1)) *
               100;
-            const goalMilestones = milestones.filter(
-              (milestone) => milestone.goalId === goal.id,
-            );
             return (
               <Card key={goal.id} className="overflow-hidden">
                 <div
@@ -229,43 +261,18 @@ export default function GoalsPage() {
                       }
                     />
                   </label>
-                  {!!goalMilestones.length && (
-                    <div className="mt-5 border-t border-border pt-4">
-                      <p className="mb-3 text-xs font-black uppercase tracking-wider text-muted">
-                        Milestones
-                      </p>
-                      <div className="space-y-2">
-                        {goalMilestones.map((milestone) => (
-                          <div
-                            key={milestone.id}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            <CheckCircle2
-                              className={`h-4 w-4 ${
-                                milestone.completed
-                                  ? "text-success"
-                                  : "text-border"
-                              }`}
-                            />
-                            <span
-                              className={
-                                milestone.completed
-                                  ? "text-muted line-through"
-                                  : "font-medium"
-                              }
-                            >
-                              {milestone.title}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             );
           })}
-        </div>
+        </div> : (
+          <EmptyState
+            icon={<Target className="h-6 w-6" />}
+            title="No goals yet"
+            description="Create one measurable outcome. The rest of Resolve will use it to connect tasks and progress."
+            action={<Button onClick={() => setShowForm(true)}>Create a goal</Button>}
+          />
+        )}
       </div>
     </PageShell>
   );

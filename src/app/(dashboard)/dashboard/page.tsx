@@ -7,12 +7,12 @@ import {
   Check,
   Flame,
   Plus,
-  Sparkles,
   Target,
   Zap,
 } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { CharacterCompanion } from "@/components/character/character-companion";
+import { MainResolutionPanel } from "@/components/resolution/main-resolution-panel";
 import { ProgressBar } from "@/components/ui/badge";
 import {
   Card,
@@ -21,8 +21,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CategoryBadge, MetricCard } from "@/components/ui/resolve";
+import {
+  CategoryBadge,
+  EmptyState,
+  MetricCard,
+} from "@/components/ui/resolve";
 import { resolveCharacterState } from "@/lib/character/dialogue";
+import { getDailyMotivation } from "@/lib/daily-motivation";
 import { formatDate, getSemesterWeek } from "@/lib/utils";
 import {
   getWeekDateKeys,
@@ -39,6 +44,7 @@ export default function DashboardPage() {
     habitLogs,
     weeklyPriorities,
     toggleTask,
+    updateSemester,
   } = useResolve();
   const today = offsetDate(0);
   const weekDates = getWeekDateKeys();
@@ -73,6 +79,15 @@ export default function DashboardPage() {
         log.habitId === habit.id && log.date === today && log.completed,
     ),
   ).length;
+  let habitStreak = 0;
+  for (let day = 0; day < 365; day += 1) {
+    const date = offsetDate(-day);
+    if (habitLogs.some((log) => log.date === date && log.completed)) {
+      habitStreak += 1;
+    } else {
+      break;
+    }
+  }
   const semesterStats = getSemesterWeek(
     semester.startDate,
     semester.endDate,
@@ -82,51 +97,37 @@ export default function DashboardPage() {
     tasksTotalToday: todayTasks.length,
     overdueTasks: overdue,
     upcomingDeadlines: deadlines.length,
-    habitStreak: 4,
+    habitStreak,
     weeklyWorkloadHours: Math.round(weekMinutes / 60),
     hourOfDay: new Date().getHours(),
   });
   const topGoal = goals
     .filter((goal) => goal.status !== "completed")
     .sort((a, b) => (a.priority === "high" ? -1 : b.priority === "high" ? 1 : 0))[0];
+  const nextProof =
+    topGoal?.title ??
+    todayTasks.find((task) => task.status !== "completed")?.title ??
+    weeklyPriorities.find(Boolean);
+  const dailyQuote = getDailyMotivation(today, semester.userId);
 
   return (
     <PageShell title="Dashboard">
       <div className="mx-auto max-w-7xl space-y-6">
-        <section className="grid gap-5 lg:grid-cols-[1.45fr_0.55fr]">
+        <section className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
+          <MainResolutionPanel
+            resolution={semester.mainResolution}
+            theme={semester.theme}
+            semesterName={semester.name}
+            weekNumber={semesterStats.weekNumber}
+            percentComplete={semesterStats.percentComplete}
+            daysRemaining={semesterStats.daysRemaining}
+            focus={nextProof}
+            quote={dailyQuote}
+            onSave={(mainResolution) =>
+              updateSemester({ ...semester, mainResolution })
+            }
+          />
           <CharacterCompanion state={characterState} className="h-full" />
-          <div className="manga-panel flex min-h-[340px] rotate-[0.5deg] flex-col justify-between rounded-[26px] p-6">
-            <div>
-              <div className="flex items-center gap-2 text-accent">
-                <Sparkles className="h-4 w-4" />
-                <span className="text-xs font-black uppercase tracking-[0.2em]">
-                  Episode {String(semesterStats.weekNumber).padStart(2, "0")}
-                </span>
-              </div>
-              <p className="mt-6 text-[9px] font-black uppercase tracking-[0.22em] text-[#756879]">
-                This week&apos;s title
-              </p>
-              <h1 className="font-display mt-2 text-4xl leading-[0.95] tracking-wide">
-                {semester.theme}
-              </h1>
-              <p className="mt-4 text-sm font-medium leading-6 text-[#64576c]">
-                {semester.mainResolution}
-              </p>
-            </div>
-            <div className="mt-6">
-              <div className="mb-3 flex justify-between text-[10px] font-black uppercase tracking-wider">
-                <span>{semesterStats.percentComplete}% complete</span>
-                <span>{semesterStats.daysRemaining} days left</span>
-              </div>
-              <ProgressBar
-                value={semesterStats.percentComplete}
-                className="border-[#18121f]/10 bg-[#18121f]/10"
-              />
-              <p className="mt-4 border-t border-[#18121f]/15 pt-3 text-[9px] font-black uppercase tracking-[0.18em] text-[#7a6e80]">
-                Season {semester.name}
-              </p>
-            </div>
-          </div>
         </section>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -213,6 +214,20 @@ export default function DashboardPage() {
                   </div>
                 );
               })}
+              {!todayTasks.length && (
+                <EmptyState
+                  title="Nothing planned for today"
+                  description="Start with one task that is specific enough to complete."
+                  action={
+                    <Link
+                      href="/today?add=true"
+                      className="inline-flex h-9 items-center rounded-xl bg-accent px-4 text-xs font-bold text-white"
+                    >
+                      Add a task
+                    </Link>
+                  }
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -223,14 +238,20 @@ export default function DashboardPage() {
                 <CardDescription>The plot points that matter most.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {weeklyPriorities.map((priority, index) => (
-                  <div key={priority} className="flex gap-3 rounded-xl border border-border bg-surface p-3">
+                {weeklyPriorities.filter(Boolean).map((priority, index) => (
+                  <div key={`${index}-${priority}`} className="flex gap-3 rounded-xl border border-border bg-surface p-3">
                     <span className="sticker flex h-6 w-6 shrink-0 -rotate-3 items-center justify-center rounded-md bg-warning text-xs font-black text-[#18121f]">
                       {index + 1}
                     </span>
                     <p className="text-sm font-medium leading-6">{priority}</p>
                   </div>
                 ))}
+                {!weeklyPriorities.some(Boolean) && (
+                  <p className="rounded-xl border border-dashed border-border p-4 text-sm leading-6 text-muted">
+                    Choose three outcomes on Weekly Plan so the week has a
+                    clear finish line.
+                  </p>
+                )}
                 <Link
                   href="/weekly"
                   className="mt-2 inline-flex items-center gap-1 text-sm font-bold text-accent"
@@ -290,6 +311,14 @@ export default function DashboardPage() {
                   </p>
                 </div>
               ))}
+              {!deadlines.length && (
+                <div className="sm:col-span-3">
+                  <EmptyState
+                    title="No upcoming deadlines"
+                    description="Add deadlines to tasks and they will appear here automatically."
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 

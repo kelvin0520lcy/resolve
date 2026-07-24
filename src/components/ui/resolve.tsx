@@ -81,6 +81,33 @@ export function CategoryBadge({ category }: { category: string }) {
   );
 }
 
+export function EmptyState({
+  title,
+  description,
+  icon,
+  action,
+}: {
+  title: string;
+  description: string;
+  icon?: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border-2 border-dashed border-border bg-surface-muted/35 px-5 py-10 text-center">
+      {icon && (
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+          {icon}
+        </div>
+      )}
+      <p className="font-display text-xl tracking-wide">{title}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
+        {description}
+      </p>
+      {action && <div className="mt-5">{action}</div>}
+    </div>
+  );
+}
+
 export const fieldClassName =
   "h-11 w-full rounded-xl border-2 border-border bg-surface px-3 text-sm shadow-[3px_3px_0_rgba(0,0,0,0.2)] outline-none transition focus:-translate-y-0.5 focus:border-accent focus:ring-2 focus:ring-accent/15";
 

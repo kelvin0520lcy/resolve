@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  EmptyState,
   MetricCard,
   PageIntro,
   fieldClassName,
@@ -29,6 +30,7 @@ export default function GuitarPage() {
   const [technique, setTechnique] = useState("Alternate picking");
   const [cleanBpm, setCleanBpm] = useState("90");
   const [notes, setNotes] = useState("");
+  const [nextFocus, setNextFocus] = useState("");
 
   const totalMinutes = guitarSessions.reduce(
     (sum, session) => sum + session.durationMinutes,
@@ -46,6 +48,9 @@ export default function GuitarPage() {
     }),
     {},
   );
+  const dominantSkill = Object.entries(skillMinutes).sort(
+    (a, b) => b[1] - a[1],
+  )[0];
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -55,7 +60,8 @@ export default function GuitarPage() {
       !Number.isFinite(durationMinutes) ||
       durationMinutes < 5 ||
       !Number.isFinite(bpm) ||
-      bpm < 20
+      bpm < 20 ||
+      !nextFocus.trim()
     ) {
       return;
     }
@@ -71,9 +77,10 @@ export default function GuitarPage() {
       confidence: 3,
       difficulty: 3,
       notes: notes.trim(),
-      nextFocus: "Repeat the cleanest phrase before increasing tempo.",
+      nextFocus: nextFocus.trim(),
     });
     setNotes("");
+    setNextFocus("");
     setShowForm(false);
   }
 
@@ -180,13 +187,23 @@ export default function GuitarPage() {
                     required
                   />
                 </label>
-                <textarea
-                  className={`${textAreaClassName} md:col-span-2`}
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="What clicked? What needs another pass?"
-                  aria-label="Practice notes"
-                />
+                <label className="text-sm font-bold">
+                  Practice notes
+                  <textarea
+                    className={`${textAreaClassName} mt-2`}
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                  />
+                </label>
+                <label className="text-sm font-bold">
+                  Exact starting point for next time
+                  <textarea
+                    className={`${textAreaClassName} mt-2`}
+                    value={nextFocus}
+                    onChange={(event) => setNextFocus(event.target.value)}
+                    required
+                  />
+                </label>
                 <Button type="submit" className="md:col-span-2">
                   Save practice session
                 </Button>
@@ -215,10 +232,20 @@ export default function GuitarPage() {
                     <ProgressBar value={(minutes / totalMinutes) * 100} />
                   </div>
                 ))}
-              <div className="rounded-2xl bg-warning/10 p-4 text-sm leading-6">
-                <strong>Studio note:</strong> Repertoire is moving well. Keep at
-                least one technique-only session in the next week.
-              </div>
+              {dominantSkill ? (
+                <div className="rounded-2xl bg-warning/10 p-4 text-sm leading-6">
+                  <strong>Studio note:</strong> {dominantSkill[0]} currently
+                  takes the largest share. Keep another skill in the next
+                  session if you want a more balanced practice mix.
+                </div>
+              ) : (
+                <EmptyState
+                  icon={<Guitar className="h-6 w-6" />}
+                  title="No practice mix yet"
+                  description="Log a session and the balance between your practice categories will appear here."
+                  action={<Button onClick={() => setShowForm(true)}>Log practice</Button>}
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -263,6 +290,12 @@ export default function GuitarPage() {
                   )}
                 </div>
               ))}
+              {!guitarSessions.length && (
+                <EmptyState
+                  title="No sessions logged"
+                  description="Your real practice history and next-focus notes will appear here."
+                />
+              )}
             </CardContent>
           </Card>
         </div>

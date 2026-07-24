@@ -22,7 +22,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Without Firebase configured, the landing page and dashboard demo work with placeholder data. Auth pages show a setup reminder until credentials are added.
+Without Firebase configured, the interface can be previewed with browser-only
+storage. Production accounts require Firebase Authentication and Firestore.
 
 ## Project structure
 
@@ -54,24 +55,22 @@ The main semester loop is implemented:
 - Interactive goals, daily tasks, weekly scheduling, and priorities
 - Seven-day habit check-ins with forgiving consistency metrics
 - Guitar practice sessions with clean-BPM and practice-mix tracking
-- Academic module and assessment views
-- Career problem logs and application pipeline
+- Academic module tracking
+- Career practice logs and application pipeline
 - Daily reflections, semester timeline, charts, and rule-based insights
 - Original companion artwork with contextual dialogue
 - Responsive desktop and mobile navigation
 
-Workspace data currently auto-saves to browser storage, namespaced by the
-signed-in Firebase user. The app also works in a seeded demo mode when Firebase
-is not configured. The settings page makes this storage status explicit.
+Signed-in workspaces synchronize in real time through a private
+`workspaces/{userId}` Firestore document. A browser copy remains available as
+an offline fallback, and Settings shows whether changes are connecting, saving,
+synced, or offline.
 
 ## Next production steps
 
-1. Replace browser persistence with Firestore subscriptions and offline cache.
-2. Add module, application, and habit creation/edit forms.
-3. Add calendar drag-and-drop and recurring task rules.
-4. Add achievement unlocks and notification preferences.
-5. Add automated component and end-to-end test coverage.
-6. Deploy the app and Firestore rules.
+1. Add calendar drag-and-drop and recurring task rules.
+2. Add achievement unlocks and notification preferences.
+3. Deploy the app and Firestore rules.
 
 ## Firebase setup
 

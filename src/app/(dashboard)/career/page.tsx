@@ -1,8 +1,10 @@
 "use client";
 
-import { BrainCircuit, Briefcase, Clock3 } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { BrainCircuit, Briefcase, Clock3, Plus, X } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,9 +12,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MetricCard, PageIntro } from "@/components/ui/resolve";
-import { useResolve } from "@/contexts/resolve-context";
+import {
+  EmptyState,
+  MetricCard,
+  PageIntro,
+  fieldClassName,
+  textAreaClassName,
+} from "@/components/ui/resolve";
+import { offsetDate, useResolve } from "@/contexts/resolve-context";
 import { formatDate } from "@/lib/utils";
+import type { AlgorithmLog, JobApplication } from "@/types";
 
 const stageVariant = {
   saved: "default",
@@ -24,7 +33,31 @@ const stageVariant = {
 } as const;
 
 export default function CareerPage() {
-  const { algorithmLogs, applications, goals } = useResolve();
+  const {
+    algorithmLogs,
+    applications,
+    goals,
+    addAlgorithmLog,
+    addApplication,
+    updateApplicationStage,
+  } = useResolve();
+  const [activeForm, setActiveForm] = useState<
+    "practice" | "application" | null
+  >(null);
+  const [problemName, setProblemName] = useState("");
+  const [topic, setTopic] = useState("");
+  const [minutes, setMinutes] = useState("30");
+  const [difficulty, setDifficulty] =
+    useState<AlgorithmLog["difficulty"]>("Medium");
+  const [confidence, setConfidence] = useState("3");
+  const [usedHints, setUsedHints] = useState(false);
+  const [lesson, setLesson] = useState("");
+  const [company, setCompany] = useState("");
+  const [role, setRole] = useState("");
+  const [stage, setStage] =
+    useState<JobApplication["stage"]>("applied");
+  const [nextAction, setNextAction] = useState("");
+  const [nextActionDate, setNextActionDate] = useState(offsetDate(3));
   const careerGoal = goals.find((goal) => goal.category === "career");
   const algorithmMinutes = algorithmLogs.reduce(
     (sum, log) => sum + log.minutes,
@@ -35,6 +68,46 @@ export default function CareerPage() {
       Math.max(algorithmLogs.length, 1),
   );
 
+  function submitPractice(event: FormEvent) {
+    event.preventDefault();
+    if (!problemName.trim() || !topic.trim() || !lesson.trim()) return;
+    addAlgorithmLog({
+      platform: "LeetCode",
+      problemName,
+      topic,
+      difficulty,
+      completedDate: offsetDate(0),
+      minutes: Number(minutes),
+      usedHints,
+      confidence: Number(confidence),
+      lesson,
+    });
+    setProblemName("");
+    setTopic("");
+    setLesson("");
+    setConfidence("3");
+    setUsedHints(false);
+    setActiveForm(null);
+  }
+
+  function submitApplication(event: FormEvent) {
+    event.preventDefault();
+    if (!company.trim() || !role.trim()) return;
+    addApplication({
+      company,
+      role,
+      applicationDate: offsetDate(0),
+      stage,
+      nextAction,
+      nextActionDate: nextAction.trim() ? nextActionDate : undefined,
+    });
+    setCompany("");
+    setRole("");
+    setNextAction("");
+    setNextActionDate(offsetDate(3));
+    setActiveForm(null);
+  }
+
   return (
     <PageShell title="Career">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -42,7 +115,194 @@ export default function CareerPage() {
           eyebrow="Development room"
           title="Build proof, not just preparation"
           description="Track interview practice and applications together so career work becomes a steady weekly system."
+          action={
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() =>
+                  setActiveForm((value) =>
+                    value === "practice" ? null : "practice",
+                  )
+                }
+              >
+                {activeForm === "practice" ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                Practice
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() =>
+                  setActiveForm((value) =>
+                    value === "application" ? null : "application",
+                  )
+                }
+              >
+                {activeForm === "application" ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                Application
+              </Button>
+            </div>
+          }
         />
+
+        {activeForm === "practice" && (
+          <Card className="border-accent/30">
+            <CardHeader>
+              <CardTitle>Log interview practice</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={submitPractice}
+                className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+              >
+                <label className="text-sm font-bold md:col-span-2">
+                  Problem
+                  <input
+                    className={`${fieldClassName} mt-2`}
+                    value={problemName}
+                    onChange={(event) => setProblemName(event.target.value)}
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label className="text-sm font-bold">
+                  Topic
+                  <input
+                    className={`${fieldClassName} mt-2`}
+                    value={topic}
+                    onChange={(event) => setTopic(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="text-sm font-bold">
+                  Difficulty
+                  <select
+                    className={`${fieldClassName} mt-2`}
+                    value={difficulty}
+                    onChange={(event) =>
+                      setDifficulty(
+                        event.target.value as AlgorithmLog["difficulty"],
+                      )
+                    }
+                  >
+                    <option>Easy</option>
+                    <option>Medium</option>
+                    <option>Hard</option>
+                  </select>
+                </label>
+                <label className="text-sm font-bold">
+                  Minutes
+                  <input
+                    className={`${fieldClassName} mt-2`}
+                    value={minutes}
+                    onChange={(event) => setMinutes(event.target.value)}
+                    type="number"
+                    min="1"
+                    max="720"
+                    required
+                  />
+                </label>
+                <label className="text-sm font-bold">
+                  Confidence
+                  <select
+                    className={`${fieldClassName} mt-2`}
+                    value={confidence}
+                    onChange={(event) => setConfidence(event.target.value)}
+                  >
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <option key={value} value={value}>
+                        {value}/5
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm font-bold md:col-span-2 xl:col-span-3">
+                  Reusable lesson
+                  <textarea
+                    className={`${textAreaClassName} mt-2`}
+                    value={lesson}
+                    onChange={(event) => setLesson(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="flex items-center gap-3 self-end rounded-xl border-2 border-border bg-surface px-3 py-3 text-sm font-bold">
+                  <input
+                    type="checkbox"
+                    checked={usedHints}
+                    onChange={(event) => setUsedHints(event.target.checked)}
+                    className="h-4 w-4 accent-pink-500"
+                  />
+                  Used hints
+                </label>
+                <Button type="submit" className="md:col-span-2 xl:col-span-4">
+                  Save practice evidence
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeForm === "application" && (
+          <Card className="border-accent/30">
+            <CardHeader>
+              <CardTitle>Add an application</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={submitApplication}
+                className="grid gap-3 md:grid-cols-2"
+              >
+                <input
+                  className={fieldClassName}
+                  value={company}
+                  onChange={(event) => setCompany(event.target.value)}
+                  aria-label="Company"
+                  autoFocus
+                  required
+                />
+                <input
+                  className={fieldClassName}
+                  value={role}
+                  onChange={(event) => setRole(event.target.value)}
+                  aria-label="Role"
+                  required
+                />
+                <select
+                  className={fieldClassName}
+                  value={stage}
+                  onChange={(event) =>
+                    setStage(event.target.value as JobApplication["stage"])
+                  }
+                  aria-label="Application stage"
+                >
+                  <option value="saved">Saved</option>
+                  <option value="applied">Applied</option>
+                  <option value="assessment">Assessment</option>
+                  <option value="interview">Interview</option>
+                  <option value="offer">Offer</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <input
+                  className={fieldClassName}
+                  value={nextAction}
+                  onChange={(event) => setNextAction(event.target.value)}
+                  aria-label="Next action"
+                  required={stage !== "closed"}
+                />
+                <input
+                  className={fieldClassName}
+                  value={nextActionDate}
+                  onChange={(event) => setNextActionDate(event.target.value)}
+                  type="date"
+                  aria-label="Next action date"
+                  required={Boolean(nextAction.trim())}
+                />
+                <Button type="submit" className="md:col-span-2">
+                  Add application
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-3">
           <MetricCard
@@ -101,11 +361,21 @@ export default function CareerPage() {
                     </div>
                     <Badge>{log.confidence}/5 confidence</Badge>
                   </div>
-                  <p className="mt-3 rounded-xl bg-surface-muted p-3 text-sm leading-6">
-                    <strong>Key lesson:</strong> {log.lesson}
-                  </p>
+                  {log.lesson && (
+                    <p className="mt-3 rounded-xl bg-surface-muted p-3 text-sm leading-6">
+                      <strong>Key lesson:</strong> {log.lesson}
+                    </p>
+                  )}
                 </div>
               ))}
+              {!algorithmLogs.length && (
+                <EmptyState
+                  icon={<BrainCircuit className="h-6 w-6" />}
+                  title="No practice logged"
+                  description="Log the problem, topic, and time so preparation becomes visible evidence."
+                  action={<Button onClick={() => setActiveForm("practice")}>Log practice</Button>}
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -129,12 +399,32 @@ export default function CareerPage() {
                         {application.role}
                       </p>
                     </div>
-                    <Badge
-                      variant={stageVariant[application.stage]}
-                      className="capitalize"
-                    >
-                      {application.stage}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-2">
+                      <Badge
+                        variant={stageVariant[application.stage]}
+                        className="capitalize"
+                      >
+                        {application.stage}
+                      </Badge>
+                      <select
+                        className="rounded-lg border border-border bg-surface-muted px-2 py-1 text-xs font-bold outline-none focus:border-accent"
+                        value={application.stage}
+                        onChange={(event) =>
+                          updateApplicationStage(
+                            application.id,
+                            event.target.value as JobApplication["stage"],
+                          )
+                        }
+                        aria-label={`Update stage for ${application.company}`}
+                      >
+                        <option value="saved">Saved</option>
+                        <option value="applied">Applied</option>
+                        <option value="assessment">Assessment</option>
+                        <option value="interview">Interview</option>
+                        <option value="offer">Offer</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                    </div>
                   </div>
                   {application.nextAction && (
                     <div className="mt-4 border-t border-border pt-3">
@@ -156,6 +446,14 @@ export default function CareerPage() {
                   )}
                 </div>
               ))}
+              {!applications.length && (
+                <EmptyState
+                  icon={<Briefcase className="h-6 w-6" />}
+                  title="No applications yet"
+                  description="Add an opportunity and its next action so nothing disappears into a spreadsheet."
+                  action={<Button onClick={() => setActiveForm("application")}>Add application</Button>}
+                />
+              )}
             </CardContent>
           </Card>
         </div>

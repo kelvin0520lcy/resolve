@@ -4,6 +4,7 @@ import {
   MAIN_NAV,
   MOBILE_NAV,
   NAV_ARCS,
+  SETTINGS_NAV,
   getNavArc,
 } from "@/lib/constants/navigation";
 import {
@@ -13,12 +14,13 @@ import {
 } from "@/lib/page-themes";
 
 describe("character-owned navigation", () => {
-  it("assigns each non-dashboard page to exactly one coherent arc", () => {
+  it("assigns member pages to one arc and keeps common pages separate", () => {
     const arcRoutes = NAV_ARCS.flatMap((arc) => arc.items.map((item) => item.href));
     expect(new Set(arcRoutes).size).toBe(arcRoutes.length);
     expect(MAIN_NAV.map((item) => item.href)).toEqual([
       DASHBOARD_NAV.href,
       ...arcRoutes,
+      SETTINGS_NAV.href,
     ]);
   });
 
@@ -28,12 +30,16 @@ describe("character-owned navigation", () => {
     ["/guitar", "bocchi"],
     ["/reflections", "bocchi"],
     ["/academics", "ryo"],
-    ["/settings", "ryo"],
     ["/goals", "kita"],
     ["/career", "kita"],
   ])("maps %s to the %s arc", (path, key) => {
     expect(getNavArc(path)?.key).toBe(key);
     expect(getPageTheme(path).key).toBe(key);
+  });
+
+  it("keeps settings outside every member arc", () => {
+    expect(getNavArc("/settings")).toBeUndefined();
+    expect(getPageTheme("/settings")).toBe(PAGE_THEMES.ensemble);
   });
 
   it("keeps the dashboard as the ensemble and safely falls back there", () => {
@@ -47,7 +53,7 @@ describe("character-owned navigation", () => {
       "/dashboard",
       "/today",
       "/guitar",
-      "/analytics",
+      "/academics",
       "/goals",
     ]);
   });
@@ -59,6 +65,15 @@ describe("character-owned navigation", () => {
       "/weekly",
       "/habits",
     ]);
-    expect(getThemeRoutes("ensemble")).toEqual(["/dashboard"]);
+    expect(getThemeRoutes("ensemble")).toEqual(["/dashboard", "/settings"]);
+  });
+
+  it("provides dedicated cut-in artwork for every band member", () => {
+    for (const key of ["bocchi", "nijika", "ryo", "kita"] as const) {
+      expect(PAGE_THEMES[key].cutInImage).toMatch(
+        new RegExp(`/cut-in-${key}-v2\\.webp$`),
+      );
+      expect(PAGE_THEMES[key].cutInImageAlt).toBeTruthy();
+    }
   });
 });

@@ -2,59 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, Radio, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NAV_ARCS, getNavArc } from "@/lib/constants/navigation";
+import { getNavArc } from "@/lib/constants/navigation";
 import { PAGE_THEMES } from "@/lib/page-themes";
 
 export function CharacterArcBar({ pathname }: { pathname: string }) {
   const currentArc = getNavArc(pathname);
 
   if (!currentArc) {
-    return (
-      <section
-        className="arc-switcher comic-card mb-6 w-full max-w-full rounded-2xl border-2 border-border bg-surface/92 p-3"
-        aria-label="Character arcs"
-      >
-        <div className="mb-2 flex items-center gap-2 px-1">
-          <Radio className="h-3.5 w-3.5 text-accent" />
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted">
-            Choose the next character arc
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-          {NAV_ARCS.map((arc) => {
-            const arcTheme = PAGE_THEMES[arc.key];
-            return (
-              <Link
-                key={arc.key}
-                href={arc.items[0].href}
-                className={`theme-${arc.key} group flex min-w-0 items-center gap-2 rounded-xl border border-border bg-surface-elevated p-2 transition hover:-translate-y-0.5 hover:border-accent`}
-              >
-                <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border-2 border-accent/45">
-                  <Image
-                    src={arcTheme.image}
-                    alt=""
-                    fill
-                    sizes="40px"
-                    className="object-cover object-top transition group-hover:scale-110"
-                  />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[8px] font-black uppercase tracking-wider text-accent">
-                    {arc.chapter}
-                  </span>
-                  <span className="block truncate text-xs font-black">
-                    {arcTheme.name}
-                  </span>
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 text-muted" />
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-    );
+    return null;
   }
 
   const theme = PAGE_THEMES[currentArc.key];

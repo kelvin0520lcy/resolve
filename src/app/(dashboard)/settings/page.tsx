@@ -25,8 +25,11 @@ export default function SettingsPage() {
   const {
     semester,
     storageMode,
+    syncStatus,
+    syncError,
+    lastSyncedAt,
     updateSemester,
-    resetDemo,
+    resetWorkspace,
   } = useResolve();
   const [draft, setDraft] = useState<Semester>(semester);
   const [saved, setSaved] = useState(false);
@@ -96,7 +99,7 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Active semester</CardTitle>
               <CardDescription>
-                Changes are saved to this account&apos;s local workspace.
+                Changes save automatically to your account.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -265,53 +268,91 @@ export default function SettingsPage() {
                 <div className="flex items-start gap-3">
                   <Database className="mt-0.5 h-5 w-5 text-accent" />
                   <div>
-                    <p className="text-sm font-bold">Browser persistence</p>
+                    <p className="text-sm font-bold">
+                      {storageMode === "cloud"
+                        ? "Firestore account sync"
+                        : "Browser storage"}
+                    </p>
                     <p className="mt-1 text-xs leading-5 text-muted">
-                      Data is saved automatically in this browser and separated
-                      by signed-in account.
+                      {storageMode === "cloud"
+                        ? "Your workspace follows this signed-in account across devices."
+                        : "Connect Firebase and sign in to sync this workspace across devices."}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <ShieldCheck className="mt-0.5 h-5 w-5 text-success" />
                   <div>
-                    <p className="text-sm font-bold">Account gate</p>
+                    <p className="text-sm font-bold">Sync status</p>
                     <p className="mt-1 text-xs leading-5 text-muted">
-                      {storageMode === "account-browser"
-                        ? "Firebase authentication is enabled."
-                        : "Demo mode is active until Firebase is configured."}
+                      {syncStatus === "synced" && lastSyncedAt
+                        ? `Updated ${new Date(lastSyncedAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}`
+                        : syncStatus === "saving"
+                          ? "Saving your latest changes…"
+                          : syncStatus === "connecting"
+                            ? "Connecting to your workspace…"
+                            : syncStatus === "offline"
+                              ? "Offline. Changes remain available in this browser."
+                              : syncStatus === "error"
+                                ? "Cloud sync needs attention."
+                                : "Browser-only mode"}
                     </p>
                   </div>
                 </div>
-                <Badge variant="warning">
-                  Firestore sync is not enabled yet
+                <Badge
+                  variant={
+                    syncStatus === "synced"
+                      ? "success"
+                      : syncStatus === "offline" || syncStatus === "error"
+                        ? "danger"
+                        : "warning"
+                  }
+                >
+                  {syncStatus === "synced"
+                    ? "Cloud workspace synced"
+                    : syncStatus === "saving"
+                      ? "Saving to Firestore"
+                      : syncStatus === "connecting"
+                        ? "Connecting"
+                        : syncStatus === "demo"
+                          ? "Firebase not connected"
+                          : "Using browser backup"}
                 </Badge>
+                {syncError && (
+                  <p className="text-xs leading-5 text-danger" role="alert">
+                    {syncError}
+                  </p>
+                )}
               </CardContent>
             </Card>
 
             <Card className="border-danger/25">
               <CardHeader>
-                <CardTitle>Reset workspace</CardTitle>
+                <CardTitle>Clear workspace</CardTitle>
                 <CardDescription>
-                  Restore the starter semester and sample progress.
+                  Remove this account&apos;s tasks, goals, logs, and progress.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {confirmReset ? (
                   <div className="space-y-3">
                     <p className="text-sm font-semibold text-danger">
-                      This replaces all locally saved progress for this account.
+                      This clears the synced workspace for this account. This
+                      action cannot be undone.
                     </p>
                     <div className="flex gap-2">
                       <Button
                         variant="destructive"
                         size="sm"
                         onClick={() => {
-                          resetDemo();
+                          resetWorkspace();
                           setConfirmReset(false);
                         }}
                       >
-                        Confirm reset
+                        Clear everything
                       </Button>
                       <Button
                         variant="secondary"
@@ -329,7 +370,7 @@ export default function SettingsPage() {
                     onClick={() => setConfirmReset(true)}
                   >
                     <RotateCcw className="h-4 w-4" />
-                    Reset sample data
+                    Clear workspace data
                   </Button>
                 )}
               </CardContent>

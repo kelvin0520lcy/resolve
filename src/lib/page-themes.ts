@@ -8,6 +8,8 @@ export type PageTheme = {
   reaction: string;
   image: string;
   imageAlt: string;
+  cutInImage?: string;
+  cutInImageAlt?: string;
 };
 
 export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
@@ -28,6 +30,9 @@ export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
     reaction: "SYSTEM ERROR: social battery not found. Soul evacuation in progress.",
     image: "/illustrations/bocchi-lag-reaction-v3.png",
     imageAlt: "Bocchi lagging as her soul floats out",
+    cutInImage: "/illustrations/cut-in-bocchi-v2.webp",
+    cutInImageAlt:
+      "Bocchi nervously enjoying a solo on her black Les Paul Custom",
   },
   nijika: {
     key: "nijika",
@@ -37,6 +42,9 @@ export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
     reaction: "One, two, three, four—your week has a tempo. I made tabs for it!",
     image: "/illustrations/nijika-planning-v3.png",
     imageAlt: "Nijika cheerfully organizing the band with a giant planner",
+    cutInImage: "/illustrations/cut-in-nijika-v2.webp",
+    cutInImageAlt:
+      "Nijika cheerfully counting in behind her red acoustic drum kit",
   },
   ryo: {
     key: "ryo",
@@ -46,6 +54,9 @@ export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
     reaction: "The data is stable. My wallet is not. Please admire the graph.",
     image: "/illustrations/ryo-analytics-v3.png",
     imageAlt: "Ryo reviewing analytics beside an empty wallet",
+    cutInImage: "/illustrations/cut-in-ryo-v2.webp",
+    cutInImageAlt:
+      "Ryo calmly enjoying a groove on her white Precision Bass",
   },
   kita: {
     key: "kita",
@@ -55,11 +66,15 @@ export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
     reaction: "Kita-aura output: 120%. Sunglasses recommended. Let’s make it happen!",
     image: "/illustrations/kita-aura-v3.png",
     imageAlt: "Kita radiating an overpowered sparkling aura",
+    cutInImage: "/illustrations/cut-in-kita-v2.webp",
+    cutInImageAlt:
+      "Kita smiling while playing her blue double-cut Les Paul Junior",
   },
 };
 
 const ROUTE_THEMES: Record<string, PageThemeKey> = {
   "/dashboard": "ensemble",
+  "/settings": "ensemble",
   "/today": "nijika",
   "/weekly": "nijika",
   "/habits": "nijika",
@@ -67,7 +82,6 @@ const ROUTE_THEMES: Record<string, PageThemeKey> = {
   "/reflections": "bocchi",
   "/academics": "ryo",
   "/analytics": "ryo",
-  "/settings": "ryo",
   "/goals": "kita",
   "/career": "kita",
   "/timeline": "kita",

@@ -2,10 +2,11 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
-import { LogOut, MessageCircle, Sparkles } from "lucide-react";
+import { LogOut, MessageCircle, Settings, Sparkles } from "lucide-react";
 import type { PageTheme } from "@/lib/page-themes";
 
 export function AppHeader({
@@ -119,6 +120,13 @@ export function AppHeader({
             )}
           </AnimatePresence>
         </div>
+        <Link
+          href="/settings"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-border bg-surface-elevated text-muted transition hover:border-accent hover:text-accent lg:hidden"
+          aria-label="Open settings"
+        >
+          <Settings className="h-4 w-4" />
+        </Link>
         {signOutError && (
           <p
             className="hidden text-xs font-semibold text-danger sm:block"

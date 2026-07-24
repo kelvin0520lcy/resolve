@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   DASHBOARD_NAV,
   NAV_ARCS,
+  SETTINGS_NAV,
   getNavArc,
 } from "@/lib/constants/navigation";
 import { getPageTheme, PAGE_THEMES } from "@/lib/page-themes";
@@ -40,21 +41,36 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
-        <Link
-          href={DASHBOARD_NAV.href}
-          className={cn(
-            "group flex items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-sm font-bold transition-all",
-            pathname === DASHBOARD_NAV.href
-              ? "-translate-x-0.5 border-[#18121f] bg-warning text-[#18121f] shadow-[4px_4px_0_var(--accent)]"
-              : "border-border bg-surface/70 text-foreground hover:border-accent",
-          )}
+        <section
+          className="rounded-2xl border border-border/60 bg-black/10 p-1.5"
+          aria-label="Common pages"
         >
-          <DASHBOARD_NAV.icon className="h-4 w-4" />
-          <span className="flex-1">{DASHBOARD_NAV.label}</span>
-          {pathname === DASHBOARD_NAV.href && (
-            <Sparkles className="h-3.5 w-3.5" />
+          <p className="px-2 pb-1 pt-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-muted">
+            Common · whole band
+          </p>
+          {[DASHBOARD_NAV, SETTINGS_NAV].map(
+            ({ href, label, description, icon: Icon }) => {
+              const active = pathname === href;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  title={description}
+                  className={cn(
+                    "group flex items-center gap-3 rounded-xl border px-3 py-2 text-sm font-bold transition-all",
+                    active
+                      ? "border-[#18121f] bg-warning text-[#18121f] shadow-[3px_3px_0_var(--accent)]"
+                      : "border-transparent text-muted hover:bg-surface-muted hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="flex-1">{label}</span>
+                  {active && <Sparkles className="h-3.5 w-3.5" />}
+                </Link>
+              );
+            },
           )}
-        </Link>
+        </section>
 
         {NAV_ARCS.map((arc) => {
           const arcTheme = PAGE_THEMES[arc.key];
@@ -69,13 +85,17 @@ export function Sidebar() {
               }`}
               aria-label={arc.title}
             >
-              <div className="mb-1.5 flex items-center gap-2 px-1.5 py-1">
-                <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-accent/50 bg-surface">
+              <Link
+                href={arc.items[0].href}
+                className="mb-1.5 flex items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-surface-muted"
+                aria-label={`Open ${arc.title}`}
+              >
+                <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-accent/50 bg-surface">
                   <Image
                     src={arcTheme.image}
                     alt=""
                     fill
-                    sizes="32px"
+                    sizes="36px"
                     className="object-cover object-top"
                   />
                 </div>
@@ -84,12 +104,12 @@ export function Sidebar() {
                     {arc.chapter} · {arcTheme.name}
                   </p>
                   <p className="truncate text-[10px] font-bold text-foreground/85">
-                    {arc.title.replace(`${arcTheme.name}’s `, "")}
+                    {arc.subtitle}
                   </p>
                 </div>
-              </div>
+              </Link>
 
-              <div className="space-y-0.5">
+              {arcActive && <div className="space-y-0.5">
                 {arc.items.map(({ href, label, icon: Icon }, index) => {
                   const active =
                     pathname === href || pathname.startsWith(`${href}/`);
@@ -113,7 +133,7 @@ export function Sidebar() {
                     </Link>
                   );
                 })}
-              </div>
+              </div>}
             </section>
           );
         })}
