@@ -5,14 +5,15 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, isConfigured } = useAuth();
+  const { firebaseUser, loading, isConfigured } = useAuth();
   const router = useRouter();
+  const hasSession = !isConfigured || Boolean(firebaseUser);
 
   useEffect(() => {
-    if (!loading && isConfigured && !user) {
+    if (!loading && isConfigured && !hasSession) {
       router.replace("/login");
     }
-  }, [user, loading, isConfigured, router]);
+  }, [hasSession, loading, isConfigured, router]);
 
   if (loading) {
     return (
@@ -25,7 +26,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (isConfigured && !user) return null;
+  if (isConfigured && !hasSession) return null;
 
   return <>{children}</>;
 }

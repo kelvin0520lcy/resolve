@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { getFirebaseAuthErrorMessage } from "@/lib/firebase/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { AuthShell } from "@/components/auth/auth-shell";
 import {
   Card,
   CardContent,
@@ -15,7 +17,7 @@ import {
 } from "@/components/ui/card";
 
 export default function SignUpPage() {
-  const { signUp, isConfigured, loading } = useAuth();
+  const { firebaseUser, signUp, isConfigured, loading } = useAuth();
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -23,27 +25,42 @@ export default function SignUpPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (!loading && firebaseUser) {
+      router.replace("/dashboard");
+    }
+  }, [firebaseUser, loading, router]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (displayName.trim().length < 2) {
+      setError("Enter a display name with at least two characters.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Use at least eight characters for your password.");
+      return;
+    }
     setSubmitting(true);
     try {
-      await signUp(email, password, displayName);
-      router.push("/dashboard");
-    } catch {
-      setError("Could not create account. Try a different email.");
+      await signUp(email.trim(), password, displayName.trim());
+    } catch (signUpError) {
+      setError(getFirebaseAuthErrorMessage(signUpError, "sign-up"));
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (loading) return null;
+  if (loading || firebaseUser) return null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pink-50 via-lavender-100 to-sky-50 p-4">
-      <Card className="w-full max-w-md">
+    <AuthShell>
+      <Card className="w-full border-accent/30 bg-surface-elevated/95 backdrop-blur-xl">
         <CardHeader className="text-center">
-          <p className="text-2xl font-black text-accent">Resolve!</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-accent">
+            Casting call · episode one
+          </p>
           <CardTitle>Start your semester arc</CardTitle>
           <CardDescription>Create your account to begin planning.</CardDescription>
         </CardHeader>
@@ -56,6 +73,7 @@ export default function SignUpPage() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Your name"
+                minLength={2}
                 required
                 disabled={!isConfigured}
               />
@@ -78,12 +96,19 @@ export default function SignUpPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                minLength={6}
+                minLength={8}
                 required
                 disabled={!isConfigured}
               />
             </div>
-            {error && <p className="text-sm text-danger">{error}</p>}
+            {error && (
+              <p className="text-sm text-danger" role="alert">
+                {error}
+              </p>
+            )}
+            <p className="text-xs text-muted">
+              Use at least eight characters for your password.
+            </p>
             <Button
               type="submit"
               className="w-full"
@@ -100,6 +125,6 @@ export default function SignUpPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

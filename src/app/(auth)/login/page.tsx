@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { getFirebaseAuthErrorMessage } from "@/lib/firebase/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { AuthShell } from "@/components/auth/auth-shell";
 import {
   Card,
   CardContent,
@@ -15,34 +17,48 @@ import {
 } from "@/components/ui/card";
 
 export default function LoginPage() {
-  const { signIn, signInWithGoogle, isConfigured, loading } = useAuth();
+  const {
+    firebaseUser,
+    signIn,
+    signInWithGoogle,
+    isConfigured,
+    loading,
+  } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && firebaseUser) {
+      router.replace("/dashboard");
+    }
+  }, [firebaseUser, loading, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setSubmitting(true);
     try {
-      await signIn(email, password);
-      router.push("/dashboard");
-    } catch {
-      setError("Invalid email or password.");
+      await signIn(email.trim(), password);
+    } catch (signInError) {
+      setError(getFirebaseAuthErrorMessage(signInError, "sign-in"));
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (loading) return null;
+  if (loading || firebaseUser) return null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pink-50 via-lavender-100 to-sky-50 p-4">
-      <Card className="w-full max-w-md">
+    <AuthShell>
+      <Card className="w-full border-accent/30 bg-surface-elevated/95 backdrop-blur-xl">
         <CardHeader className="text-center">
-          <p className="text-2xl font-black text-accent">Resolve!</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-accent">
+            Returning cast member
+          </p>
           <CardTitle>Welcome back</CardTitle>
           <CardDescription>
             Sign in to continue your semester journey.
@@ -80,11 +96,15 @@ export default function LoginPage() {
                 disabled={!isConfigured}
               />
             </div>
-            {error && <p className="text-sm text-danger">{error}</p>}
+            {error && (
+              <p className="text-sm text-danger" role="alert">
+                {error}
+              </p>
+            )}
             <Button
               type="submit"
               className="w-full"
-              disabled={submitting || !isConfigured}
+              disabled={submitting || googleSubmitting || !isConfigured}
             >
               {submitting ? "Signing in..." : "Sign in"}
             </Button>
@@ -102,17 +122,20 @@ export default function LoginPage() {
           <Button
             variant="secondary"
             className="w-full"
-            disabled={!isConfigured}
+            disabled={!isConfigured || googleSubmitting || submitting}
             onClick={async () => {
+              setError("");
+              setGoogleSubmitting(true);
               try {
                 await signInWithGoogle();
-                router.push("/dashboard");
-              } catch {
-                setError("Google sign-in failed.");
+              } catch (signInError) {
+                setError(getFirebaseAuthErrorMessage(signInError, "google"));
+              } finally {
+                setGoogleSubmitting(false);
               }
             }}
           >
-            Continue with Google
+            {googleSubmitting ? "Opening Google..." : "Continue with Google"}
           </Button>
 
           <p className="text-center text-sm text-muted">
@@ -127,6 +150,6 @@ export default function LoginPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

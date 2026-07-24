@@ -3,8 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
+import { getFirebaseAuthErrorMessage } from "@/lib/firebase/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { AuthShell } from "@/components/auth/auth-shell";
 import {
   Card,
   CardContent,
@@ -18,22 +20,29 @@ export default function ResetPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setSubmitting(true);
     try {
-      await resetPassword(email);
+      await resetPassword(email.trim());
       setSent(true);
-    } catch {
-      setError("Could not send reset email.");
+    } catch (resetError) {
+      setError(getFirebaseAuthErrorMessage(resetError, "password-reset"));
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pink-50 via-lavender-100 to-sky-50 p-4">
-      <Card className="w-full max-w-md">
+    <AuthShell>
+      <Card className="w-full border-accent/30 bg-surface-elevated/95 backdrop-blur-xl">
         <CardHeader className="text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-accent">
+            Recovery episode
+          </p>
           <CardTitle>Reset password</CardTitle>
           <CardDescription>
             We&apos;ll send a reset link to your email.
@@ -57,9 +66,17 @@ export default function ResetPasswordPage() {
                   disabled={!isConfigured}
                 />
               </div>
-              {error && <p className="text-sm text-danger">{error}</p>}
-              <Button type="submit" className="w-full" disabled={!isConfigured}>
-                Send reset link
+              {error && (
+                <p className="text-sm text-danger" role="alert">
+                  {error}
+                </p>
+              )}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={!isConfigured || submitting}
+              >
+                {submitting ? "Sending..." : "Send reset link"}
               </Button>
             </form>
           )}
@@ -70,6 +87,6 @@ export default function ResetPasswordPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

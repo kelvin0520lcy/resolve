@@ -6,43 +6,38 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    function ownsGoal(goalId) {
+      return request.auth != null
+        && get(/databases/$(database)/documents/goals/$(goalId)).data.userId
+          == request.auth.uid;
+    }
+
+    function usesDocumentOwnership(collection) {
+      return collection != "users" && collection != "milestones";
+    }
+
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, create, update, delete: if isOwner(userId);
     }
 
-    match /semesters/{docId} {
-      allow read, write: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
+    // Milestones inherit ownership from their parent goal in the data model.
+    match /milestones/{docId} {
+      allow read, delete: if ownsGoal(resource.data.goalId);
+      allow create: if ownsGoal(request.resource.data.goalId);
+      allow update: if ownsGoal(resource.data.goalId)
+        && request.resource.data.goalId == resource.data.goalId;
     }
 
-    match /goals/{docId} {
-      allow read, write: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-    }
-
-    match /tasks/{docId} {
-      allow read, write: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-    }
-
-    match /habits/{docId} {
-      allow read, write: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-    }
-
-    match /habitLogs/{docId} {
-      allow read, write: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-    }
-
-    match /guitarSessions/{docId} {
-      allow read, write: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-    }
-
-    match /reflections/{docId} {
-      allow read, write: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
+    // All other root collections are private to the userId on each document.
+    // Updates cannot transfer a document to a different owner.
+    match /{collection}/{docId} {
+      allow read, delete: if usesDocumentOwnership(collection)
+        && isOwner(resource.data.userId);
+      allow create: if usesDocumentOwnership(collection)
+        && isOwner(request.resource.data.userId);
+      allow update: if usesDocumentOwnership(collection)
+        && isOwner(resource.data.userId)
+        && request.resource.data.userId == resource.data.userId;
     }
   }
 }

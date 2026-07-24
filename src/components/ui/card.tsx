@@ -8,7 +8,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-surface-elevated shadow-sm",
+        "comic-card rounded-[22px] border-2 border-border bg-surface-elevated",
         className,
       )}
       {...props}
@@ -21,7 +21,7 @@ export function CardHeader({
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("flex flex-col gap-1 p-5 pb-0", className)} {...props} />
+    <div className={cn("flex flex-col gap-1.5 p-5 pb-0", className)} {...props} />
   );
 }
 
@@ -31,7 +31,7 @@ export function CardTitle({
 }: HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={cn("text-lg font-bold tracking-tight", className)}
+      className={cn("font-display text-lg tracking-wide", className)}
       {...props}
     />
   );
@@ -42,7 +42,7 @@ export function CardDescription({
   ...props
 }: HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("text-sm text-muted", className)} {...props} />
+    <p className={cn("text-sm leading-6 text-muted", className)} {...props} />
   );
 }
 

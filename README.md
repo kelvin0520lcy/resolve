@@ -44,14 +44,34 @@ src/
 └── types/               # Data model types
 ```
 
-## Development phases
+## Current MVP
 
-1. **Foundation** (current) — layout, auth scaffold, design system, types
-2. **Planning** — semester setup, goals, milestones, weekly/daily tasks
-3. **Tracking** — habits, guitar, academics, career, reflections
-4. **Analytics** — charts and rule-based insights
-5. **Anime experience** — character assets, achievements, scenes
-6. **Testing & deployment**
+The main semester loop is implemented:
+
+- Firebase email/password and Google authentication
+- Account-gated dashboard routes
+- Semester setup and automatic episode/week calculations
+- Interactive goals, daily tasks, weekly scheduling, and priorities
+- Seven-day habit check-ins with forgiving consistency metrics
+- Guitar practice sessions with clean-BPM and practice-mix tracking
+- Academic module and assessment views
+- Career problem logs and application pipeline
+- Daily reflections, semester timeline, charts, and rule-based insights
+- Original companion artwork with contextual dialogue
+- Responsive desktop and mobile navigation
+
+Workspace data currently auto-saves to browser storage, namespaced by the
+signed-in Firebase user. The app also works in a seeded demo mode when Firebase
+is not configured. The settings page makes this storage status explicit.
+
+## Next production steps
+
+1. Replace browser persistence with Firestore subscriptions and offline cache.
+2. Add module, application, and habit creation/edit forms.
+3. Add calendar drag-and-drop and recurring task rules.
+4. Add achievement unlocks and notification preferences.
+5. Add automated component and end-to-end test coverage.
+6. Deploy the app and Firestore rules.
 
 ## Firebase setup
 

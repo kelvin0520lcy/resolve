@@ -1,19 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --background: #faf8ff;
-  --foreground: #1e1b4b;
-  --surface: #ffffff;
-  --surface-elevated: #ffffff;
-  --surface-muted: #f3f0ff;
-  --border: #e8e4f8;
-  --muted: #6b7280;
-  --accent: #ff6b9d;
-  --accent-hover: #ff5088;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --lavender: #ede9fe;
+  --background: #0b0911;
+  --foreground: #fff8e9;
+  --surface: #15111e;
+  --surface-elevated: #1d1728;
+  --surface-muted: #282034;
+  --border: #3b304b;
+  --muted: #b8adc7;
+  --accent: #ff4f9a;
+  --accent-hover: #ff76b2;
+  --success: #60e5a0;
+  --warning: #ffd34e;
+  --danger: #ff6577;
+  --lavender: #8d6cf2;
+  --paper: #fff6df;
+  --ink: #18121f;
+  --cyan: #5ce1ef;
+  --stage-yellow: #ffd84d;
 }
 
 @theme inline {
@@ -30,22 +34,584 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-lavender-100: var(--lavender);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f0d1a;
-    --foreground: #f5f3ff;
-    --surface: #16132a;
-    --surface-elevated: #1c1835;
-    --surface-muted: #221e3d;
-    --border: #2d2850;
-    --muted: #a1a1aa;
-    --accent: #ff6b9d;
-    --accent-hover: #ff85ad;
-    --lavender: #2d2850;
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 8% 4%, rgb(255 79 154 / 18%), transparent 24rem),
+    radial-gradient(circle at 92% 22%, rgb(92 225 239 / 10%), transparent 26rem),
+    linear-gradient(135deg, transparent 0 48%, rgb(255 255 255 / 2%) 48% 50%, transparent 50% 100%),
+    var(--background);
+  background-size: auto, auto, 36px 36px, auto;
+  color: var(--foreground);
+  font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  opacity: 0.2;
+  background-image: radial-gradient(rgb(255 255 255 / 40%) 0.6px, transparent 0.6px);
+  background-size: 5px 5px;
+  mask-image: linear-gradient(to bottom, black, transparent 75%);
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+
+::selection {
+  background: var(--stage-yellow);
+  color: var(--ink);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid var(--background);
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.font-display {
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.025em;
+}
+
+.comic-card {
+  box-shadow:
+    5px 6px 0 rgb(0 0 0 / 38%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.manga-panel {
+  position: relative;
+  isolation: isolate;
+  border: 2px solid var(--ink);
+  background:
+    radial-gradient(circle at 90% 12%, rgb(255 79 154 / 11%) 0 1px, transparent 1.4px) 0 0 / 8px 8px,
+    var(--paper);
+  box-shadow: 7px 8px 0 rgb(0 0 0 / 42%);
+  color: var(--ink);
+}
+
+.manga-panel::after {
+  position: absolute;
+  inset: 8px;
+  z-index: -1;
+  border: 1px solid rgb(24 18 31 / 8%);
+  pointer-events: none;
+  content: "";
+}
+
+.tape-label {
+  transform: rotate(-1.5deg);
+  border: 1px solid rgb(24 18 31 / 24%);
+  background: var(--stage-yellow);
+  box-shadow: 2px 2px 0 rgb(24 18 31 / 75%);
+  color: var(--ink);
+}
+
+.stage-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.speed-lines {
+  position: relative;
+  overflow: hidden;
+}
+
+.speed-lines::before {
+  position: absolute;
+  inset: -40%;
+  pointer-events: none;
+  content: "";
+  opacity: 0.12;
+  background: repeating-conic-gradient(
+    from 220deg at 70% 55%,
+    transparent 0deg 5deg,
+    white 5.5deg 6deg
+  );
+}
+
+.sticker {
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.equalizer {
+  display: inline-flex;
+  height: 16px;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.equalizer > span {
+  width: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: equalize 0.85s ease-in-out infinite alternate;
+}
+
+.equalizer > span:nth-child(1) {
+  height: 45%;
+}
+
+.equalizer > span:nth-child(2) {
+  height: 100%;
+  animation-delay: -0.25s;
+}
+
+.equalizer > span:nth-child(3) {
+  height: 65%;
+  animation-delay: -0.5s;
+}
+
+@keyframes equalize {
+  to {
+    height: 25%;
+  }
+}
+
+@keyframes float-note {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(4deg);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.float-note {
+  animation: float-note 3.5s ease-in-out infinite;
+}
+
+.page-theme {
+  --theme-cameo: url("/illustrations/kessoku-ensemble-hero-v3.png");
+  --theme-glow: rgb(255 79 154 / 15%);
+  --theme-line: rgb(255 255 255 / 3%);
+  --anime-sfx: "LIVE!";
+  background-color: var(--background);
+  background-image:
+    radial-gradient(circle at 92% 2%, var(--theme-glow), transparent 30rem),
+    linear-gradient(135deg, transparent 0 48%, var(--theme-line) 48% 50%, transparent 50% 100%);
+  background-size: auto, 38px 38px;
+}
+
+.theme-ensemble {
+  --accent: #ff4f9a;
+  --accent-hover: #ff76b2;
+  --warning: #ffd34e;
+  --cyan: #5ce1ef;
+  --theme-glow: rgb(255 79 154 / 17%);
+  --theme-cameo: url("/illustrations/kessoku-ensemble-hero-v3.png");
+  --anime-sfx: "KESSOKU!";
+}
+
+.theme-bocchi {
+  --background: #0d0912;
+  --surface: #18101f;
+  --surface-elevated: #21152a;
+  --surface-muted: #30203a;
+  --border: #513552;
+  --accent: #ff66ab;
+  --accent-hover: #ff91c5;
+  --warning: #6de5ef;
+  --cyan: #6de5ef;
+  --theme-glow: rgb(255 102 171 / 22%);
+  --theme-line: rgb(109 229 239 / 6%);
+  --theme-cameo: url("/illustrations/bocchi-lag-reaction-v3.png");
+  --anime-sfx: "ガーン";
+}
+
+.theme-nijika {
+  --background: #100d08;
+  --surface: #1d1810;
+  --surface-elevated: #272015;
+  --surface-muted: #352b1a;
+  --border: #58472b;
+  --accent: #ffc72e;
+  --accent-hover: #ffda70;
+  --warning: #ff8b38;
+  --cyan: #fff0aa;
+  --theme-glow: rgb(255 199 46 / 22%);
+  --theme-line: rgb(255 139 56 / 5%);
+  --theme-cameo: url("/illustrations/nijika-planning-v3.png");
+  --anime-sfx: "ドン!";
+}
+
+.theme-ryo {
+  --background: #071017;
+  --surface: #0e1a24;
+  --surface-elevated: #142532;
+  --surface-muted: #1e3442;
+  --border: #315064;
+  --accent: #62c8ff;
+  --accent-hover: #91d9ff;
+  --warning: #86e0b5;
+  --cyan: #62c8ff;
+  --theme-glow: rgb(98 200 255 / 20%);
+  --theme-line: rgb(134 224 181 / 6%);
+  --theme-cameo: url("/illustrations/ryo-analytics-v3.png");
+  --anime-sfx: "しーん…";
+}
+
+.theme-kita {
+  --background: #16090c;
+  --surface: #251014;
+  --surface-elevated: #32161b;
+  --surface-muted: #452027;
+  --border: #67323a;
+  --accent: #ff5d65;
+  --accent-hover: #ff878d;
+  --warning: #ffd45c;
+  --cyan: #ff9fc2;
+  --theme-glow: rgb(255 93 101 / 23%);
+  --theme-line: rgb(255 212 92 / 6%);
+  --theme-cameo: url("/illustrations/kita-aura-v3.png");
+  --anime-sfx: "キラッ☆";
+}
+
+.page-stage::after {
+  position: absolute;
+  z-index: 0;
+  right: -0.05em;
+  bottom: -0.12em;
+  pointer-events: none;
+  content: var(--anime-sfx);
+  color: var(--accent);
+  opacity: 0.035;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(7rem, 18vw, 18rem);
+  font-style: italic;
+  line-height: 0.8;
+  letter-spacing: -0.05em;
+  transform: rotate(-7deg);
+  -webkit-text-stroke: 2px var(--foreground);
+}
+
+.anime-cut-in {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      -12deg,
+      transparent 0 18px,
+      rgb(255 255 255 / 5%) 19px 21px
+    ),
+    var(--background);
+  color: var(--foreground);
+}
+
+.anime-cut-in::before,
+.anime-cut-in::after {
+  position: absolute;
+  width: 150%;
+  height: 14px;
+  background: var(--accent);
+  content: "";
+  transform: rotate(-7deg);
+}
+
+.anime-cut-in::before {
+  top: 22%;
+}
+
+.anime-cut-in::after {
+  bottom: 22%;
+  background: var(--warning);
+}
+
+.anime-cut-in span {
+  margin-bottom: 0.4rem;
+  color: var(--warning);
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.45em;
+}
+
+.anime-cut-in strong {
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(3rem, 11vw, 8rem);
+  font-style: italic;
+  letter-spacing: 0.04em;
+  line-height: 0.9;
+  text-shadow: 5px 5px 0 var(--accent);
+  transform: rotate(-2deg);
+}
+
+.arc-switcher,
+.arc-strip {
+  position: relative;
+  isolation: isolate;
+}
+
+.arc-strip {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.arc-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.arc-switcher::after,
+.arc-strip::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  opacity: 0.08;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 13px,
+    var(--accent) 14px 15px
+  );
+}
+
+.nav-arc {
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.nav-arc:hover {
+  transform: translateX(2px);
+}
+
+.theme-bocchi .page-stage::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  opacity: 0.12;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 84px,
+    var(--cyan) 85px 86px,
+    transparent 87px 174px
+  );
+  animation: bocchi-glitch 8s steps(2, end) infinite;
+}
+
+.theme-nijika .page-stage::before {
+  position: absolute;
+  right: -9rem;
+  top: -12rem;
+  width: 34rem;
+  height: 34rem;
+  pointer-events: none;
+  content: "";
+  opacity: 0.09;
+  background: repeating-conic-gradient(
+    from 0deg,
+    var(--accent) 0deg 8deg,
+    transparent 8deg 18deg
+  );
+  border-radius: 999px;
+}
+
+.theme-ryo .page-stage {
+  background-image:
+    linear-gradient(rgb(98 200 255 / 4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(98 200 255 / 4%) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.theme-kita .page-stage::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "✦  ·  ✧  ·  ✦       ♡       ✧  ·  ✦";
+  overflow: hidden;
+  color: var(--warning);
+  opacity: 0.08;
+  font-size: clamp(4rem, 11vw, 9rem);
+  line-height: 1.8;
+  transform: rotate(-8deg) scale(1.08);
+}
+
+.page-intro {
+  min-height: 190px;
+}
+
+.page-intro .theme-cameo {
+  position: absolute;
+  z-index: 0;
+  top: -34%;
+  right: 0;
+  width: min(34%, 260px);
+  height: 168%;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, transparent, var(--paper) 94%),
+    var(--theme-cameo);
+  background-position: center, center 28%;
+  background-repeat: no-repeat;
+  background-size: cover, cover;
+  opacity: 0.19;
+  filter: saturate(1.12) contrast(1.06);
+  transform: rotate(2deg);
+  mask-image: linear-gradient(to right, transparent, black 30%);
+}
+
+.app-header {
+  box-shadow: 0 8px 28px rgb(0 0 0 / 16%);
+}
+
+.character-reactor {
+  max-width: 13.5rem;
+}
+
+.reaction-bubble {
+  transform-origin: top right;
+}
+
+.reaction-bubble::before {
+  position: absolute;
+  top: -9px;
+  right: 24px;
+  width: 16px;
+  height: 16px;
+  border-left: 2px solid var(--ink);
+  border-top: 2px solid var(--ink);
+  background: var(--paper);
+  content: "";
+  transform: rotate(45deg);
+}
+
+.bocchi-soul {
+  position: absolute;
+  right: 16px;
+  bottom: 8px;
+  font-size: 1.8rem;
+  opacity: 0;
+  animation: soul-escape 2.8s ease-out infinite;
+}
+
+.kita-burst {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--accent);
+  font-size: 1.2rem;
+  letter-spacing: 0.45em;
+  animation: kita-aura 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes bocchi-glitch {
+  0%,
+  91%,
+  100% {
+    transform: translateX(0);
+    opacity: 0.08;
+  }
+  92% {
+    transform: translateX(13px);
+    opacity: 0.2;
+  }
+  94% {
+    transform: translateX(-8px);
+    opacity: 0.14;
+  }
+}
+
+@keyframes soul-escape {
+  0% {
+    transform: translateY(10px) rotate(-8deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translateY(-58px) rotate(8deg);
+    opacity: 0;
+  }
+}
+
+@keyframes kita-aura {
+  to {
+    transform: scale(1.06);
+    text-shadow: 0 0 16px var(--accent);
+  }
+}
+
+@media (max-width: 639px) {
+  .page-intro .theme-cameo {
+    width: 46%;
+    opacity: 0.12;
+  }
+
+  .character-reactor {
+    max-width: none;
+  }
+
+  .reaction-bubble {
+    position: fixed;
+    top: 4.25rem;
+    right: 0.75rem;
+    width: calc(100vw - 1.5rem);
   }
 }
 
@@ -53,18 +619,9 @@
   *,
   *::before,
   *::after {
+    scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
-}
-
-::selection {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }

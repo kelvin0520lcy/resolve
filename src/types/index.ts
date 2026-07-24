@@ -167,6 +167,68 @@ export type Reflection = {
   createdAt: string;
 };
 
+export type Assessment = {
+  id: string;
+  moduleId: string;
+  title: string;
+  type: "assignment" | "project" | "quiz" | "midterm" | "presentation" | "exam";
+  weight: number;
+  deadline: string;
+  progress: number;
+  status: "not_started" | "in_progress" | "submitted" | "graded";
+  score?: number;
+  targetScore?: number;
+};
+
+export type AcademicModule = {
+  id: string;
+  userId: string;
+  semesterId: string;
+  code: string;
+  name: string;
+  lecturer?: string;
+  credits: number;
+  targetGrade: string;
+  estimatedGrade?: string;
+  color: string;
+  weeklyStudyMinutes: number;
+  assessments: Assessment[];
+};
+
+export type AlgorithmLog = {
+  id: string;
+  userId: string;
+  semesterId: string;
+  platform: string;
+  problemName: string;
+  topic: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  completedDate: string;
+  minutes: number;
+  usedHints: boolean;
+  confidence: number;
+  lesson: string;
+};
+
+export type JobApplication = {
+  id: string;
+  userId: string;
+  company: string;
+  role: string;
+  applicationDate: string;
+  stage: "saved" | "applied" | "assessment" | "interview" | "offer" | "closed";
+  nextAction?: string;
+  nextActionDate?: string;
+};
+
+export type SemesterEvent = {
+  id: string;
+  title: string;
+  date: string;
+  category: string;
+  type: "semester" | "deadline" | "break" | "exam" | "milestone";
+};
+
 export type CharacterExpression =
   | "neutral"
   | "happy"

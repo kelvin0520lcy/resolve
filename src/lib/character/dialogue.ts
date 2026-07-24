@@ -1,6 +1,6 @@
 import type { CharacterExpression, CharacterState } from "@/types";
 
-type DialogueContext = {
+export type DialogueContext = {
   tasksCompletedToday: number;
   tasksTotalToday: number;
   overdueTasks: number;
@@ -55,7 +55,7 @@ const DIALOGUE: Record<CharacterExpression, string[]> = {
 
 function pickDialogue(expression: CharacterExpression): string {
   const options = DIALOGUE[expression];
-  return options[Math.floor(Math.random() * options.length)];
+  return options[0];
 }
 
 export function resolveCharacterState(ctx: DialogueContext): CharacterState {

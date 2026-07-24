@@ -65,5 +65,6 @@ export const COLLECTIONS = {
   reflections: "reflections",
   modules: "modules",
   algorithmLogs: "algorithmLogs",
+  applications: "applications",
   achievements: "achievements",
 } as const;

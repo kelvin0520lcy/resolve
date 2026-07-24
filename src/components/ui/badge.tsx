@@ -2,11 +2,11 @@ import { cn } from "@/lib/utils";
 import type { HTMLAttributes } from "react";
 
 const variants = {
-  default: "bg-surface-muted text-foreground",
-  accent: "bg-accent/15 text-accent",
-  success: "bg-success/15 text-success",
-  warning: "bg-warning/15 text-warning",
-  danger: "bg-danger/15 text-danger",
+  default: "border-border bg-surface-muted text-foreground",
+  accent: "border-accent/40 bg-accent/15 text-accent",
+  success: "border-success/40 bg-success/15 text-success",
+  warning: "border-warning/40 bg-warning/15 text-warning",
+  danger: "border-danger/40 bg-danger/15 text-danger",
 } as const;
 
 export function Badge({
@@ -19,7 +19,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wide",
         variants[variant],
         className,
       )}
@@ -40,12 +40,12 @@ export function ProgressBar({
   return (
     <div
       className={cn(
-        "h-2 w-full overflow-hidden rounded-full bg-surface-muted",
+        "h-2.5 w-full overflow-hidden rounded-full border border-white/5 bg-surface-muted",
         className,
       )}
     >
       <div
-        className="h-full rounded-full transition-all duration-500"
+        className="h-full rounded-full transition-all duration-700 ease-out"
         style={{
           width: `${Math.min(100, Math.max(0, value))}%`,
           backgroundColor: color,
