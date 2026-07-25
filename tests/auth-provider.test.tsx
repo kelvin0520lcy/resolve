@@ -35,20 +35,9 @@ vi.mock("firebase/auth", () => ({
   updateProfile: vi.fn(),
 }));
 
-vi.mock("firebase/firestore", () => ({
-  doc: vi.fn(() => ({})),
-  getDoc: vi.fn(async () => ({
-    exists: () => true,
-    data: () => ({}),
-  })),
-  setDoc: vi.fn(async () => {}),
-  serverTimestamp: vi.fn(() => "server-time"),
-}));
-
 vi.mock("@/lib/firebase/config", () => ({
   isFirebaseConfigured: () => authMocks.configured,
   getFirebaseAuth: () => ({ currentUser: authMocks.currentUser }),
-  getFirebaseDb: () => ({}),
 }));
 
 function AuthStatus() {

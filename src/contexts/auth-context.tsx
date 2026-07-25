@@ -19,10 +19,8 @@ import {
   updateProfile,
   type User as FirebaseUser,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import {
   getFirebaseAuth,
-  getFirebaseDb,
   isFirebaseConfigured,
 } from "@/lib/firebase/config";
 import type { User } from "@/types";
@@ -55,30 +53,6 @@ function profileFromFirebase(firebaseUser: FirebaseUser): User {
   };
 }
 
-async function ensureUserDocument(firebaseUser: FirebaseUser): Promise<User> {
-  const db = getFirebaseDb();
-  const ref = doc(db, "users", firebaseUser.uid);
-  const snap = await getDoc(ref);
-
-  if (snap.exists()) {
-    return {
-      ...profileFromFirebase(firebaseUser),
-      ...(snap.data() as Partial<User>),
-      id: firebaseUser.uid,
-    };
-  }
-
-  const newUser = profileFromFirebase(firebaseUser);
-
-  await setDoc(ref, {
-    ...newUser,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  return newUser;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const isConfigured = isFirebaseConfigured();
   const [user, setUser] = useState<User | null>(null);
@@ -98,16 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setFirebaseUser(fbUser);
       if (fbUser) {
-        // Authentication is authoritative. Firestore only enriches the profile
-        // and must never invalidate an otherwise valid Firebase session.
         setUser(profileFromFirebase(fbUser));
         setLoading(false);
-        void ensureUserDocument(fbUser)
-          .then((profile) => setUser(profile))
-          .catch(() => {
-            // Keep the Firebase-derived profile when Firestore is unavailable,
-            // not initialized, or its rules have not been deployed yet.
-          });
       } else {
         setUser(null);
         setLoading(false);
@@ -171,17 +137,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile.displayName = displayName;
         setFirebaseUser(cred.user);
         setUser(profile);
-        void setDoc(
-          doc(getFirebaseDb(), "users", cred.user.uid),
-          {
-            ...profile,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        ).catch(() => {
-          // The authenticated session remains usable even if profile sync fails.
-        });
       },
       async signInWithGoogle() {
         const provider = new GoogleAuthProvider();

@@ -65,10 +65,12 @@ The main semester loop is implemented:
 - Original companion artwork with contextual dialogue
 - Responsive desktop and mobile navigation
 
-Signed-in workspaces synchronize in real time through a private
-`workspaces/{userId}` Firestore document. A browser copy remains available as
-an offline fallback, and Settings shows whether changes are connecting, saving,
-synced, or offline.
+Signed-in workspaces synchronize through one private
+`workspaces/{userId}` Firestore document. Changes save to the browser
+immediately, rapid edits are grouped into one cloud write, and server checks are
+cached briefly instead of keeping a billable live listener open. A dirty local
+copy is retained after network or quota failures and retried later. Settings
+shows the current state and offers an explicit sync check.
 
 ## Quality checks
 
@@ -84,4 +86,9 @@ npm run build
 2. Enable **Authentication** (Email/Password + Google)
 3. Create a **Firestore** database
 4. Copy web app config into `.env.local`
-5. Deploy security rules: `firebase deploy --only firestore:rules`
+5. Deploy security rules and the workspace index exemptions:
+   `firebase deploy --only firestore:rules,firestore:indexes`
+
+The index exemptions keep the large workspace map and server timestamp out of
+Firestore indexes because the app reads the workspace by document ID and never
+queries those fields.

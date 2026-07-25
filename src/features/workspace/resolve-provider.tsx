@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   createContext,
   useContext,
   useEffect,
@@ -83,8 +84,8 @@ import {
 } from "@/features/workspace/lib/resolve-actions";
 import {
   getWorkspaceSchemaCompatibility,
+  loadWorkspace,
   saveWorkspace,
-  subscribeToWorkspace,
 } from "@/lib/firebase/workspace";
 import {
   createEmptyGuitarLearningState,
@@ -118,6 +119,7 @@ type ResolveContextValue = ResolveData & {
     | "error";
   syncError: string;
   lastSyncedAt: string | null;
+  syncWorkspaceNow: () => Promise<void>;
   addTask: (task: NewTaskInput) => void;
   updateTask: (taskId: string, task: UpdateTaskInput) => void;
   toggleTask: (taskId: string) => void;
@@ -202,6 +204,96 @@ const ResolveContext = createContext<ResolveContextValue | null>(null);
 
 export { getWeekDateKeys, offsetDate, toDateKey };
 
+export const CLOUD_SAVE_DEBOUNCE_MS = 15_000;
+export const CLOUD_REFRESH_INTERVAL_MS = 15 * 60_000;
+
+type LocalSyncMetadata = {
+  dirty: boolean;
+  lastCheckedAt: number;
+};
+
+function readLocalSyncMetadata(key: string): LocalSyncMetadata {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(key) ?? "",
+    ) as Partial<LocalSyncMetadata>;
+    return {
+      dirty: parsed.dirty === true,
+      lastCheckedAt: Number.isFinite(parsed.lastCheckedAt)
+        ? Math.max(0, parsed.lastCheckedAt!)
+        : 0,
+    };
+  } catch {
+    return { dirty: false, lastCheckedAt: 0 };
+  }
+}
+
+function writeLocalSyncMetadata(
+  key: string,
+  metadata: LocalSyncMetadata,
+) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(metadata));
+  } catch {
+    // The in-memory and primary local workspace remain usable.
+  }
+}
+
+function hasMeaningfulWorkspaceData(data: ResolveData, userId: string) {
+  const empty = createEmptyData(userId);
+  const hasRecords = [
+    data.goals,
+    data.milestones,
+    data.tasks,
+    data.habits,
+    data.habitLogs,
+    data.guitarSessions,
+    data.reflections,
+    data.modules,
+    data.algorithmLogs,
+    data.applications,
+    data.semester.resolutions,
+    data.guitarLearning.progress,
+  ].some((records) => (records?.length ?? 0) > 0);
+  if (hasRecords || data.weeklyPriorities.some(Boolean)) return true;
+
+  const semesterFields: Array<keyof Semester> = [
+    "name",
+    "academicYear",
+    "startDate",
+    "endDate",
+    "recessWeekStart",
+    "readingWeekStart",
+    "examPeriodStart",
+    "theme",
+    "targetGpa",
+    "description",
+    "status",
+    "mainResolution",
+  ];
+  if (
+    semesterFields.some(
+      (field) => data.semester[field] !== empty.semester[field],
+    )
+  ) {
+    return true;
+  }
+
+  const profile = data.guitarLearning.profile;
+  const emptyProfile = empty.guitarLearning.profile;
+  return (
+    profile.handedness !== emptyProfile.handedness ||
+    profile.placementCompleted ||
+    profile.preferredTuning.some(
+      (note, index) => note !== emptyProfile.preferredTuning[index],
+    ) ||
+    profile.selectedPathIds.length > 0 ||
+    profile.confusingConceptIds.length > 0 ||
+    profile.bookmarkedLessonIds.length > 0 ||
+    profile.hiddenRecommendationIds.length > 0 ||
+    Boolean(profile.currentLessonId)
+  );
+}
 
 export function createEmptyData(userId: string): ResolveData {
   const year = new Date().getFullYear();
@@ -784,6 +876,7 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
   const { user, isConfigured } = useAuth();
   const identity = user?.id ?? "demo-user";
   const storageKey = `resolve-data-v2:${identity}`;
+  const syncMetadataKey = `resolve-sync-v1:${identity}`;
   const accountSyncEnabled = isConfigured && Boolean(user);
   const [data, setData] = useState<ResolveData>(() =>
     createEmptyData(identity),
@@ -800,148 +893,266 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
   const dataRef = useRef(data);
   const dataJsonRef = useRef(dataJson);
   const lastRemoteJson = useRef("");
-  const writeSequence = useRef(0);
+  const dirtyRef = useRef(false);
+  const lastCheckedAtRef = useRef(0);
+  const readSequenceRef = useRef(0);
+  const readInFlightKeyRef = useRef<string | null>(null);
+  const writeInFlightRef = useRef<Promise<void> | null>(null);
+  const activeStorageKeyRef = useRef(storageKey);
 
   useEffect(() => {
     dataRef.current = data;
     dataJsonRef.current = dataJson;
   }, [data, dataJson]);
 
-  useEffect(() => {
-    let unsubscribe = () => {};
-    let disposed = false;
-    let missingHandled = false;
+  const updateSyncMetadata = useCallback(
+    (dirty: boolean, lastCheckedAt = lastCheckedAtRef.current) => {
+      dirtyRef.current = dirty;
+      lastCheckedAtRef.current = lastCheckedAt;
+      writeLocalSyncMetadata(syncMetadataKey, {
+        dirty,
+        lastCheckedAt,
+      });
+    },
+    [syncMetadataKey],
+  );
 
+  const mutateData = useCallback(
+    (updater: (current: ResolveData) => ResolveData) => {
+      const current = dataRef.current;
+      const next = updater(current);
+      if (next === current) return;
+      dataRef.current = next;
+      dataJsonRef.current = JSON.stringify(next);
+      updateSyncMetadata(true);
+      setData(next);
+    },
+    [updateSyncMetadata],
+  );
+
+  const persistWorkspace = useCallback(
+    async (snapshotData: ResolveData, snapshotJson: string) => {
+      const targetStorageKey = storageKey;
+      if (snapshotJson === lastRemoteJson.current) {
+        updateSyncMetadata(false, Date.now());
+        return;
+      }
+
+      if (writeInFlightRef.current) {
+        try {
+          await writeInFlightRef.current;
+        } catch {
+          // The queued snapshot below gets its own retry and status handling.
+        }
+        if (snapshotJson === lastRemoteJson.current) return;
+      }
+
+      setSyncStatus("saving");
+      setSyncError("");
+      const write = saveWorkspace(identity, snapshotData);
+      writeInFlightRef.current = write;
+
+      try {
+        await write;
+        if (activeStorageKeyRef.current !== targetStorageKey) return;
+        lastRemoteJson.current = snapshotJson;
+        const savedAt = Date.now();
+        if (dataJsonRef.current === snapshotJson) {
+          updateSyncMetadata(false, savedAt);
+          setSyncStatus("synced");
+          setLastSyncedAt(new Date(savedAt).toISOString());
+        } else {
+          updateSyncMetadata(true, savedAt);
+          setSyncStatus("saving");
+        }
+      } catch (error: unknown) {
+        if (activeStorageKeyRef.current !== targetStorageKey) return;
+        updateSyncMetadata(true);
+        setSyncStatus("offline");
+        setSyncError(
+          error instanceof Error
+            ? error.message
+            : "Cloud sync failed. Changes remain saved in this browser.",
+        );
+      } finally {
+        if (writeInFlightRef.current === write) {
+          writeInFlightRef.current = null;
+        }
+      }
+    },
+    [identity, storageKey, updateSyncMetadata],
+  );
+
+  const refreshWorkspaceFromCloud = useCallback(
+    async (force = false) => {
+      if (!accountSyncEnabled || dirtyRef.current) return;
+      if (readInFlightKeyRef.current === storageKey) return;
+      const now = Date.now();
+      if (
+        !force &&
+        now - lastCheckedAtRef.current < CLOUD_REFRESH_INTERVAL_MS
+      ) {
+        setCloudReadyKey(storageKey);
+        setSyncStatus("synced");
+        return;
+      }
+
+      const sequence = ++readSequenceRef.current;
+      readInFlightKeyRef.current = storageKey;
+      setSyncStatus("connecting");
+      setSyncError("");
+      try {
+        const result = await loadWorkspace<ResolveData>(identity);
+        if (sequence !== readSequenceRef.current) return;
+        if (dirtyRef.current) {
+          setCloudReadyKey(storageKey);
+          setSyncStatus("saving");
+          return;
+        }
+
+        const checkedAt = Date.now();
+        if (result.kind === "missing") {
+          const local = dataRef.current;
+          if (hasMeaningfulWorkspaceData(local, identity)) {
+            lastRemoteJson.current = "__missing_cloud_workspace__";
+            updateSyncMetadata(true, checkedAt);
+            setCloudReadyKey(storageKey);
+            setSyncStatus("saving");
+            return;
+          }
+
+          const empty = createEmptyData(identity);
+          const emptyJson = JSON.stringify(empty);
+          lastRemoteJson.current = emptyJson;
+          dataRef.current = empty;
+          dataJsonRef.current = emptyJson;
+          setData(empty);
+          updateSyncMetadata(false, checkedAt);
+          setCloudReadyKey(storageKey);
+          setSyncStatus("synced");
+          setLastSyncedAt(new Date(checkedAt).toISOString());
+          return;
+        }
+
+        const compatibility = getWorkspaceSchemaCompatibility(
+          result.snapshot.schemaVersion,
+        );
+        if (compatibility === "unsupported") {
+          setCloudReadyKey(null);
+          setSyncStatus("error");
+          setSyncError(
+            "This workspace was saved by a newer Resolve version. Update the app before editing it.",
+          );
+          return;
+        }
+
+        const normalized = normalizeStoredData(
+          result.snapshot.data,
+          identity,
+        );
+        const remoteJson = JSON.stringify(normalized);
+        lastRemoteJson.current = remoteJson;
+        if (remoteJson !== dataJsonRef.current) {
+          dataRef.current = normalized;
+          dataJsonRef.current = remoteJson;
+          setData(normalized);
+        }
+        updateSyncMetadata(false, checkedAt);
+        setCloudReadyKey(storageKey);
+        setSyncStatus("synced");
+        setLastSyncedAt(new Date(checkedAt).toISOString());
+      } catch (error: unknown) {
+        if (sequence !== readSequenceRef.current) return;
+        setSyncStatus("offline");
+        setSyncError(
+          error instanceof Error
+            ? error.message
+            : "Could not check the cloud workspace.",
+        );
+      } finally {
+        if (readInFlightKeyRef.current === storageKey) {
+          readInFlightKeyRef.current = null;
+        }
+      }
+    },
+    [
+      accountSyncEnabled,
+      identity,
+      storageKey,
+      updateSyncMetadata,
+    ],
+  );
+
+  useEffect(() => {
     const startupId = window.setTimeout(() => {
       let initial = createEmptyData(identity);
+      let hasLocalWorkspace = false;
       try {
         const stored = window.localStorage.getItem(storageKey);
         if (stored) {
           initial = normalizeStoredData(JSON.parse(stored), identity);
+          hasLocalWorkspace = true;
         }
       } catch {
         initial = createEmptyData(identity);
       }
+      const metadata = readLocalSyncMetadata(syncMetadataKey);
+      const localDirty = metadata.dirty && hasLocalWorkspace;
+      const initialJson = JSON.stringify(initial);
 
+      activeStorageKeyRef.current = storageKey;
+      writeInFlightRef.current = null;
       dataRef.current = initial;
-      dataJsonRef.current = JSON.stringify(initial);
+      dataJsonRef.current = initialJson;
       setData(initial);
       setHydratedKey(storageKey);
       setCloudReadyKey(null);
       lastRemoteJson.current = "";
+      dirtyRef.current = localDirty;
+      lastCheckedAtRef.current = metadata.lastCheckedAt;
       setSyncError("");
-      setLastSyncedAt(null);
+      setLastSyncedAt(
+        metadata.lastCheckedAt
+          ? new Date(metadata.lastCheckedAt).toISOString()
+          : null,
+      );
 
       if (!accountSyncEnabled) {
         setSyncStatus("demo");
         return;
       }
 
-      setSyncStatus("connecting");
-      unsubscribe = subscribeToWorkspace<ResolveData>(
-        identity,
-        ({
-          data: remoteData,
-          schemaVersion,
-          hasPendingWrites,
-          fromCache,
-        }) => {
-          if (disposed) return;
+      if (localDirty) {
+        lastRemoteJson.current = "__unsynced_local_workspace__";
+        setCloudReadyKey(storageKey);
+        setSyncStatus("saving");
+        return;
+      }
 
-          const compatibility =
-            getWorkspaceSchemaCompatibility(schemaVersion);
-          if (compatibility === "unsupported") {
-            setCloudReadyKey(null);
-            setSyncStatus("error");
-            setSyncError(
-              "This workspace was saved by a newer Resolve version. Update the app before editing it.",
-            );
-            return;
-          }
+      if (
+        hasLocalWorkspace &&
+        Date.now() - metadata.lastCheckedAt < CLOUD_REFRESH_INTERVAL_MS
+      ) {
+        lastRemoteJson.current = initialJson;
+        setCloudReadyKey(storageKey);
+        setSyncStatus("synced");
+        return;
+      }
 
-          const normalized = normalizeStoredData(remoteData, identity);
-          const remoteJson = JSON.stringify(normalized);
-          lastRemoteJson.current = remoteJson;
-          if (remoteJson !== dataJsonRef.current) {
-            dataRef.current = normalized;
-            dataJsonRef.current = remoteJson;
-            setData(normalized);
-          }
-          setCloudReadyKey(storageKey);
-          const shouldUpgrade =
-            compatibility === "upgrade" &&
-            !hasPendingWrites &&
-            !fromCache;
-          setSyncStatus(
-            shouldUpgrade
-              ? "saving"
-              : hasPendingWrites
-                ? "saving"
-                : fromCache
-                  ? "offline"
-                  : "synced",
-          );
-          setSyncError("");
-          if (!hasPendingWrites && !fromCache) {
-            setLastSyncedAt(new Date().toISOString());
-          }
-          if (shouldUpgrade) {
-            void saveWorkspace(identity, normalized)
-              .then(() => {
-                if (disposed) return;
-                setSyncStatus("synced");
-                setLastSyncedAt(new Date().toISOString());
-              })
-              .catch((error: unknown) => {
-                if (disposed) return;
-                setSyncStatus("offline");
-                setSyncError(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not upgrade the cloud workspace.",
-                );
-              });
-          }
-        },
-        () => {
-          if (disposed || missingHandled) return;
-          missingHandled = true;
-          const initialData = dataRef.current;
-          const initialJson = JSON.stringify(initialData);
-          setSyncStatus("saving");
-          void saveWorkspace(identity, initialData)
-            .then(() => {
-              if (disposed) return;
-              lastRemoteJson.current = initialJson;
-              setCloudReadyKey(storageKey);
-              setSyncStatus("synced");
-              setLastSyncedAt(new Date().toISOString());
-            })
-            .catch((error: unknown) => {
-              if (disposed) return;
-              setCloudReadyKey(storageKey);
-              setSyncStatus("error");
-              setSyncError(
-                error instanceof Error
-                  ? error.message
-                  : "Could not create the cloud workspace.",
-              );
-            });
-        },
-        (error) => {
-          if (disposed) return;
-          setSyncStatus("offline");
-          setSyncError(error.message);
-        },
-      );
+      void refreshWorkspaceFromCloud(true);
     }, 0);
 
     return () => {
-      disposed = true;
       window.clearTimeout(startupId);
-      unsubscribe();
+      readSequenceRef.current += 1;
     };
-  }, [accountSyncEnabled, identity, storageKey]);
+  }, [
+    accountSyncEnabled,
+    identity,
+    refreshWorkspaceFromCloud,
+    storageKey,
+    syncMetadataKey,
+  ]);
 
   useEffect(() => {
     if (hydratedKey === storageKey) {
@@ -963,33 +1174,18 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
     }
 
     const nextJson = dataJson;
-    if (nextJson === lastRemoteJson.current) return;
+    if (nextJson === lastRemoteJson.current) {
+      if (dirtyRef.current) updateSyncMetadata(false, Date.now());
+      return;
+    }
 
-    const sequence = ++writeSequence.current;
-    let cancelled = false;
+    updateSyncMetadata(true);
+    setSyncStatus("saving");
     const saveTimer = window.setTimeout(() => {
-      setSyncStatus("saving");
-      setSyncError("");
-      void saveWorkspace(identity, data)
-        .then(() => {
-          if (cancelled || sequence !== writeSequence.current) return;
-          lastRemoteJson.current = nextJson;
-          setSyncStatus("synced");
-          setLastSyncedAt(new Date().toISOString());
-        })
-        .catch((error: unknown) => {
-          if (cancelled || sequence !== writeSequence.current) return;
-          setSyncStatus("offline");
-          setSyncError(
-            error instanceof Error
-              ? error.message
-              : "Cloud sync failed. Changes remain saved in this browser.",
-          );
-        });
-    }, 450);
+      void persistWorkspace(data, nextJson);
+    }, CLOUD_SAVE_DEBOUNCE_MS);
 
     return () => {
-      cancelled = true;
       window.clearTimeout(saveTimer);
     };
   }, [
@@ -998,7 +1194,45 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
     data,
     dataJson,
     hydratedKey,
-    identity,
+    persistWorkspace,
+    storageKey,
+    updateSyncMetadata,
+  ]);
+
+  useEffect(() => {
+    if (
+      !accountSyncEnabled ||
+      hydratedKey !== storageKey ||
+      cloudReadyKey !== storageKey
+    ) {
+      return;
+    }
+
+    const refreshIfStale = () => {
+      if (
+        document.visibilityState === "visible" &&
+        !dirtyRef.current &&
+        Date.now() - lastCheckedAtRef.current >= CLOUD_REFRESH_INTERVAL_MS
+      ) {
+        void refreshWorkspaceFromCloud();
+      }
+    };
+    const refreshTimer = window.setInterval(
+      refreshIfStale,
+      CLOUD_REFRESH_INTERVAL_MS,
+    );
+    window.addEventListener("focus", refreshIfStale);
+    document.addEventListener("visibilitychange", refreshIfStale);
+    return () => {
+      window.clearInterval(refreshTimer);
+      window.removeEventListener("focus", refreshIfStale);
+      document.removeEventListener("visibilitychange", refreshIfStale);
+    };
+  }, [
+    accountSyncEnabled,
+    cloudReadyKey,
+    hydratedKey,
+    refreshWorkspaceFromCloud,
     storageKey,
   ]);
 
@@ -1009,137 +1243,150 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       syncStatus,
       syncError,
       lastSyncedAt,
+      async syncWorkspaceNow() {
+        if (!accountSyncEnabled) return;
+        if (dirtyRef.current) {
+          await persistWorkspace(
+            dataRef.current,
+            dataJsonRef.current,
+          );
+          return;
+        }
+        await refreshWorkspaceFromCloud(true);
+      },
       addTask(task) {
-        setData((current) =>
+        mutateData((current) =>
           addTaskToData(current, task, { identity }),
         );
       },
       updateTask(taskId, task) {
-        setData((current) => updateTaskInData(current, taskId, task));
+        mutateData((current) => updateTaskInData(current, taskId, task));
       },
       toggleTask(taskId) {
-        setData((current) => toggleTaskInData(current, taskId));
+        mutateData((current) => toggleTaskInData(current, taskId));
       },
       removeTask(taskId) {
-        setData((current) => removeTaskFromData(current, taskId));
+        mutateData((current) => removeTaskFromData(current, taskId));
       },
       moveTask(taskId, scheduledDate) {
-        setData((current) =>
+        mutateData((current) =>
           moveTaskInData(current, taskId, scheduledDate),
         );
       },
       addGoal(goal) {
-        setData((current) =>
+        mutateData((current) =>
           addGoalToData(current, goal, { identity }),
         );
       },
       updateGoal(goalId, goal) {
-        setData((current) => updateGoalInData(current, goalId, goal));
+        mutateData((current) => updateGoalInData(current, goalId, goal));
       },
       removeGoal(goalId) {
-        setData((current) => removeGoalFromData(current, goalId));
+        mutateData((current) => removeGoalFromData(current, goalId));
       },
       addMilestone(goalId, milestone) {
-        setData((current) =>
+        mutateData((current) =>
           addMilestoneToData(current, goalId, milestone, { identity }),
         );
       },
       updateMilestone(milestoneId, milestone) {
-        setData((current) =>
+        mutateData((current) =>
           updateMilestoneInData(current, milestoneId, milestone),
         );
       },
       toggleMilestone(milestoneId) {
-        setData((current) =>
+        mutateData((current) =>
           toggleMilestoneInData(current, milestoneId),
         );
       },
       removeMilestone(milestoneId) {
-        setData((current) =>
+        mutateData((current) =>
           removeMilestoneFromData(current, milestoneId),
         );
       },
       setGoalCompleted(goalId, completed) {
-        setData((current) =>
+        mutateData((current) =>
           setGoalCompletedInData(current, goalId, completed),
         );
       },
       addHabit(habit) {
-        setData((current) =>
+        mutateData((current) =>
           addHabitToData(current, habit, { identity }),
         );
       },
       updateHabit(habitId, habit) {
-        setData((current) => updateHabitInData(current, habitId, habit));
+        mutateData((current) =>
+          updateHabitInData(current, habitId, habit),
+        );
       },
       removeHabit(habitId) {
-        setData((current) => removeHabitFromData(current, habitId));
+        mutateData((current) => removeHabitFromData(current, habitId));
       },
       addModule(module) {
-        setData((current) =>
+        mutateData((current) =>
           addModuleToData(current, module, { identity }),
         );
       },
       updateModule(moduleId, module) {
-        setData((current) =>
+        mutateData((current) =>
           updateModuleInData(current, moduleId, module),
         );
       },
       removeModule(moduleId) {
-        setData((current) => removeModuleFromData(current, moduleId));
+        mutateData((current) => removeModuleFromData(current, moduleId));
       },
       addAssessment(assessment) {
-        setData((current) =>
+        mutateData((current) =>
           addAssessmentToData(current, assessment, { identity }),
         );
       },
       updateAssessment(assessmentId, assessment) {
-        setData((current) =>
+        mutateData((current) =>
           updateAssessmentInData(current, assessmentId, assessment),
         );
       },
       removeAssessment(moduleId, assessmentId) {
-        setData((current) =>
+        mutateData((current) =>
           removeAssessmentFromData(current, moduleId, assessmentId),
         );
       },
       addAlgorithmLog(log) {
-        setData((current) =>
+        mutateData((current) =>
           addAlgorithmLogToData(current, log, { identity }),
         );
       },
       updateAlgorithmLog(logId, log) {
-        setData((current) =>
+        mutateData((current) =>
           updateAlgorithmLogInData(current, logId, log),
         );
       },
       removeAlgorithmLog(logId) {
-        setData((current) =>
+        mutateData((current) =>
           removeAlgorithmLogFromData(current, logId),
         );
       },
       addApplication(application) {
-        setData((current) =>
+        mutateData((current) =>
           addApplicationToData(current, application, { identity }),
         );
       },
       updateApplication(applicationId, application) {
-        setData((current) =>
+        mutateData((current) =>
           updateApplicationInData(current, applicationId, application),
         );
       },
       removeApplication(applicationId) {
-        setData((current) =>
+        mutateData((current) =>
           removeApplicationFromData(current, applicationId),
         );
       },
       updateApplicationStage(applicationId, stage) {
-        setData((current) =>
+        mutateData((current) =>
           updateApplicationStageInData(current, applicationId, stage),
         );
       },
       updateAssessmentProgress(moduleId, assessmentId, progress) {
-        setData((current) =>
+        mutateData((current) =>
           updateAssessmentProgressInData(
             current,
             moduleId,
@@ -1149,37 +1396,37 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
         );
       },
       updateModuleStudyMinutes(moduleId, minutes) {
-        setData((current) =>
+        mutateData((current) =>
           updateModuleStudyMinutesInData(current, moduleId, minutes),
         );
       },
       toggleHabit(habitId, date) {
-        setData((current) =>
+        mutateData((current) =>
           toggleHabitInData(current, habitId, date, { identity }),
         );
       },
       updateTaskActualMinutes(taskId, minutes) {
-        setData((current) =>
+        mutateData((current) =>
           updateTaskActualMinutesInData(current, taskId, minutes),
         );
       },
       addGuitarSession(session) {
-        setData((current) =>
+        mutateData((current) =>
           addGuitarSessionToData(current, session, { identity }),
         );
       },
       updateGuitarSession(sessionId, session) {
-        setData((current) =>
+        mutateData((current) =>
           updateGuitarSessionInData(current, sessionId, session),
         );
       },
       removeGuitarSession(sessionId) {
-        setData((current) =>
+        mutateData((current) =>
           removeGuitarSessionFromData(current, sessionId),
         );
       },
       updateGuitarLearning(updater) {
-        setData((current) => ({
+        mutateData((current) => ({
           ...current,
           guitarLearning: normalizeGuitarLearningState(
             updater(current.guitarLearning),
@@ -1188,22 +1435,22 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
         }));
       },
       saveReflection(reflection) {
-        setData((current) =>
+        mutateData((current) =>
           saveReflectionToData(current, reflection, { identity }),
         );
       },
       removeReflection(reflectionId) {
-        setData((current) =>
+        mutateData((current) =>
           removeReflectionFromData(current, reflectionId),
         );
       },
       addSemesterResolution(resolution) {
-        setData((current) =>
+        mutateData((current) =>
           addSemesterResolutionToData(current, resolution, { identity }),
         );
       },
       updateSemesterResolution(resolutionId, resolution) {
-        setData((current) =>
+        mutateData((current) =>
           updateSemesterResolutionInData(
             current,
             resolutionId,
@@ -1212,27 +1459,27 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
         );
       },
       toggleSemesterResolution(resolutionId) {
-        setData((current) =>
+        mutateData((current) =>
           toggleSemesterResolutionInData(current, resolutionId),
         );
       },
       removeSemesterResolution(resolutionId) {
-        setData((current) =>
+        mutateData((current) =>
           removeSemesterResolutionFromData(current, resolutionId),
         );
       },
       updateSemester(semester) {
-        setData((current) =>
+        mutateData((current) =>
           updateSemesterInData(current, semester, identity),
         );
       },
       updatePriorities(priorities) {
-        setData((current) =>
+        mutateData((current) =>
           updatePrioritiesInData(current, priorities),
         );
       },
       resetWorkspace() {
-        setData(createEmptyData(identity));
+        mutateData(() => createEmptyData(identity));
       },
     }),
     [
@@ -1240,6 +1487,9 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       data,
       identity,
       lastSyncedAt,
+      mutateData,
+      persistWorkspace,
+      refreshWorkspaceFromCloud,
       syncError,
       syncStatus,
     ],

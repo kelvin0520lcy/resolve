@@ -1,9 +1,8 @@
 import {
   doc,
-  onSnapshot,
+  getDocFromServer,
   serverTimestamp,
   setDoc,
-  type Unsubscribe,
 } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/config";
 
@@ -18,9 +17,11 @@ export type WorkspaceSchemaCompatibility =
 export type WorkspaceSnapshot<T> = {
   data: T;
   schemaVersion: number;
-  hasPendingWrites: boolean;
-  fromCache: boolean;
 };
+
+export type WorkspaceReadResult<T> =
+  | { kind: "missing" }
+  | { kind: "value"; snapshot: WorkspaceSnapshot<T> };
 
 export function getWorkspaceSchemaCompatibility(
   schemaVersion: number,
@@ -35,53 +36,35 @@ function serializable<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function subscribeToWorkspace<T>(
+export async function loadWorkspace<T>(
   userId: string,
-  onValue: (snapshot: WorkspaceSnapshot<T>) => void,
-  onMissing: () => void,
-  onError: (error: Error) => void,
-): Unsubscribe {
+): Promise<WorkspaceReadResult<T>> {
   const reference = doc(getFirebaseDb(), WORKSPACE_COLLECTION, userId);
+  const snapshot = await getDocFromServer(reference);
 
-  return onSnapshot(
-    reference,
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      if (!snapshot.exists()) {
-        // An empty cache is not proof that the server document is missing.
-        // Wait for a server-backed snapshot before creating a workspace.
-        if (!snapshot.metadata.fromCache) onMissing();
-        return;
-      }
+  if (!snapshot.exists()) return { kind: "missing" };
 
-      const value = snapshot.data();
-      if (value.userId !== userId || !value.data) {
-        onError(new Error("The workspace document is malformed."));
-        return;
-      }
+  const value = snapshot.data();
+  if (value.userId !== userId || !value.data) {
+    throw new Error("The workspace document is malformed.");
+  }
 
-      onValue({
-        data: value.data as T,
-        schemaVersion:
-          typeof value.schemaVersion === "number" ? value.schemaVersion : 0,
-        hasPendingWrites: snapshot.metadata.hasPendingWrites,
-        fromCache: snapshot.metadata.fromCache,
-      });
+  return {
+    kind: "value",
+    snapshot: {
+      data: value.data as T,
+      schemaVersion:
+        typeof value.schemaVersion === "number" ? value.schemaVersion : 0,
     },
-    (error) => onError(error),
-  );
+  };
 }
 
 export async function saveWorkspace<T>(userId: string, data: T) {
   const reference = doc(getFirebaseDb(), WORKSPACE_COLLECTION, userId);
-  await setDoc(
-    reference,
-    {
-      userId,
-      schemaVersion: WORKSPACE_SCHEMA_VERSION,
-      data: serializable(data),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
+  await setDoc(reference, {
+    userId,
+    schemaVersion: WORKSPACE_SCHEMA_VERSION,
+    data: serializable(data),
+    updatedAt: serverTimestamp(),
+  });
 }

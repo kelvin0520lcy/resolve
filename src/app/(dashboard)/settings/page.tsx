@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Database, RotateCcw, Save, ShieldCheck } from "lucide-react";
+import {
+  Database,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  ShieldCheck,
+} from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +34,7 @@ export default function SettingsPage() {
     syncStatus,
     syncError,
     lastSyncedAt,
+    syncWorkspaceNow,
     updateSemester,
     resetWorkspace,
   } = useResolve();
@@ -98,7 +105,8 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Active semester</CardTitle>
               <CardDescription>
-                Changes save automatically to your account.
+                Changes save locally at once and are grouped into an efficient
+                cloud update.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -273,7 +281,7 @@ export default function SettingsPage() {
                     </p>
                     <p className="mt-1 text-xs leading-5 text-muted">
                       {storageMode === "cloud"
-                        ? "Your workspace follows this signed-in account across devices."
+                        ? "Your workspace follows this account across devices. Cloud checks are cached and rapid edits are saved together."
                         : "Connect Firebase and sign in to sync this workspace across devices."}
                     </p>
                   </div>
@@ -323,6 +331,26 @@ export default function SettingsPage() {
                   <p className="text-xs leading-5 text-danger" role="alert">
                     {syncError}
                   </p>
+                )}
+                {storageMode === "cloud" && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    disabled={syncStatus === "connecting"}
+                    onClick={() => void syncWorkspaceNow()}
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${
+                        syncStatus === "connecting" ||
+                        syncStatus === "saving"
+                          ? "animate-spin"
+                          : ""
+                      }`}
+                    />
+                    Check and sync now
+                  </Button>
                 )}
               </CardContent>
             </Card>
