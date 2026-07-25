@@ -6,6 +6,7 @@ import { Check, Clock3, Plus, Sparkles, X } from "lucide-react";
 import { CharacterCompanion } from "@/components/character/character-companion";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -19,6 +20,7 @@ import {
   EmptyState,
   MetricCard,
   PageIntro,
+  alignedFieldLabelClassName,
   fieldClassName,
 } from "@/components/ui/resolve";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
@@ -34,6 +36,7 @@ export default function TodayPage() {
     habitLogs,
     addTask,
     toggleTask,
+    removeTask,
     toggleHabit,
     updateTaskActualMinutes,
   } = useResolve();
@@ -146,50 +149,70 @@ export default function TodayPage() {
             <CardContent>
               <form
                 onSubmit={submit}
-                className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_170px_120px_170px_auto]"
+                className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_170px_170px_auto]"
               >
-                <input
-                  className={fieldClassName}
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  aria-label="Task title"
-                  autoFocus
-                  required
-                />
-                <select
-                  className={fieldClassName}
-                  value={category}
-                  onChange={(event) =>
-                    setCategory(event.target.value as GoalCategory)
-                  }
-                  aria-label="Category"
-                >
-                  <option value="academics">Academics</option>
-                  <option value="career">Career</option>
-                  <option value="guitar">Guitar</option>
-                  <option value="health">Health</option>
-                  <option value="personal">Personal</option>
-                </select>
-                <input
-                  className={fieldClassName}
-                  value={minutes}
-                  onChange={(event) => setMinutes(event.target.value)}
-                  type="number"
-                  min="5"
-                  max="720"
-                  step="5"
-                  aria-label="Estimated minutes"
-                  required
-                />
-                <input
-                  className={fieldClassName}
-                  value={deadline}
-                  onChange={(event) => setDeadline(event.target.value)}
-                  type="date"
-                  min={today}
-                  aria-label="Task deadline (optional)"
-                />
-                <Button type="submit">Add to today</Button>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Task</span>
+                  <input
+                    className={fieldClassName}
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Category</span>
+                  <select
+                    className={fieldClassName}
+                    value={category}
+                    onChange={(event) =>
+                      setCategory(event.target.value as GoalCategory)
+                    }
+                  >
+                    <option value="academics">Academics</option>
+                    <option value="career">Career</option>
+                    <option value="guitar">Guitar</option>
+                    <option value="health">Health</option>
+                    <option value="personal">Personal</option>
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Planned time{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (minutes)
+                    </span>
+                  </span>
+                  <input
+                    className={fieldClassName}
+                    value={minutes}
+                    onChange={(event) => setMinutes(event.target.value)}
+                    type="number"
+                    min="5"
+                    max="720"
+                    step="5"
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Deadline{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (optional)
+                    </span>
+                  </span>
+                  <input
+                    className={fieldClassName}
+                    value={deadline}
+                    onChange={(event) => setDeadline(event.target.value)}
+                    type="date"
+                    min={today}
+                  />
+                </label>
+                <Button type="submit" className="self-end">
+                  Add to today
+                </Button>
               </form>
             </CardContent>
           </Card>
@@ -243,7 +266,7 @@ export default function TodayPage() {
                     key={task.id}
                     className="rounded-2xl border border-border bg-surface p-4"
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-4">
                       <button
                         type="button"
                         onClick={() => toggleTask(task.id)}
@@ -263,11 +286,19 @@ export default function TodayPage() {
                           {task.title}
                         </p>
                         <p className="mt-1 text-xs text-muted">
-                          {task.estimatedMinutes ?? 0} planned minutes ·
-                          difficulty {task.difficulty ?? 2}/5
+                          {task.estimatedMinutes ?? 0} planned minutes
+                          {task.deadline
+                            ? ` · due ${formatDate(`${task.deadline}T12:00:00`)}`
+                            : ""}
                         </p>
                       </div>
-                      <CategoryBadge category={task.category} />
+                      <div className="flex shrink-0 items-center gap-2">
+                        <CategoryBadge category={task.category} />
+                        <ConfirmDeleteButton
+                          itemLabel={`task ${task.title}`}
+                          onConfirm={() => removeTask(task.id)}
+                        />
+                      </div>
                     </div>
                     {done && (
                       <label className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3 text-xs font-bold text-muted sm:ml-12 sm:justify-start">
@@ -328,7 +359,7 @@ export default function TodayPage() {
                       type="button"
                       key={habit.id}
                       onClick={() => toggleHabit(habit.id, today)}
-                      className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-surface-muted"
+                      className="flex min-h-11 w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-surface-muted"
                     >
                       <span
                         className={`flex h-5 w-5 items-center justify-center rounded-md border ${

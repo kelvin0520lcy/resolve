@@ -30,7 +30,8 @@ import { GOAL_CATEGORIES } from "@/lib/constants/categories";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
 
 export default function AnalyticsPage() {
-  const { tasks, goals, habits, habitLogs, guitarSessions } = useResolve();
+  const { tasks, goals, milestones, habits, habitLogs, guitarSessions } =
+    useResolve();
   const lastSevenDates = [-6, -5, -4, -3, -2, -1, 0].map((day) =>
     offsetDate(day),
   );
@@ -65,9 +66,19 @@ export default function AnalyticsPage() {
   );
   const goalProgress = Math.round(
     goals.reduce(
-      (sum, goal) =>
-        sum +
-        ((goal.currentValue ?? 0) / Math.max(goal.targetValue ?? 1, 1)) * 100,
+      (sum, goal) => {
+        if (goal.status === "completed") return sum + 100;
+        const breakdown = milestones.filter(
+          (milestone) => milestone.goalId === goal.id,
+        );
+        const completed = breakdown.filter(
+          (milestone) => milestone.completed,
+        ).length;
+        return (
+          sum +
+          (breakdown.length ? (completed / breakdown.length) * 100 : 0)
+        );
+      },
       0,
     ) / Math.max(goals.length, 1),
   );

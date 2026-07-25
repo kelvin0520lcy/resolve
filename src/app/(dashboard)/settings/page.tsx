@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import {
   PageIntro,
+  alignedFieldLabelClassName,
   fieldClassName,
   textAreaClassName,
 } from "@/components/ui/resolve";
@@ -162,7 +163,7 @@ export default function SettingsPage() {
                   />
                 </label>
                 <label className="text-sm font-bold">
-                  Recess week
+                  Recess week starts
                   <input
                     type="date"
                     className={`${fieldClassName} mt-2`}
@@ -176,7 +177,7 @@ export default function SettingsPage() {
                   />
                 </label>
                 <label className="text-sm font-bold">
-                  Reading week
+                  Reading week starts
                   <input
                     type="date"
                     className={`${fieldClassName} mt-2`}
@@ -189,11 +190,11 @@ export default function SettingsPage() {
                     }
                   />
                 </label>
-                <label className="text-sm font-bold">
-                  Examination period
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Exam period starts</span>
                   <input
                     type="date"
-                    className={`${fieldClassName} mt-2`}
+                    className={fieldClassName}
                     value={draft.examPeriodStart ?? ""}
                     onChange={(event) =>
                       setDraft({
@@ -203,14 +204,19 @@ export default function SettingsPage() {
                     }
                   />
                 </label>
-                <label className="text-sm font-bold">
-                  Target GPA
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Target GPA{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (0–5 scale)
+                    </span>
+                  </span>
                   <input
                     type="number"
                     min="0"
                     max="5"
                     step="0.01"
-                    className={`${fieldClassName} mt-2`}
+                    className={fieldClassName}
                     value={draft.targetGpa ?? ""}
                     onChange={(event) =>
                       setDraft({

@@ -10,15 +10,20 @@ import {
   addGoalToData,
   addGuitarSessionToData,
   addHabitToData,
+  addMilestoneToData,
   addModuleToData,
   addTaskToData,
   moveTaskInData,
+  removeAssessmentFromData,
+  removeMilestoneFromData,
+  removeTaskFromData,
   saveReflectionToData,
+  setGoalCompletedInData,
   toggleHabitInData,
+  toggleMilestoneInData,
   toggleTaskInData,
   updateApplicationStageInData,
   updateAssessmentProgressInData,
-  updateGoalProgressInData,
   updateModuleStudyMinutesInData,
   updatePrioritiesInData,
   updateSemesterInData,
@@ -45,10 +50,7 @@ function createActionFixture(userId = "test-user") {
         description: "Build pattern recognition.",
         category: "career",
         priority: "high" as const,
-        measurementType: "count" as const,
-        targetValue: 60,
-        currentValue: 18,
-        unit: "problems",
+        measurementType: "milestone" as const,
         startDate: "2026-07-01",
         status: "active" as const,
         createdAt: timestamp,
@@ -153,6 +155,35 @@ describe("empty data and storage normalization", () => {
     expect(normalized.semester.endDate).toBe(empty.semester.endDate);
     expect(normalized.weeklyPriorities).toEqual(empty.weeklyPriorities);
   });
+
+  it("migrates old numeric goals and reopens invalid completed goals", () => {
+    const seed = createActionFixture("restored-user");
+    const normalized = normalizeStoredData(
+      {
+        ...seed,
+        goals: [
+          {
+            ...seed.goals[0],
+            measurementType: "count",
+            targetValue: 60,
+            currentValue: 60,
+            unit: "sessions",
+            status: "completed",
+          },
+        ],
+        milestones: [],
+      },
+      "restored-user",
+    );
+
+    expect(normalized.goals[0]).toMatchObject({
+      measurementType: "milestone",
+      targetValue: undefined,
+      currentValue: undefined,
+      unit: undefined,
+      status: "active",
+    });
+  });
 });
 
 describe("task actions", () => {
@@ -197,6 +228,14 @@ describe("task actions", () => {
       planned.tasks.find((task) => task.id === "task-review")?.completedAt,
     ).toBeUndefined();
     expect(toggleTaskInData(data, "missing", META.timestamp)).toBe(data);
+  });
+
+  it("removes only the requested task", () => {
+    const data = createActionFixture("test-user");
+    const next = removeTaskFromData(data, "task-review");
+
+    expect(next.tasks.map((task) => task.id)).toEqual(["task-leetcode"]);
+    expect(removeTaskFromData(data, "missing")).toBe(data);
   });
 
   it("moves only known tasks to valid dates and preserves completed status", () => {
@@ -255,8 +294,6 @@ describe("goal actions", () => {
         description: "  Finish three songs ",
         category: "guitar",
         priority: "high",
-        targetValue: -4,
-        unit: "songs",
         deadline: "not-a-date",
       },
       META,
@@ -265,11 +302,13 @@ describe("goal actions", () => {
       id: "new-id",
       title: "Play a live set",
       description: "Finish three songs",
-      targetValue: 1,
-      currentValue: 0,
+      measurementType: "milestone",
       deadline: undefined,
       status: "active",
     });
+    expect(next.goals.at(-1)).not.toHaveProperty("targetValue");
+    expect(next.goals.at(-1)).not.toHaveProperty("currentValue");
+    expect(next.goals.at(-1)).not.toHaveProperty("unit");
     expect(
       addGoalToData(
         data,
@@ -278,36 +317,201 @@ describe("goal actions", () => {
           description: "Something",
           category: "custom",
           priority: "low",
-          targetValue: 1,
-          unit: "items",
         },
         META,
       ),
     ).toBe(data);
   });
 
-  it("clamps progress, completes goals, and reactivates reduced goals", () => {
+  it("only completes goals after every breakdown step is complete", () => {
     const data = createActionFixture("test-user");
-    const complete = updateGoalProgressInData(
-      data,
+    expect(
+      setGoalCompletedInData(data, "goal-career", true, META.timestamp),
+    ).toBe(data);
+
+    const incomplete = {
+      ...data,
+      milestones: [
+        {
+          id: "milestone-1",
+          goalId: "goal-career",
+          title: "Finish the first set",
+          completed: false,
+          order: 1,
+        },
+      ],
+    };
+    expect(
+      setGoalCompletedInData(
+        incomplete,
+        "goal-career",
+        true,
+        META.timestamp,
+      ),
+    ).toBe(incomplete);
+
+    const ready = {
+      ...incomplete,
+      milestones: incomplete.milestones.map((milestone) => ({
+        ...milestone,
+        completed: true,
+      })),
+    };
+    const complete = setGoalCompletedInData(
+      ready,
       "goal-career",
-      999,
+      true,
       META.timestamp,
     );
     expect(
       complete.goals.find((goal) => goal.id === "goal-career"),
-    ).toMatchObject({ currentValue: 60, status: "completed" });
-    const reduced = updateGoalProgressInData(
+    ).toMatchObject({
+      measurementType: "milestone",
+      targetValue: undefined,
+      currentValue: undefined,
+      unit: undefined,
+      status: "completed",
+      updatedAt: META.timestamp,
+    });
+    const reopened = setGoalCompletedInData(
       complete,
       "goal-career",
-      -10,
+      false,
       META.timestamp,
     );
     expect(
-      reduced.goals.find((goal) => goal.id === "goal-career"),
-    ).toMatchObject({ currentValue: 0, status: "active" });
-    expect(updateGoalProgressInData(data, "missing", 1)).toBe(data);
-    expect(updateGoalProgressInData(data, "goal-career", Number.NaN)).toBe(data);
+      reopened.goals.find((goal) => goal.id === "goal-career"),
+    ).toMatchObject({ status: "active" });
+    expect(
+      setGoalCompletedInData(data, "missing", true, META.timestamp),
+    ).toBe(data);
+  });
+
+  it("adds ordered goal milestones with optional valid deadlines", () => {
+    const data = createActionFixture("test-user");
+    const first = addMilestoneToData(
+      data,
+      "goal-career",
+      {
+        title: "  Learn array patterns  ",
+        description: "  Work through the core set  ",
+        deadline: "2026-08-01",
+      },
+      META,
+    );
+    expect(first.milestones[0]).toMatchObject({
+      id: "new-id",
+      goalId: "goal-career",
+      title: "Learn array patterns",
+      description: "Work through the core set",
+      deadline: "2026-08-01",
+      completed: false,
+      order: 1,
+    });
+
+    const second = addMilestoneToData(
+      first,
+      "goal-career",
+      { title: "Mock interview", deadline: "bad-date" },
+      { ...META, id: "second-milestone" },
+    );
+    expect(second.milestones[1]).toMatchObject({
+      id: "second-milestone",
+      deadline: undefined,
+      order: 2,
+    });
+    expect(second.goals[0]).toMatchObject({
+      measurementType: "milestone",
+      targetValue: undefined,
+      currentValue: undefined,
+      unit: undefined,
+    });
+
+    const completedFirst = setGoalCompletedInData(
+      toggleMilestoneInData(first, "new-id", META.timestamp),
+      "goal-career",
+      true,
+      META.timestamp,
+    );
+    const reopenedByNewStep = addMilestoneToData(
+      completedFirst,
+      "goal-career",
+      { title: "Add another finish line" },
+      { ...META, id: "reopening-milestone" },
+    );
+    expect(reopenedByNewStep.goals[0].status).toBe("active");
+
+    expect(
+      addMilestoneToData(data, "missing", { title: "Step" }, META),
+    ).toBe(data);
+    expect(
+      addMilestoneToData(data, "goal-career", { title: "   " }, META),
+    ).toBe(data);
+  });
+
+  it("toggles and removes milestones without leaving linked tasks behind", () => {
+    const data = createActionFixture("test-user");
+    const withMilestone = {
+      ...data,
+      milestones: [
+        {
+          id: "milestone-1",
+          goalId: "goal-career",
+          title: "Finish the first set",
+          completed: false,
+          order: 1,
+        },
+      ],
+      tasks: data.tasks.map((task, index) =>
+        index === 0 ? { ...task, milestoneId: "milestone-1" } : task,
+      ),
+    };
+    const completed = toggleMilestoneInData(
+      withMilestone,
+      "milestone-1",
+      META.timestamp,
+    );
+    expect(completed.milestones[0]).toMatchObject({
+      completed: true,
+      completedAt: META.timestamp,
+    });
+    const reopened = toggleMilestoneInData(
+      completed,
+      "milestone-1",
+      META.timestamp,
+    );
+    expect(reopened.milestones[0]).toMatchObject({
+      completed: false,
+      completedAt: undefined,
+    });
+
+    const completedGoal = {
+      ...completed,
+      goals: completed.goals.map((goal) => ({
+        ...goal,
+        status: "completed" as const,
+      })),
+    };
+    const milestoneReopened = toggleMilestoneInData(
+      completedGoal,
+      "milestone-1",
+      META.timestamp,
+    );
+    expect(milestoneReopened.goals[0].status).toBe("active");
+
+    const removed = removeMilestoneFromData(
+      completedGoal,
+      "milestone-1",
+      META.timestamp,
+    );
+    expect(removed.milestones).toEqual([]);
+    expect(removed.goals[0].status).toBe("active");
+    expect(removed.tasks[0]).toMatchObject({
+      milestoneId: undefined,
+      updatedAt: META.timestamp,
+    });
+    expect(toggleMilestoneInData(data, "missing")).toBe(data);
+    expect(removeMilestoneFromData(data, "missing")).toBe(data);
   });
 });
 
@@ -404,6 +608,20 @@ describe("habit, practice, and reflection actions", () => {
         "missing",
         "assessment-1",
         20,
+      ),
+    ).toBe(withAssessment);
+
+    const removedAssessment = removeAssessmentFromData(
+      withAssessment,
+      "new-id",
+      "assessment-1",
+    );
+    expect(removedAssessment.modules[0].assessments).toEqual([]);
+    expect(
+      removeAssessmentFromData(
+        withAssessment,
+        "new-id",
+        "missing",
       ),
     ).toBe(withAssessment);
 
@@ -505,8 +723,11 @@ describe("habit, practice, and reflection actions", () => {
         date: "2026-07-24",
         durationMinutes: 1000,
         category: "Lead guitar",
-        techniques: ["Bends"],
+        techniques: [" Bends "],
         cleanBpm: 900,
+        confidence: 8,
+        difficulty: -2,
+        notes: "  Cleaner release  ",
       },
       META,
     );
@@ -514,6 +735,10 @@ describe("habit, practice, and reflection actions", () => {
       id: "new-id",
       durationMinutes: 720,
       cleanBpm: 400,
+      techniques: ["Bends"],
+      confidence: 5,
+      difficulty: 1,
+      notes: "Cleaner release",
     });
     expect(
       addGuitarSessionToData(

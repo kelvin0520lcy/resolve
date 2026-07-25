@@ -12,6 +12,12 @@ export type PageTheme = {
   cutInImageAlt?: string;
 };
 
+export type PageIllustration = {
+  image: string;
+  imageAlt: string;
+  label: string;
+};
+
 export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
   ensemble: {
     key: "ensemble",
@@ -21,6 +27,9 @@ export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
     reaction: "Kessoku Band status: somehow still operational.",
     image: "/illustrations/kessoku-ensemble-hero-v3.png",
     imageAlt: "Kessoku Band performing while Bocchi buffers on stage",
+    cutInImage: "/illustrations/kessoku-intermission-v4.png",
+    cutInImageAlt:
+      "Kessoku Band rehearsing while Bocchi lags, Nijika counts in, Ryo grooves, and Kita sparkles",
   },
   bocchi: {
     key: "bocchi",
@@ -87,14 +96,96 @@ const ROUTE_THEMES: Record<string, PageThemeKey> = {
   "/timeline": "kita",
 };
 
-export function getPageTheme(pathname: string) {
+const ROUTE_ILLUSTRATIONS: Record<string, PageIllustration> = {
+  "/dashboard": {
+    image: "/illustrations/kessoku-intermission-v4.png",
+    imageAlt:
+      "Kessoku Band rehearsing while Bocchi lags, Nijika counts in, Ryo grooves, and Kita sparkles",
+    label: "Band intermission",
+  },
+  "/settings": {
+    image: "/illustrations/kessoku-ensemble-hero-v3.png",
+    imageAlt: "Kessoku Band performing while Bocchi buffers on stage",
+    label: "Season setup",
+  },
+  "/today": {
+    image: "/illustrations/page-today-nijika-v1.webp",
+    imageAlt:
+      "Nijika drums an energetic morning count-in while task cards fall into rhythm",
+    label: "Morning count-in",
+  },
+  "/weekly": {
+    image: "/illustrations/page-weekly-nijika-v1.webp",
+    imageAlt:
+      "Chibi Nijika conducts an oversized weekly planner beside her red drum kit",
+    label: "Chibi planning cut",
+  },
+  "/habits": {
+    image: "/illustrations/page-habits-nijika-v1.webp",
+    imageAlt:
+      "Nijika repeats a seven-beat drum rhythm in a bold risograph montage",
+    label: "Rhythm montage",
+  },
+  "/guitar": {
+    image: "/illustrations/page-guitar-bocchi-v1.webp",
+    imageAlt:
+      "Bocchi turns a nervous warm-up into a solo on her black Les Paul Custom",
+    label: "Concert manga cut",
+  },
+  "/reflections": {
+    image: "/illustrations/page-reflections-bocchi-v1.webp",
+    imageAlt:
+      "Bocchi writes on a quiet rooftop as her soul hovers beside her black Les Paul Custom",
+    label: "Watercolor diary cut",
+  },
+  "/academics": {
+    image: "/illustrations/page-academics-ryo-v1.webp",
+    imageAlt:
+      "Ryo studies inside a library fortress beside her white Precision Bass",
+    label: "Study zine cut",
+  },
+  "/analytics": {
+    image: "/illustrations/page-analytics-ryo-v1.webp",
+    imageAlt:
+      "Ryo plays her white Precision Bass as abstract charts pulse from the groove",
+    label: "Data visualizer cut",
+  },
+  "/goals": {
+    image: "/illustrations/page-goals-kita-v1.webp",
+    imageAlt:
+      "Kita celebrates a milestone path with her blue single-pickup Les Paul Junior",
+    label: "Shoujo finish-line cut",
+  },
+  "/career": {
+    image: "/illustrations/page-career-kita-v1.webp",
+    imageAlt:
+      "Kita enters a stage-door interview carrying a portfolio and her blue Les Paul Junior",
+    label: "Backstage audition cut",
+  },
+  "/timeline": {
+    image: "/illustrations/page-timeline-kita-v1.webp",
+    imageAlt:
+      "Kita races through a semester filmstrip while playing her blue Les Paul Junior",
+    label: "Anime opening cut",
+  },
+};
+
+function matchRoute<T>(pathname: string, routes: Record<string, T>) {
   const route =
-    Object.keys(ROUTE_THEMES).find(
+    Object.keys(routes).find(
       (candidate) =>
         pathname === candidate || pathname.startsWith(`${candidate}/`),
     ) ?? "/dashboard";
 
-  return PAGE_THEMES[ROUTE_THEMES[route]];
+  return routes[route];
+}
+
+export function getPageTheme(pathname: string) {
+  return PAGE_THEMES[matchRoute(pathname, ROUTE_THEMES)];
+}
+
+export function getPageIllustration(pathname: string) {
+  return matchRoute(pathname, ROUTE_ILLUSTRATIONS);
 }
 
 export function getThemeRoutes(theme: PageThemeKey): string[] {

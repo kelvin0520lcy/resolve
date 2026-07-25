@@ -23,15 +23,20 @@ import {
   addGoalToData,
   addGuitarSessionToData,
   addHabitToData,
+  addMilestoneToData,
   addModuleToData,
   addTaskToData,
   moveTaskInData,
+  removeAssessmentFromData,
+  removeMilestoneFromData,
+  removeTaskFromData,
   saveReflectionToData,
+  setGoalCompletedInData,
   toggleHabitInData,
+  toggleMilestoneInData,
   toggleTaskInData,
   updateApplicationStageInData,
   updateAssessmentProgressInData,
-  updateGoalProgressInData,
   updateModuleStudyMinutesInData,
   updatePrioritiesInData,
   updateSemesterInData,
@@ -41,6 +46,7 @@ import {
   type NewAssessmentInput,
   type NewGoalInput,
   type NewHabitInput,
+  type NewMilestoneInput,
   type NewModuleInput,
   type NewTaskInput,
 } from "@/lib/resolve-actions";
@@ -91,11 +97,17 @@ type ResolveContextValue = ResolveData & {
   lastSyncedAt: string | null;
   addTask: (task: NewTaskInput) => void;
   toggleTask: (taskId: string) => void;
+  removeTask: (taskId: string) => void;
   moveTask: (taskId: string, scheduledDate: string) => void;
   addGoal: (goal: NewGoalInput) => void;
+  addMilestone: (goalId: string, milestone: NewMilestoneInput) => void;
+  toggleMilestone: (milestoneId: string) => void;
+  removeMilestone: (milestoneId: string) => void;
+  setGoalCompleted: (goalId: string, completed: boolean) => void;
   addHabit: (habit: NewHabitInput) => void;
   addModule: (module: NewModuleInput) => void;
   addAssessment: (assessment: NewAssessmentInput) => void;
+  removeAssessment: (moduleId: string, assessmentId: string) => void;
   addAlgorithmLog: (log: NewAlgorithmLogInput) => void;
   addApplication: (application: NewApplicationInput) => void;
   updateApplicationStage: (
@@ -108,7 +120,6 @@ type ResolveContextValue = ResolveData & {
     progress: number,
   ) => void;
   updateModuleStudyMinutes: (moduleId: string, minutes: number) => void;
-  updateGoalProgress: (goalId: string, value: number) => void;
   updateTaskActualMinutes: (taskId: string, minutes: number) => void;
   toggleHabit: (habitId: string, date: string) => void;
   addGuitarSession: (
@@ -174,6 +185,27 @@ export function normalizeStoredData(
     )
       ? stored.weeklyPriorities.map((priority) => priority.trim())
       : seed.weeklyPriorities;
+  const milestones = arrayOrSeed(stored.milestones, seed.milestones);
+  const goals = arrayOrSeed(stored.goals, seed.goals).map((goal) => {
+    const goalMilestones = milestones.filter(
+      (milestone) => milestone.goalId === goal.id,
+    );
+    const completionIsValid =
+      goalMilestones.length > 0 &&
+      goalMilestones.every((milestone) => milestone.completed);
+
+    return {
+      ...goal,
+      measurementType: "milestone" as const,
+      targetValue: undefined,
+      currentValue: undefined,
+      unit: undefined,
+      status:
+        goal.status === "completed" && !completionIsValid
+          ? ("active" as const)
+          : goal.status,
+    };
+  });
 
   return {
     semester:
@@ -184,8 +216,8 @@ export function normalizeStoredData(
       stored.semester.endDate > stored.semester.startDate
         ? { ...seed.semester, ...stored.semester, userId }
         : seed.semester,
-    goals: arrayOrSeed(stored.goals, seed.goals),
-    milestones: arrayOrSeed(stored.milestones, seed.milestones),
+    goals,
+    milestones,
     tasks: arrayOrSeed(stored.tasks, seed.tasks),
     habits: arrayOrSeed(stored.habits, seed.habits),
     habitLogs: arrayOrSeed(stored.habitLogs, seed.habitLogs),
@@ -415,6 +447,9 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       toggleTask(taskId) {
         setData((current) => toggleTaskInData(current, taskId));
       },
+      removeTask(taskId) {
+        setData((current) => removeTaskFromData(current, taskId));
+      },
       moveTask(taskId, scheduledDate) {
         setData((current) =>
           moveTaskInData(current, taskId, scheduledDate),
@@ -423,6 +458,26 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       addGoal(goal) {
         setData((current) =>
           addGoalToData(current, goal, { identity }),
+        );
+      },
+      addMilestone(goalId, milestone) {
+        setData((current) =>
+          addMilestoneToData(current, goalId, milestone, { identity }),
+        );
+      },
+      toggleMilestone(milestoneId) {
+        setData((current) =>
+          toggleMilestoneInData(current, milestoneId),
+        );
+      },
+      removeMilestone(milestoneId) {
+        setData((current) =>
+          removeMilestoneFromData(current, milestoneId),
+        );
+      },
+      setGoalCompleted(goalId, completed) {
+        setData((current) =>
+          setGoalCompletedInData(current, goalId, completed),
         );
       },
       addHabit(habit) {
@@ -438,6 +493,11 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       addAssessment(assessment) {
         setData((current) =>
           addAssessmentToData(current, assessment, { identity }),
+        );
+      },
+      removeAssessment(moduleId, assessmentId) {
+        setData((current) =>
+          removeAssessmentFromData(current, moduleId, assessmentId),
         );
       },
       addAlgorithmLog(log) {
@@ -468,11 +528,6 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       updateModuleStudyMinutes(moduleId, minutes) {
         setData((current) =>
           updateModuleStudyMinutesInData(current, moduleId, minutes),
-        );
-      },
-      updateGoalProgress(goalId, progress) {
-        setData((current) =>
-          updateGoalProgressInData(current, goalId, progress),
         );
       },
       toggleHabit(habitId, date) {

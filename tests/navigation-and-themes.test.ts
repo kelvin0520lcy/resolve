@@ -9,6 +9,7 @@ import {
 } from "@/lib/constants/navigation";
 import {
   PAGE_THEMES,
+  getPageIllustration,
   getPageTheme,
   getThemeRoutes,
 } from "@/lib/page-themes";
@@ -75,5 +76,39 @@ describe("character-owned navigation", () => {
       );
       expect(PAGE_THEMES[key].cutInImageAlt).toBeTruthy();
     }
+  });
+
+  it("provides a distinct illustration for every page", () => {
+    const routes = [
+      "/dashboard",
+      "/settings",
+      "/today",
+      "/weekly",
+      "/habits",
+      "/guitar",
+      "/reflections",
+      "/academics",
+      "/analytics",
+      "/goals",
+      "/career",
+      "/timeline",
+    ];
+    const illustrations = routes.map(
+      (route) => getPageIllustration(route).image,
+    );
+
+    expect(new Set(illustrations)).toHaveLength(routes.length);
+    for (const route of routes) {
+      const illustration = getPageIllustration(route);
+      expect(illustration.image).toMatch(/^\/illustrations\//);
+      expect(illustration.imageAlt).toBeTruthy();
+      expect(illustration.label).toBeTruthy();
+    }
+  });
+
+  it("falls back to the dashboard illustration for unknown routes", () => {
+    expect(getPageIllustration("/unknown")).toEqual(
+      getPageIllustration("/dashboard"),
+    );
   });
 });

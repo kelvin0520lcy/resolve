@@ -16,6 +16,7 @@ import {
   EmptyState,
   MetricCard,
   PageIntro,
+  alignedFieldLabelClassName,
   fieldClassName,
 } from "@/components/ui/resolve";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
@@ -105,38 +106,46 @@ export default function HabitsPage() {
             <CardContent>
               <form
                 onSubmit={submit}
-                className="grid gap-3 sm:grid-cols-[1fr_160px_150px_auto]"
+                className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_180px_180px_auto]"
               >
-                <input
-                  className={fieldClassName}
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  aria-label="Habit title"
-                  autoFocus
-                  required
-                />
-                <select
-                  className={fieldClassName}
-                  value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                  aria-label="Habit category"
-                >
-                  <option value="health">Health</option>
-                  <option value="personal">Personal</option>
-                  <option value="academics">Academics</option>
-                  <option value="guitar">Guitar</option>
-                  <option value="career">Career</option>
-                </select>
-                <select
-                  className={fieldClassName}
-                  value={schedule}
-                  onChange={(event) => setSchedule(event.target.value)}
-                  aria-label="Habit schedule"
-                >
-                  <option value="daily">Every day</option>
-                  <option value="weekdays">Weekdays</option>
-                </select>
-                <Button type="submit">Add</Button>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Habit</span>
+                  <input
+                    className={fieldClassName}
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Category</span>
+                  <select
+                    className={fieldClassName}
+                    value={category}
+                    onChange={(event) => setCategory(event.target.value)}
+                  >
+                    <option value="health">Health</option>
+                    <option value="personal">Personal</option>
+                    <option value="academics">Academics</option>
+                    <option value="guitar">Guitar</option>
+                    <option value="career">Career</option>
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Repeat</span>
+                  <select
+                    className={fieldClassName}
+                    value={schedule}
+                    onChange={(event) => setSchedule(event.target.value)}
+                  >
+                    <option value="daily">Every day</option>
+                    <option value="weekdays">Weekdays only</option>
+                  </select>
+                </label>
+                <Button type="submit" className="self-end">
+                  Add habit
+                </Button>
               </form>
             </CardContent>
           </Card>

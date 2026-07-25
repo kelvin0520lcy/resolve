@@ -32,13 +32,21 @@ export function ProgressBar({
   value,
   className,
   color = "var(--accent)",
+  label,
 }: {
   value: number;
   className?: string;
   color?: string;
+  label?: string;
 }) {
+  const normalizedValue = Math.min(100, Math.max(0, value));
   return (
     <div
+      role={label ? "progressbar" : undefined}
+      aria-label={label}
+      aria-valuemin={label ? 0 : undefined}
+      aria-valuemax={label ? 100 : undefined}
+      aria-valuenow={label ? Math.round(normalizedValue) : undefined}
       className={cn(
         "h-2.5 w-full overflow-hidden rounded-full border border-white/5 bg-surface-muted",
         className,
@@ -47,7 +55,7 @@ export function ProgressBar({
       <div
         className="h-full rounded-full transition-all duration-700 ease-out"
         style={{
-          width: `${Math.min(100, Math.max(0, value))}%`,
+          width: `${normalizedValue}%`,
           backgroundColor: color,
         }}
       />

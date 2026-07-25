@@ -14,6 +14,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { CharacterCompanion } from "@/components/character/character-companion";
 import { MainResolutionPanel } from "@/components/resolution/main-resolution-panel";
 import { ProgressBar } from "@/components/ui/badge";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -40,10 +41,12 @@ export default function DashboardPage() {
     semester,
     tasks,
     goals,
+    milestones,
     habits,
     habitLogs,
     weeklyPriorities,
     toggleTask,
+    removeTask,
     updateSemester,
   } = useResolve();
   const today = offsetDate(0);
@@ -103,7 +106,18 @@ export default function DashboardPage() {
   });
   const topGoal = goals
     .filter((goal) => goal.status !== "completed")
-    .sort((a, b) => (a.priority === "high" ? -1 : b.priority === "high" ? 1 : 0))[0];
+    .sort((a, b) =>
+      a.priority === "high" ? -1 : b.priority === "high" ? 1 : 0,
+    )[0];
+  const topGoalMilestones = topGoal
+    ? milestones.filter((milestone) => milestone.goalId === topGoal.id)
+    : [];
+  const completedTopGoalMilestones = topGoalMilestones.filter(
+    (milestone) => milestone.completed,
+  ).length;
+  const topGoalProgress = topGoalMilestones.length
+    ? (completedTopGoalMilestones / topGoalMilestones.length) * 100
+    : 0;
   const nextProof =
     topGoal?.title ??
     todayTasks.find((task) => task.status !== "completed")?.title ??
@@ -190,7 +204,7 @@ export default function DashboardPage() {
                           ? `Mark ${task.title} incomplete`
                           : `Complete ${task.title}`
                       }
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 transition ${
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 transition ${
                         done
                           ? "border-success bg-success text-white"
                           : "border-border hover:border-accent"
@@ -210,7 +224,13 @@ export default function DashboardPage() {
                         {task.estimatedMinutes ?? 0} min · {task.priority} priority
                       </p>
                     </div>
-                    <CategoryBadge category={task.category} />
+                    <div className="flex shrink-0 items-center gap-2">
+                      <CategoryBadge category={task.category} />
+                      <ConfirmDeleteButton
+                        itemLabel={`task ${task.title}`}
+                        onConfirm={() => removeTask(task.id)}
+                      />
+                    </div>
                   </div>
                 );
               })}
@@ -272,15 +292,13 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <ProgressBar
-                    value={
-                      ((topGoal.currentValue ?? 0) /
-                        Math.max(topGoal.targetValue ?? 1, 1)) *
-                      100
-                    }
+                    value={topGoalProgress}
+                    label={`${topGoal.title} breakdown progress`}
                   />
                   <p className="mt-2 text-xs text-muted">
-                    {topGoal.currentValue ?? 0} of {topGoal.targetValue}{" "}
-                    {topGoal.unit}
+                    {topGoalMilestones.length
+                      ? `${completedTopGoalMilestones} of ${topGoalMilestones.length} breakdown steps complete`
+                      : "No breakdown steps yet"}
                   </p>
                 </CardContent>
               </Card>

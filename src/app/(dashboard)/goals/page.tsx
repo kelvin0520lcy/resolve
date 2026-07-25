@@ -2,8 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import { AlertTriangle, CheckCircle2, Plus, Target, X } from "lucide-react";
+import { GoalBreakdown } from "@/components/goals/goal-breakdown";
 import { PageShell } from "@/components/layout/page-shell";
-import { Badge, ProgressBar } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,13 +26,19 @@ import { formatDate } from "@/lib/utils";
 import type { Goal, GoalCategory } from "@/types";
 
 export default function GoalsPage() {
-  const { goals, addGoal, updateGoalProgress } = useResolve();
+  const {
+    goals,
+    milestones,
+    addGoal,
+    addMilestone,
+    toggleMilestone,
+    removeMilestone,
+    setGoalCompleted,
+  } = useResolve();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<GoalCategory>("academics");
-  const [target, setTarget] = useState("10");
-  const [unit, setUnit] = useState("sessions");
   const [priority, setPriority] = useState<Goal["priority"]>("medium");
   const [deadline, setDeadline] = useState(offsetDate(60));
 
@@ -43,8 +50,6 @@ export default function GoalsPage() {
       description: description.trim(),
       category,
       priority,
-      targetValue: Number(target) || 1,
-      unit: unit.trim() || "steps",
       deadline,
     });
     setTitle("");
@@ -58,7 +63,7 @@ export default function GoalsPage() {
         <PageIntro
           eyebrow="Semester resolutions"
           title="Turn intention into evidence"
-          description="Every goal has a finish line, a reason, and progress you can update without managing a spreadsheet."
+          description="Every goal gets a clear outcome, smaller finish lines, and a completion rule you can trust."
           action={
             <Button onClick={() => setShowForm((value) => !value)}>
               {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -91,9 +96,9 @@ export default function GoalsPage() {
         {showForm && (
           <Card className="border-accent/30">
             <CardHeader>
-              <CardTitle>Create a measurable goal</CardTitle>
+              <CardTitle>Create a goal</CardTitle>
               <CardDescription>
-                Describe the outcome first; tasks come later.
+                Describe the outcome, then break it into smaller finish lines.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -135,27 +140,6 @@ export default function GoalsPage() {
                   />
                 </label>
                 <label className="text-sm font-bold">
-                  Target value
-                  <input
-                    className={`${fieldClassName} mt-2`}
-                    value={target}
-                    onChange={(event) => setTarget(event.target.value)}
-                    type="number"
-                    min="1"
-                    max="1000000"
-                    required
-                  />
-                </label>
-                <label className="text-sm font-bold">
-                  Unit
-                  <input
-                    className={`${fieldClassName} mt-2`}
-                    value={unit}
-                    onChange={(event) => setUnit(event.target.value)}
-                    required
-                  />
-                </label>
-                <label className="text-sm font-bold">
                   Priority
                   <select
                     className={`${fieldClassName} mt-2`}
@@ -188,13 +172,9 @@ export default function GoalsPage() {
           </Card>
         )}
 
-        {goals.length ? <div className="grid gap-5 lg:grid-cols-2">
-          {goals.map((goal) => {
-            const progress =
-              ((goal.currentValue ?? 0) /
-                Math.max(goal.targetValue ?? 1, 1)) *
-              100;
-            return (
+        {goals.length ? (
+          <div className="grid gap-5 lg:grid-cols-2">
+            {goals.map((goal) => (
               <Card key={goal.id} className="overflow-hidden">
                 <div
                   className="h-1.5"
@@ -227,12 +207,9 @@ export default function GoalsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="mb-2 flex items-end justify-between gap-4">
-                    <p className="text-2xl font-black">
-                      {goal.currentValue ?? 0}
-                      <span className="ml-1 text-sm font-medium text-muted">
-                        / {goal.targetValue} {goal.unit}
-                      </span>
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface/60 px-3 py-2">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">
+                      Complete every breakdown step to finish this goal
                     </p>
                     {goal.deadline && (
                       <p className="text-xs text-muted">
@@ -240,37 +217,28 @@ export default function GoalsPage() {
                       </p>
                     )}
                   </div>
-                  <ProgressBar
-                    value={progress}
-                    color={
-                      goal.status === "at_risk"
-                        ? "var(--warning)"
-                        : "var(--accent)"
-                    }
+                  <GoalBreakdown
+                    goal={goal}
+                    milestones={milestones.filter(
+                      (milestone) => milestone.goalId === goal.id,
+                    )}
+                    addMilestone={addMilestone}
+                    toggleMilestone={toggleMilestone}
+                    removeMilestone={removeMilestone}
+                    setGoalCompleted={setGoalCompleted}
                   />
-                  <label className="mt-4 block text-xs font-bold text-muted">
-                    Update progress
-                    <input
-                      className="mt-2 w-full accent-pink-500"
-                      type="range"
-                      min="0"
-                      max={goal.targetValue ?? 100}
-                      value={goal.currentValue ?? 0}
-                      onChange={(event) =>
-                        updateGoalProgress(goal.id, Number(event.target.value))
-                      }
-                    />
-                  </label>
                 </CardContent>
               </Card>
-            );
-          })}
-        </div> : (
+            ))}
+          </div>
+        ) : (
           <EmptyState
             icon={<Target className="h-6 w-6" />}
             title="No goals yet"
-            description="Create one measurable outcome. The rest of Resolve will use it to connect tasks and progress."
-            action={<Button onClick={() => setShowForm(true)}>Create a goal</Button>}
+            description="Create one meaningful outcome, then add the smaller steps that make it achievable."
+            action={
+              <Button onClick={() => setShowForm(true)}>Create a goal</Button>
+            }
           />
         )}
       </div>

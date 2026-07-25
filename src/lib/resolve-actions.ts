@@ -8,6 +8,7 @@ import type {
   GuitarPracticeSession,
   Habit,
   JobApplication,
+  Milestone,
   Reflection,
   Semester,
   Task,
@@ -20,9 +21,12 @@ export type NewTaskInput = Pick<Task, "title" | "category" | "priority"> &
 
 export type NewGoalInput = Pick<
   Goal,
-  "title" | "description" | "category" | "priority" | "targetValue" | "unit"
+  "title" | "description" | "category" | "priority"
 > &
   Partial<Pick<Goal, "deadline" | "motivation">>;
+
+export type NewMilestoneInput = Pick<Milestone, "title"> &
+  Partial<Pick<Milestone, "description" | "deadline">>;
 
 export type NewHabitInput = Pick<
   Habit,
@@ -122,6 +126,17 @@ export function toggleTaskInData(
   };
 }
 
+export function removeTaskFromData(
+  current: ResolveData,
+  taskId: string,
+): ResolveData {
+  if (!current.tasks.some((task) => task.id === taskId)) return current;
+  return {
+    ...current,
+    tasks: current.tasks.filter((task) => task.id !== taskId),
+  };
+}
+
 export function updateTaskActualMinutesInData(
   current: ResolveData,
   taskId: string,
@@ -184,9 +199,6 @@ export function addGoalToData(
   const cleanTitle = goal.title.trim();
   const cleanDescription = goal.description.trim();
   if (!cleanTitle || !cleanDescription) return current;
-  const targetValue = Number.isFinite(goal.targetValue)
-    ? Math.max(1, goal.targetValue!)
-    : 1;
   const timestamp = mutationTime(meta);
 
   return {
@@ -197,13 +209,11 @@ export function addGoalToData(
         ...goal,
         title: cleanTitle,
         description: cleanDescription,
-        targetValue,
         deadline: isDateKey(goal.deadline) ? goal.deadline : undefined,
         id: mutationId(meta),
         userId: meta.identity,
         semesterId: current.semester.id,
-        measurementType: "count",
-        currentValue: 0,
+        measurementType: "milestone",
         startDate: offsetDate(0),
         status: "active",
         createdAt: timestamp,
@@ -213,39 +223,161 @@ export function addGoalToData(
   };
 }
 
-export function updateGoalProgressInData(
+export function setGoalCompletedInData(
   current: ResolveData,
   goalId: string,
-  progress: number,
+  completed: boolean,
   timestamp = new Date().toISOString(),
 ): ResolveData {
+  const goal = current.goals.find((item) => item.id === goalId);
+  if (!goal) return current;
+  const goalMilestones = current.milestones.filter(
+    (milestone) => milestone.goalId === goalId,
+  );
   if (
-    !Number.isFinite(progress) ||
-    !current.goals.some((goal) => goal.id === goalId)
+    completed &&
+    (goalMilestones.length === 0 ||
+      goalMilestones.some((milestone) => !milestone.completed))
   ) {
     return current;
   }
+
   return {
     ...current,
-    goals: current.goals.map((goal) => {
-      if (goal.id !== goalId) return goal;
-      const target =
-        Number.isFinite(goal.targetValue) && (goal.targetValue ?? 0) > 0
-          ? goal.targetValue!
-          : Math.max(1, progress);
-      const currentValue = Math.max(0, Math.min(progress, target));
-      return {
-        ...goal,
-        currentValue,
-        status:
-          currentValue >= target
-            ? "completed"
-            : goal.status === "completed"
-              ? "active"
-              : goal.status,
-        updatedAt: timestamp,
-      };
-    }),
+    goals: current.goals.map((item) =>
+      item.id === goalId
+        ? {
+            ...item,
+            measurementType: "milestone",
+            targetValue: undefined,
+            currentValue: undefined,
+            unit: undefined,
+            status: completed ? "completed" : "active",
+            updatedAt: timestamp,
+          }
+        : item,
+    ),
+  };
+}
+
+export function addMilestoneToData(
+  current: ResolveData,
+  goalId: string,
+  milestone: NewMilestoneInput,
+  meta: MutationMeta,
+): ResolveData {
+  const title = milestone.title.trim();
+  if (!title || !current.goals.some((goal) => goal.id === goalId)) {
+    return current;
+  }
+  const description = milestone.description?.trim() || undefined;
+  const order =
+    current.milestones
+      .filter((item) => item.goalId === goalId)
+      .reduce((highest, item) => Math.max(highest, item.order), 0) + 1;
+
+  return {
+    ...current,
+    goals: current.goals.map((goal) =>
+      goal.id === goalId
+        ? {
+            ...goal,
+            measurementType: "milestone",
+            targetValue: undefined,
+            currentValue: undefined,
+            unit: undefined,
+            status: goal.status === "completed" ? "active" : goal.status,
+            updatedAt: mutationTime(meta),
+          }
+        : goal,
+    ),
+    milestones: [
+      ...current.milestones,
+      {
+        id: mutationId(meta),
+        goalId,
+        title,
+        description,
+        deadline: isDateKey(milestone.deadline)
+          ? milestone.deadline
+          : undefined,
+        completed: false,
+        order,
+      },
+    ],
+  };
+}
+
+export function toggleMilestoneInData(
+  current: ResolveData,
+  milestoneId: string,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  if (!current.milestones.some((milestone) => milestone.id === milestoneId)) {
+    return current;
+  }
+  const targetMilestone = current.milestones.find(
+    (milestone) => milestone.id === milestoneId,
+  )!;
+
+  return {
+    ...current,
+    goals: targetMilestone.completed
+      ? current.goals.map((goal) =>
+          goal.id === targetMilestone.goalId && goal.status === "completed"
+            ? { ...goal, status: "active", updatedAt: timestamp }
+            : goal,
+        )
+      : current.goals,
+    milestones: current.milestones.map((milestone) =>
+      milestone.id === milestoneId
+        ? {
+            ...milestone,
+            completed: !milestone.completed,
+            completedAt: milestone.completed ? undefined : timestamp,
+          }
+        : milestone,
+    ),
+  };
+}
+
+export function removeMilestoneFromData(
+  current: ResolveData,
+  milestoneId: string,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  if (!current.milestones.some((milestone) => milestone.id === milestoneId)) {
+    return current;
+  }
+  const targetMilestone = current.milestones.find(
+    (milestone) => milestone.id === milestoneId,
+  )!;
+  const remainingGoalMilestones = current.milestones.filter(
+    (milestone) =>
+      milestone.goalId === targetMilestone.goalId &&
+      milestone.id !== milestoneId,
+  );
+  const completionStillValid =
+    remainingGoalMilestones.length > 0 &&
+    remainingGoalMilestones.every((milestone) => milestone.completed);
+
+  return {
+    ...current,
+    goals: completionStillValid
+      ? current.goals
+      : current.goals.map((goal) =>
+          goal.id === targetMilestone.goalId && goal.status === "completed"
+            ? { ...goal, status: "active", updatedAt: timestamp }
+            : goal,
+        ),
+    milestones: current.milestones.filter(
+      (milestone) => milestone.id !== milestoneId,
+    ),
+    tasks: current.tasks.map((task) =>
+      task.milestoneId === milestoneId
+        ? { ...task, milestoneId: undefined, updatedAt: timestamp }
+        : task,
+    ),
   };
 }
 
@@ -442,6 +574,36 @@ export function updateAssessmentProgressInData(
   };
 }
 
+export function removeAssessmentFromData(
+  current: ResolveData,
+  moduleId: string,
+  assessmentId: string,
+): ResolveData {
+  if (
+    !current.modules.some(
+      (module) =>
+        module.id === moduleId &&
+        module.assessments.some((assessment) => assessment.id === assessmentId),
+    )
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    modules: current.modules.map((module) =>
+      module.id === moduleId
+        ? {
+            ...module,
+            assessments: module.assessments.filter(
+              (assessment) => assessment.id !== assessmentId,
+            ),
+          }
+        : module,
+    ),
+  };
+}
+
 export function updateModuleStudyMinutesInData(
   current: ResolveData,
   moduleId: string,
@@ -572,10 +734,16 @@ export function addGuitarSessionToData(
   session: Omit<GuitarPracticeSession, "id" | "userId" | "semesterId">,
   meta: MutationMeta,
 ): ResolveData {
+  const category = session.category.trim();
+  const techniques = session.techniques
+    .map((technique) => technique.trim())
+    .filter(Boolean);
   if (
     !isDateKey(session.date) ||
     !Number.isFinite(session.durationMinutes) ||
-    session.durationMinutes <= 0
+    session.durationMinutes <= 0 ||
+    !category ||
+    techniques.length === 0
   ) {
     return current;
   }
@@ -584,6 +752,8 @@ export function addGuitarSessionToData(
     guitarSessions: [
       {
         ...session,
+        category,
+        techniques,
         durationMinutes: Math.min(
           720,
           Math.max(5, Math.round(session.durationMinutes)),
@@ -592,6 +762,20 @@ export function addGuitarSessionToData(
           session.cleanBpm === undefined || !Number.isFinite(session.cleanBpm)
             ? undefined
             : Math.min(400, Math.max(20, Math.round(session.cleanBpm))),
+        confidence:
+          session.confidence === undefined ||
+          !Number.isFinite(session.confidence)
+            ? undefined
+            : Math.min(5, Math.max(1, Math.round(session.confidence))),
+        difficulty:
+          session.difficulty === undefined ||
+          !Number.isFinite(session.difficulty)
+            ? undefined
+            : Math.min(5, Math.max(1, Math.round(session.difficulty))),
+        song: session.song?.trim() || undefined,
+        exercise: session.exercise?.trim() || undefined,
+        notes: session.notes?.trim() || undefined,
+        nextFocus: session.nextFocus?.trim() || undefined,
         id: mutationId(meta),
         userId: meta.identity,
         semesterId: current.semester.id,

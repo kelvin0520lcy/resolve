@@ -94,8 +94,8 @@ export function CharacterCompanion({
       )}
     >
       <Image
-        src="/illustrations/kessoku-ensemble-hero-v3.png"
-        alt="Kessoku Band performing while Bocchi comically buffers"
+        src="/illustrations/kessoku-intermission-v4.png"
+        alt="Kessoku Band rehearsing while Bocchi comically lags"
         fill
         sizes="(min-width: 1024px) 70vw, 100vw"
         className="object-cover object-center transition duration-1000 group-hover:scale-[1.025]"

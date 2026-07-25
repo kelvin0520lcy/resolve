@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { CharacterCompanion } from "@/components/character/character-companion";
 import { PageShell } from "@/components/layout/page-shell";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,7 +27,16 @@ import {
   textAreaClassName,
 } from "@/components/ui/resolve";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
+import { summarizeReflections } from "@/lib/reflection-summary";
 import { formatDate } from "@/lib/utils";
+
+const ENERGY_LEVELS = [
+  { value: 1, label: "Drained" },
+  { value: 2, label: "Low" },
+  { value: 3, label: "Steady" },
+  { value: 4, label: "Good" },
+  { value: 5, label: "Charged" },
+] as const;
 
 export default function ReflectionsPage() {
   const {
@@ -44,11 +52,15 @@ export default function ReflectionsPage() {
   const [nextChanges, setNextChanges] = useState("");
   const [energy, setEnergy] = useState(3);
   const [saved, setSaved] = useState(false);
-  const savedReviews = useMemo(
+  const recentReviews = useMemo(
     () =>
       [...reflections].sort((a, b) =>
         b.createdAt.localeCompare(a.createdAt),
       ),
+    [reflections],
+  );
+  const summary = useMemo(
+    () => summarizeReflections(reflections),
     [reflections],
   );
   const todayReflection = reflections.find(
@@ -57,7 +69,7 @@ export default function ReflectionsPage() {
       reflection.periodStart === today &&
       reflection.periodEnd === today,
   );
-  const carryOver = savedReviews.find(
+  const carryOver = recentReviews.find(
     (reflection) => reflection.nextChanges?.trim(),
   );
 
@@ -141,9 +153,9 @@ export default function ReflectionsPage() {
 
         <div className="grid gap-4 sm:grid-cols-3">
           <MetricCard
-            label="Reflections"
-            value={reflections.length}
-            detail="saved this semester"
+            label="Recent check-ins"
+            value={summary.reviewCount}
+            detail="used in your pattern summary"
             icon={<BookHeart className="h-5 w-5" />}
           />
           <MetricCard
@@ -171,7 +183,10 @@ export default function ReflectionsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={submit} className="space-y-5">
+              <form
+                onSubmit={submit}
+                className="grid gap-5 sm:grid-cols-2"
+              >
                 <label className="block text-sm font-bold">
                   What was today&apos;s small win?
                   <textarea
@@ -216,10 +231,13 @@ export default function ReflectionsPage() {
                     }}
                   />
                 </label>
-                <fieldset>
-                  <legend className="text-sm font-bold">Energy</legend>
-                  <div className="mt-2 grid grid-cols-5 gap-2">
-                    {[1, 2, 3, 4, 5].map((value) => (
+                <fieldset className="sm:col-span-2">
+                  <legend className="text-sm font-bold">Energy level</legend>
+                  <p className="mt-1 text-xs text-muted">
+                    1 means drained; 5 means fully charged.
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {ENERGY_LEVELS.map(({ value, label }) => (
                       <button
                         key={value}
                         type="button"
@@ -227,20 +245,21 @@ export default function ReflectionsPage() {
                           setEnergy(value);
                           setSaved(false);
                         }}
-                        className={`h-10 rounded-xl border font-bold ${
+                        className={`min-h-12 rounded-xl border px-2 py-2 text-xs font-bold ${
                           energy === value
                             ? "border-accent bg-accent text-white"
                             : "border-border bg-surface"
                         }`}
                       >
-                        {value}
+                        <span className="block text-base">{value}/5</span>
+                        <span className="block font-medium">{label}</span>
                       </button>
                     ))}
                   </div>
                 </fieldset>
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full sm:col-span-2"
                   disabled={
                     !wins.trim() &&
                     !difficulties.trim() &&
@@ -254,8 +273,8 @@ export default function ReflectionsPage() {
                     : "Save today’s review"}
                 </Button>
                 {saved && (
-                  <p className="text-center text-sm font-semibold text-success">
-                    Saved. This review is now part of your workspace history.
+                  <p className="text-center text-sm font-semibold text-success sm:col-span-2">
+                    Saved. Your recent pattern summary is updated.
                   </p>
                 )}
               </form>
@@ -298,59 +317,82 @@ export default function ReflectionsPage() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Lightbulb className="h-4 w-4 text-accent" />
-                  <CardTitle>Saved reviews</CardTitle>
+                  <CardTitle>Recent pattern summary</CardTitle>
                 </div>
                 <CardDescription>
-                  Every field below is retained with its date and synced with
-                  the rest of your workspace.
+                  A useful signal from your latest seven daily check-ins—not a
+                  wall of old diary entries.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {savedReviews.slice(0, 6).map((reflection) => (
-                  <div
-                    key={reflection.id}
-                    className="rounded-2xl border border-border bg-surface p-4"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <Badge className="capitalize">{reflection.type}</Badge>
-                      <span className="text-xs text-muted">
-                        {formatDate(`${reflection.periodStart}T12:00:00`)}
-                      </span>
+              <CardContent className="space-y-4">
+                {summary.reviewCount ? (
+                  <>
+                    <div className="rounded-2xl border border-accent/25 bg-accent/5 p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-wider text-accent">
+                            Seven-check-in signal
+                          </p>
+                          <p className="mt-2 text-sm font-bold leading-6">
+                            {summary.headline}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="font-display text-3xl">
+                            {summary.averageEnergy ?? "—"}
+                          </p>
+                          <p className="text-[10px] font-black uppercase tracking-wider text-muted">
+                            avg energy / 5
+                          </p>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-muted">
+                        {summary.reviewedDays} reviewed day
+                        {summary.reviewedDays === 1 ? "" : "s"} ·{" "}
+                        {summary.winsCaptured} win
+                        {summary.winsCaptured === 1 ? "" : "s"} noticed ·{" "}
+                        {summary.frictionCaptured} friction note
+                        {summary.frictionCaptured === 1 ? "" : "s"}
+                      </p>
                     </div>
-                    <div className="mt-3 space-y-2 text-sm leading-6">
-                      {reflection.wins && (
-                        <p>
-                          <strong>Win:</strong> {reflection.wins}
-                        </p>
+                    <div className="grid gap-3">
+                      {summary.latestWin && (
+                        <div className="rounded-2xl border border-border bg-surface p-4">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-success">
+                            What is working
+                          </p>
+                          <p className="mt-2 text-sm leading-6">
+                            {summary.latestWin}
+                          </p>
+                        </div>
                       )}
-                      {reflection.difficulties && (
-                        <p>
-                          <strong>Friction:</strong>{" "}
-                          {reflection.difficulties}
-                        </p>
+                      {summary.latestFriction && (
+                        <div className="rounded-2xl border border-border bg-surface p-4">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-warning">
+                            Watch this friction
+                          </p>
+                          <p className="mt-2 text-sm leading-6">
+                            {summary.latestFriction}
+                          </p>
+                        </div>
                       )}
-                      {reflection.lessons && (
-                        <p>
-                          <strong>Lesson:</strong> {reflection.lessons}
-                        </p>
-                      )}
-                      {reflection.nextChanges && (
-                        <p className="rounded-xl bg-accent/5 p-2">
-                          <strong>Next change:</strong>{" "}
-                          {reflection.nextChanges}
-                        </p>
+                      {summary.latestLesson && (
+                        <div className="rounded-2xl border border-border bg-surface p-4">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-accent">
+                            Latest useful lesson
+                          </p>
+                          <p className="mt-2 text-sm leading-6">
+                            {summary.latestLesson}
+                          </p>
+                        </div>
                       )}
                     </div>
-                    <p className="mt-3 text-xs text-muted">
-                      Energy {reflection.energy ?? "—"}/5
-                    </p>
-                  </div>
-                ))}
-                {!reflections.length && (
+                  </>
+                ) : (
                   <div className="py-8 text-center text-sm text-muted">
                     <BookHeart className="mx-auto mb-3 h-6 w-6 text-accent" />
-                    Your first review will become a dated record here, and its
-                    next change will feed the carry-over panel above.
+                    Your first review will create a compact pattern summary and
+                    feed the carry-over panel above.
                   </div>
                 )}
               </CardContent>

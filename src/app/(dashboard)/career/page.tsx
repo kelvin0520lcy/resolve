@@ -16,6 +16,7 @@ import {
   EmptyState,
   MetricCard,
   PageIntro,
+  alignedFieldLabelClassName,
   fieldClassName,
   textAreaClassName,
 } from "@/components/ui/resolve";
@@ -36,7 +37,6 @@ export default function CareerPage() {
   const {
     algorithmLogs,
     applications,
-    goals,
     addAlgorithmLog,
     addApplication,
     updateApplicationStage,
@@ -58,7 +58,6 @@ export default function CareerPage() {
     useState<JobApplication["stage"]>("applied");
   const [nextAction, setNextAction] = useState("");
   const [nextActionDate, setNextActionDate] = useState(offsetDate(3));
-  const careerGoal = goals.find((goal) => goal.category === "career");
   const algorithmMinutes = algorithmLogs.reduce(
     (sum, log) => sum + log.minutes,
     0,
@@ -152,31 +151,33 @@ export default function CareerPage() {
             <CardContent>
               <form
                 onSubmit={submitPractice}
-                className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+                className="grid gap-3 md:grid-cols-2 xl:grid-cols-6"
               >
-                <label className="text-sm font-bold md:col-span-2">
-                  Problem
+                <label
+                  className={`${alignedFieldLabelClassName} md:col-span-2 xl:col-span-2`}
+                >
+                  <span className="flex items-end">Problem</span>
                   <input
-                    className={`${fieldClassName} mt-2`}
+                    className={fieldClassName}
                     value={problemName}
                     onChange={(event) => setProblemName(event.target.value)}
                     autoFocus
                     required
                   />
                 </label>
-                <label className="text-sm font-bold">
-                  Topic
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Topic</span>
                   <input
-                    className={`${fieldClassName} mt-2`}
+                    className={fieldClassName}
                     value={topic}
                     onChange={(event) => setTopic(event.target.value)}
                     required
                   />
                 </label>
-                <label className="text-sm font-bold">
-                  Difficulty
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Difficulty</span>
                   <select
-                    className={`${fieldClassName} mt-2`}
+                    className={fieldClassName}
                     value={difficulty}
                     onChange={(event) =>
                       setDifficulty(
@@ -189,10 +190,15 @@ export default function CareerPage() {
                     <option>Hard</option>
                   </select>
                 </label>
-                <label className="text-sm font-bold">
-                  Minutes
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Time spent{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (minutes)
+                    </span>
+                  </span>
                   <input
-                    className={`${fieldClassName} mt-2`}
+                    className={fieldClassName}
                     value={minutes}
                     onChange={(event) => setMinutes(event.target.value)}
                     type="number"
@@ -201,24 +207,26 @@ export default function CareerPage() {
                     required
                   />
                 </label>
-                <label className="text-sm font-bold">
-                  Confidence
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Confidence</span>
                   <select
-                    className={`${fieldClassName} mt-2`}
+                    className={fieldClassName}
                     value={confidence}
                     onChange={(event) => setConfidence(event.target.value)}
                   >
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <option key={value} value={value}>
-                        {value}/5
-                      </option>
-                    ))}
+                    <option value="1">1/5 · Lost</option>
+                    <option value="2">2/5 · Unsure</option>
+                    <option value="3">3/5 · Steady</option>
+                    <option value="4">4/5 · Confident</option>
+                    <option value="5">5/5 · Ready</option>
                   </select>
                 </label>
-                <label className="text-sm font-bold md:col-span-2 xl:col-span-3">
-                  Reusable lesson
+                <label
+                  className={`${alignedFieldLabelClassName} md:col-span-2 xl:col-span-5`}
+                >
+                  <span className="flex items-end">Reusable lesson</span>
                   <textarea
-                    className={`${textAreaClassName} mt-2`}
+                    className={textAreaClassName}
                     value={lesson}
                     onChange={(event) => setLesson(event.target.value)}
                     required
@@ -233,7 +241,7 @@ export default function CareerPage() {
                   />
                   Used hints
                 </label>
-                <Button type="submit" className="md:col-span-2 xl:col-span-4">
+                <Button type="submit" className="md:col-span-2 xl:col-span-6">
                   Save practice evidence
                 </Button>
               </form>
@@ -251,51 +259,61 @@ export default function CareerPage() {
                 onSubmit={submitApplication}
                 className="grid gap-3 md:grid-cols-2"
               >
-                <input
-                  className={fieldClassName}
-                  value={company}
-                  onChange={(event) => setCompany(event.target.value)}
-                  aria-label="Company"
-                  autoFocus
-                  required
-                />
-                <input
-                  className={fieldClassName}
-                  value={role}
-                  onChange={(event) => setRole(event.target.value)}
-                  aria-label="Role"
-                  required
-                />
-                <select
-                  className={fieldClassName}
-                  value={stage}
-                  onChange={(event) =>
-                    setStage(event.target.value as JobApplication["stage"])
-                  }
-                  aria-label="Application stage"
-                >
-                  <option value="saved">Saved</option>
-                  <option value="applied">Applied</option>
-                  <option value="assessment">Assessment</option>
-                  <option value="interview">Interview</option>
-                  <option value="offer">Offer</option>
-                  <option value="closed">Closed</option>
-                </select>
-                <input
-                  className={fieldClassName}
-                  value={nextAction}
-                  onChange={(event) => setNextAction(event.target.value)}
-                  aria-label="Next action"
-                  required={stage !== "closed"}
-                />
-                <input
-                  className={fieldClassName}
-                  value={nextActionDate}
-                  onChange={(event) => setNextActionDate(event.target.value)}
-                  type="date"
-                  aria-label="Next action date"
-                  required={Boolean(nextAction.trim())}
-                />
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Company</span>
+                  <input
+                    className={fieldClassName}
+                    value={company}
+                    onChange={(event) => setCompany(event.target.value)}
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Role</span>
+                  <input
+                    className={fieldClassName}
+                    value={role}
+                    onChange={(event) => setRole(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Current stage</span>
+                  <select
+                    className={fieldClassName}
+                    value={stage}
+                    onChange={(event) =>
+                      setStage(event.target.value as JobApplication["stage"])
+                    }
+                  >
+                    <option value="saved">Saved</option>
+                    <option value="applied">Applied</option>
+                    <option value="assessment">Assessment</option>
+                    <option value="interview">Interview</option>
+                    <option value="offer">Offer</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Next action</span>
+                  <input
+                    className={fieldClassName}
+                    value={nextAction}
+                    onChange={(event) => setNextAction(event.target.value)}
+                    required={stage !== "closed"}
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Next-action date</span>
+                  <input
+                    className={fieldClassName}
+                    value={nextActionDate}
+                    onChange={(event) => setNextActionDate(event.target.value)}
+                    type="date"
+                    required={Boolean(nextAction.trim())}
+                  />
+                </label>
                 <Button type="submit" className="md:col-span-2">
                   Add application
                 </Button>
@@ -307,8 +325,8 @@ export default function CareerPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <MetricCard
             label="Problems solved"
-            value={careerGoal?.currentValue ?? algorithmLogs.length}
-            detail={`of ${careerGoal?.targetValue ?? 60} this semester`}
+            value={algorithmLogs.length}
+            detail="practice problems logged this semester"
             icon={<BrainCircuit className="h-5 w-5" />}
           />
           <MetricCard
@@ -406,24 +424,26 @@ export default function CareerPage() {
                       >
                         {application.stage}
                       </Badge>
-                      <select
-                        className="rounded-lg border border-border bg-surface-muted px-2 py-1 text-xs font-bold outline-none focus:border-accent"
-                        value={application.stage}
-                        onChange={(event) =>
-                          updateApplicationStage(
-                            application.id,
-                            event.target.value as JobApplication["stage"],
-                          )
-                        }
-                        aria-label={`Update stage for ${application.company}`}
-                      >
-                        <option value="saved">Saved</option>
-                        <option value="applied">Applied</option>
-                        <option value="assessment">Assessment</option>
-                        <option value="interview">Interview</option>
-                        <option value="offer">Offer</option>
-                        <option value="closed">Closed</option>
-                      </select>
+                      <label className="text-right text-[10px] font-black uppercase tracking-wider text-muted">
+                        Move stage
+                        <select
+                          className="mt-1 block rounded-lg border border-border bg-surface-muted px-2 py-1 text-xs font-bold normal-case tracking-normal text-foreground outline-none focus:border-accent"
+                          value={application.stage}
+                          onChange={(event) =>
+                            updateApplicationStage(
+                              application.id,
+                              event.target.value as JobApplication["stage"],
+                            )
+                          }
+                        >
+                          <option value="saved">Saved</option>
+                          <option value="applied">Applied</option>
+                          <option value="assessment">Assessment</option>
+                          <option value="interview">Interview</option>
+                          <option value="offer">Offer</option>
+                          <option value="closed">Closed</option>
+                        </select>
+                      </label>
                     </div>
                   </div>
                   {application.nextAction && (

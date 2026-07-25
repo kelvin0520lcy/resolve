@@ -13,6 +13,7 @@ import {
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge, ProgressBar } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -24,6 +25,7 @@ import {
   EmptyState,
   MetricCard,
   PageIntro,
+  alignedFieldLabelClassName,
   fieldClassName,
 } from "@/components/ui/resolve";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
@@ -35,6 +37,7 @@ export default function AcademicsPage() {
     modules,
     addModule,
     addAssessment,
+    removeAssessment,
     updateAssessmentProgress,
     updateModuleStudyMinutes,
   } = useResolve();
@@ -142,41 +145,56 @@ export default function AcademicsPage() {
             <CardContent>
               <form
                 onSubmit={submit}
-                className="grid gap-3 sm:grid-cols-[120px_1fr_100px_110px_auto]"
+                className="grid gap-3 md:grid-cols-2 xl:grid-cols-[140px_1fr_150px_140px_auto]"
               >
-                <input
-                  className={fieldClassName}
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  aria-label="Module code"
-                  autoFocus
-                  required
-                />
-                <input
-                  className={fieldClassName}
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  aria-label="Module name"
-                  required
-                />
-                <input
-                  className={fieldClassName}
-                  value={credits}
-                  onChange={(event) => setCredits(event.target.value)}
-                  type="number"
-                  min="1"
-                  max="30"
-                  aria-label="Credits"
-                  required
-                />
-                <input
-                  className={fieldClassName}
-                  value={targetGrade}
-                  onChange={(event) => setTargetGrade(event.target.value)}
-                  aria-label="Target grade"
-                  required
-                />
-                <Button type="submit">Add</Button>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Module code</span>
+                  <input
+                    className={fieldClassName}
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Module name</span>
+                  <input
+                    className={fieldClassName}
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Credits{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (course units)
+                    </span>
+                  </span>
+                  <input
+                    className={fieldClassName}
+                    value={credits}
+                    onChange={(event) => setCredits(event.target.value)}
+                    type="number"
+                    min="1"
+                    max="30"
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Target grade</span>
+                  <input
+                    className={fieldClassName}
+                    value={targetGrade}
+                    onChange={(event) => setTargetGrade(event.target.value)}
+                    required
+                  />
+                </label>
+                <Button type="submit" className="self-end">
+                  Add module
+                </Button>
               </form>
             </CardContent>
           </Card>
@@ -195,70 +213,87 @@ export default function AcademicsPage() {
                 onSubmit={submitAssessment}
                 className="grid gap-3 md:grid-cols-2 xl:grid-cols-[160px_1fr_160px_110px_170px_auto]"
               >
-                <select
-                  className={fieldClassName}
-                  value={assessmentModuleId || modules[0]?.id}
-                  onChange={(event) =>
-                    setAssessmentModuleId(event.target.value)
-                  }
-                  aria-label="Assessment module"
-                >
-                  {modules.map((module) => (
-                    <option key={module.id} value={module.id}>
-                      {module.code}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className={fieldClassName}
-                  value={assessmentTitle}
-                  onChange={(event) =>
-                    setAssessmentTitle(event.target.value)
-                  }
-                  aria-label="Assessment title"
-                  autoFocus
-                  required
-                />
-                <select
-                  className={fieldClassName}
-                  value={assessmentType}
-                  onChange={(event) =>
-                    setAssessmentType(
-                      event.target.value as Assessment["type"],
-                    )
-                  }
-                  aria-label="Assessment type"
-                >
-                  <option value="assignment">Assignment</option>
-                  <option value="project">Project</option>
-                  <option value="quiz">Quiz</option>
-                  <option value="midterm">Midterm</option>
-                  <option value="presentation">Presentation</option>
-                  <option value="exam">Exam</option>
-                </select>
-                <input
-                  className={fieldClassName}
-                  value={assessmentWeight}
-                  onChange={(event) =>
-                    setAssessmentWeight(event.target.value)
-                  }
-                  type="number"
-                  min="0"
-                  max="100"
-                  aria-label="Assessment weight"
-                  required
-                />
-                <input
-                  className={fieldClassName}
-                  value={assessmentDeadline}
-                  onChange={(event) =>
-                    setAssessmentDeadline(event.target.value)
-                  }
-                  type="date"
-                  aria-label="Assessment deadline"
-                  required
-                />
-                <Button type="submit">Add</Button>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Module</span>
+                  <select
+                    className={fieldClassName}
+                    value={assessmentModuleId || modules[0]?.id}
+                    onChange={(event) =>
+                      setAssessmentModuleId(event.target.value)
+                    }
+                  >
+                    {modules.map((module) => (
+                      <option key={module.id} value={module.id}>
+                        {module.code}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Assessment title</span>
+                  <input
+                    className={fieldClassName}
+                    value={assessmentTitle}
+                    onChange={(event) =>
+                      setAssessmentTitle(event.target.value)
+                    }
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Type</span>
+                  <select
+                    className={fieldClassName}
+                    value={assessmentType}
+                    onChange={(event) =>
+                      setAssessmentType(
+                        event.target.value as Assessment["type"],
+                      )
+                    }
+                  >
+                    <option value="assignment">Assignment</option>
+                    <option value="project">Project</option>
+                    <option value="quiz">Quiz</option>
+                    <option value="midterm">Midterm</option>
+                    <option value="presentation">Presentation</option>
+                    <option value="exam">Exam</option>
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Weight{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (% of module)
+                    </span>
+                  </span>
+                  <input
+                    className={fieldClassName}
+                    value={assessmentWeight}
+                    onChange={(event) =>
+                      setAssessmentWeight(event.target.value)
+                    }
+                    type="number"
+                    min="0"
+                    max="100"
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Deadline</span>
+                  <input
+                    className={fieldClassName}
+                    value={assessmentDeadline}
+                    onChange={(event) =>
+                      setAssessmentDeadline(event.target.value)
+                    }
+                    type="date"
+                    required
+                  />
+                </label>
+                <Button type="submit" className="self-end">
+                  Add assessment
+                </Button>
               </form>
             </CardContent>
           </Card>
@@ -424,7 +459,7 @@ export default function AcademicsPage() {
             {assessments.map((assessment) => (
               <div
                 key={assessment.id}
-                className="grid items-center gap-3 rounded-2xl border border-border bg-surface p-4 md:grid-cols-[100px_1fr_minmax(180px,0.8fr)_150px]"
+                className="grid items-center gap-3 rounded-2xl border border-border bg-surface p-4 md:grid-cols-[100px_1fr_minmax(180px,0.8fr)_180px]"
               >
                 <Badge
                   style={{
@@ -489,26 +524,39 @@ export default function AcademicsPage() {
                   <p className="text-sm font-semibold">
                     {formatDate(`${assessment.deadline}T12:00:00`)}
                   </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={
-                      assessment.progress === 100 ? "secondary" : "default"
-                    }
-                    disabled={assessment.progress === 100}
-                    onClick={() =>
-                      updateAssessmentProgress(
-                        assessment.moduleId,
-                        assessment.id,
-                        100,
-                      )
-                    }
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    {assessment.progress === 100
-                      ? "Completed"
-                      : "Mark complete"}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        assessment.progress === 100
+                          ? "secondary"
+                          : "default"
+                      }
+                      disabled={assessment.progress === 100}
+                      onClick={() =>
+                        updateAssessmentProgress(
+                          assessment.moduleId,
+                          assessment.id,
+                          100,
+                        )
+                      }
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {assessment.progress === 100
+                        ? "Completed"
+                        : "Mark complete"}
+                    </Button>
+                    <ConfirmDeleteButton
+                      itemLabel={`assessment ${assessment.title}`}
+                      onConfirm={() =>
+                        removeAssessment(
+                          assessment.moduleId,
+                          assessment.id,
+                        )
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             ))}

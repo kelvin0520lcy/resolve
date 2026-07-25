@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { CharacterArcBar } from "@/components/layout/character-arc-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
+import { PageIntro } from "@/components/ui/resolve";
 import { PAGE_THEMES } from "@/lib/page-themes";
 
 const mocks = vi.hoisted(() => ({
@@ -116,5 +117,61 @@ describe("interactive anime header", () => {
     render(<AppHeader title="Today" theme={PAGE_THEMES.nijika} />);
     await user.click(screen.getByRole("button", { name: "Log out" }));
     expect(mocks.signOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("page illustration direction", () => {
+  it("gives Today its own morning count-in illustration", () => {
+    mocks.pathname = "/today";
+    render(
+      <PageIntro
+        eyebrow="Daily rhythm"
+        title="Today"
+        description="Plan the next beat."
+      />,
+    );
+
+    expect(screen.getByText("Morning count-in")).toBeInTheDocument();
+    expect(
+      screen.getByAltText(
+        "Nijika drums an energetic morning count-in while task cards fall into rhythm",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("gives Weekly its own chibi planning illustration", () => {
+    mocks.pathname = "/weekly";
+    render(
+      <PageIntro
+        eyebrow="Weekly rhythm"
+        title="This week"
+        description="Shape the setlist."
+      />,
+    );
+
+    expect(screen.getByText("Chibi planning cut")).toBeInTheDocument();
+    expect(
+      screen.getByAltText(
+        "Chibi Nijika conducts an oversized weekly planner beside her red drum kit",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("gives Settings a distinct ensemble illustration", () => {
+    mocks.pathname = "/settings";
+    render(
+      <PageIntro
+        eyebrow="Semester setup"
+        title="Settings"
+        description="Set the season."
+      />,
+    );
+
+    expect(screen.getByText("Season setup")).toBeInTheDocument();
+    expect(
+      screen.getByAltText(
+        "Kessoku Band performing while Bocchi buffers on stage",
+      ),
+    ).toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Check, Save } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -25,7 +26,13 @@ import {
 import { formatDate } from "@/lib/utils";
 
 export default function WeeklyPage() {
-  const { tasks, weeklyPriorities, updatePriorities, moveTask } = useResolve();
+  const {
+    tasks,
+    weeklyPriorities,
+    updatePriorities,
+    moveTask,
+    removeTask,
+  } = useResolve();
   const dates = useMemo(() => getWeekDateKeys(), []);
   const [priorities, setPriorities] = useState(weeklyPriorities);
 
@@ -108,9 +115,12 @@ export default function WeeklyPage() {
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
             {priorities.map((priority, index) => (
-              <label key={index} className="flex items-center gap-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-sm font-black text-accent">
-                  {index + 1}
+              <label key={index} className="block text-sm font-bold">
+                <span className="mb-2 flex items-center gap-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-xs font-black text-accent">
+                    {index + 1}
+                  </span>
+                  Priority {index + 1}
                 </span>
                 <input
                   className={fieldClassName}
@@ -175,28 +185,37 @@ export default function WeeklyPage() {
                       key={task.id}
                       className="rounded-xl border border-border bg-surface p-3"
                     >
-                      <CategoryBadge category={task.category} />
+                      <div className="flex items-start justify-between gap-2">
+                        <CategoryBadge category={task.category} />
+                        <ConfirmDeleteButton
+                          itemLabel={`task ${task.title}`}
+                          onConfirm={() => removeTask(task.id)}
+                          className="flex-wrap justify-end"
+                        />
+                      </div>
                       <p className="mt-2 text-xs font-bold leading-5">
                         {task.title}
                       </p>
-                      <select
-                        className="mt-2 w-full rounded-lg border border-border bg-surface-muted px-2 py-1 text-[11px] outline-none"
-                        value={task.scheduledDate}
-                        onChange={(event) =>
-                          moveTask(task.id, event.target.value)
-                        }
-                        aria-label={`Move ${task.title}`}
-                      >
-                        {dates.map((optionDate) => (
-                          <option key={optionDate} value={optionDate}>
-                            {new Date(
-                              `${optionDate}T12:00:00`,
-                            ).toLocaleDateString("en-SG", {
-                              weekday: "short",
-                            })}
-                          </option>
-                        ))}
-                      </select>
+                      <label className="mt-2 block text-[10px] font-black uppercase tracking-wider text-muted">
+                        Move to day
+                        <select
+                          className="mt-1 w-full rounded-lg border border-border bg-surface-muted px-2 py-1 text-[11px] font-medium normal-case tracking-normal text-foreground outline-none"
+                          value={task.scheduledDate}
+                          onChange={(event) =>
+                            moveTask(task.id, event.target.value)
+                          }
+                        >
+                          {dates.map((optionDate) => (
+                            <option key={optionDate} value={optionDate}>
+                              {new Date(
+                                `${optionDate}T12:00:00`,
+                              ).toLocaleDateString("en-SG", {
+                                weekday: "short",
+                              })}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   ))}
                   {!dayTasks.length && (
