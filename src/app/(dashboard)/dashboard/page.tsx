@@ -28,6 +28,7 @@ import {
   MetricCard,
 } from "@/components/ui/resolve";
 import { resolveCharacterState } from "@/lib/character/dialogue";
+import { getScheduledHabits } from "@/features/workspace/lib/habits";
 import { getDailyMotivation } from "@/lib/daily-motivation";
 import { formatDate, getSemesterWeek } from "@/lib/utils";
 import {
@@ -52,6 +53,7 @@ export default function DashboardPage() {
   const today = offsetDate(0);
   const weekDates = getWeekDateKeys();
   const todayTasks = tasks.filter((task) => task.scheduledDate === today);
+  const todayHabits = getScheduledHabits(habits, today);
   const completedToday = todayTasks.filter(
     (task) => task.status === "completed",
   ).length;
@@ -76,7 +78,7 @@ export default function DashboardPage() {
         task.scheduledDate <= weekDates[6],
     )
     .reduce((sum, task) => sum + (task.estimatedMinutes ?? 0), 0);
-  const completedHabits = habits.filter((habit) =>
+  const completedHabits = todayHabits.filter((habit) =>
     habitLogs.some(
       (log) =>
         log.habitId === habit.id && log.date === today && log.completed,
@@ -153,7 +155,7 @@ export default function DashboardPage() {
           />
           <MetricCard
             label="Habit check-in"
-            value={`${completedHabits}/${habits.length}`}
+            value={`${completedHabits}/${todayHabits.length}`}
             detail="gentle consistency, not perfection"
             icon={<Flame className="h-5 w-5" />}
           />

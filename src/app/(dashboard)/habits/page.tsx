@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Check, Flame, Heart, Plus, TrendingUp, X } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -24,7 +25,8 @@ import { offsetDate, useResolve } from "@/contexts/resolve-context";
 const DAYS = [-6, -5, -4, -3, -2, -1, 0];
 
 export default function HabitsPage() {
-  const { habits, habitLogs, toggleHabit, addHabit } = useResolve();
+  const { habits, habitLogs, toggleHabit, addHabit, removeHabit } =
+    useResolve();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("health");
@@ -203,11 +205,20 @@ export default function HabitsPage() {
                     key={habit.id}
                     className="grid grid-cols-[220px_repeat(7,1fr)] items-center gap-2 rounded-2xl border border-border bg-surface p-3"
                   >
-                    <div className="pr-3">
-                      <p className="text-sm font-bold">{habit.title}</p>
-                      <div className="mt-1">
-                        <CategoryBadge category={habit.category} />
+                    <div className="flex min-w-0 items-start justify-between gap-2 pr-3">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-bold">
+                          {habit.title}
+                        </p>
+                        <div className="mt-1">
+                          <CategoryBadge category={habit.category} />
+                        </div>
                       </div>
+                      <ConfirmDeleteButton
+                        itemLabel={`habit ${habit.title}`}
+                        onConfirm={() => removeHabit(habit.id)}
+                        className="flex-wrap justify-end"
+                      />
                     </div>
                     {dates.map((date) => {
                       const checked = habitLogs.some(

@@ -6,6 +6,7 @@ import { GoalBreakdown } from "@/components/goals/goal-breakdown";
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -30,6 +31,7 @@ export default function GoalsPage() {
     goals,
     milestones,
     addGoal,
+    removeGoal,
     addMilestone,
     toggleMilestone,
     removeMilestone,
@@ -188,18 +190,25 @@ export default function GoalsPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between gap-4">
                     <CategoryBadge category={goal.category} />
-                    <Badge
-                      variant={
-                        goal.status === "completed"
-                          ? "success"
-                          : goal.status === "at_risk"
-                            ? "warning"
-                            : "accent"
-                      }
-                      className="capitalize"
-                    >
-                      {goal.status.replace("_", " ")}
-                    </Badge>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Badge
+                        variant={
+                          goal.status === "completed"
+                            ? "success"
+                            : goal.status === "at_risk"
+                              ? "warning"
+                              : "accent"
+                        }
+                        className="capitalize"
+                      >
+                        {goal.status.replace("_", " ")}
+                      </Badge>
+                      <ConfirmDeleteButton
+                        itemLabel={`goal ${goal.title}`}
+                        onConfirm={() => removeGoal(goal.id)}
+                        className="flex-wrap justify-end"
+                      />
+                    </div>
                   </div>
                   <CardTitle className="pt-3">{goal.title}</CardTitle>
                   <CardDescription className="leading-6">

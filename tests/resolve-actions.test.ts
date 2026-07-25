@@ -14,8 +14,15 @@ import {
   addModuleToData,
   addTaskToData,
   moveTaskInData,
+  removeAlgorithmLogFromData,
+  removeApplicationFromData,
   removeAssessmentFromData,
+  removeGoalFromData,
+  removeGuitarSessionFromData,
+  removeHabitFromData,
   removeMilestoneFromData,
+  removeModuleFromData,
+  removeReflectionFromData,
   removeTaskFromData,
   saveReflectionToData,
   setGoalCompletedInData,
@@ -28,7 +35,7 @@ import {
   updatePrioritiesInData,
   updateSemesterInData,
   updateTaskActualMinutesInData,
-} from "@/lib/resolve-actions";
+} from "@/features/workspace/lib/resolve-actions";
 
 const META = {
   identity: "test-user",
@@ -931,6 +938,131 @@ describe("habit, practice, and reflection actions", () => {
         META,
       ),
     ).toBe(data);
+  });
+});
+
+describe("top-level record removal", () => {
+  it("removes a goal, its breakdown, and safely detaches linked tasks", () => {
+    const data = createActionFixture();
+    const linked = {
+      ...data,
+      milestones: [
+        {
+          id: "milestone-1",
+          goalId: "goal-career",
+          title: "Finish mock interview",
+          completed: false,
+          order: 1,
+        },
+      ],
+      tasks: data.tasks.map((task, index) =>
+        index === 0
+          ? {
+              ...task,
+              goalId: "goal-career",
+              milestoneId: "milestone-1",
+            }
+          : task,
+      ),
+    };
+
+    const next = removeGoalFromData(linked, "goal-career", META.timestamp);
+    expect(next.goals).toEqual([]);
+    expect(next.milestones).toEqual([]);
+    expect(next.tasks[0]).toMatchObject({
+      goalId: undefined,
+      milestoneId: undefined,
+      updatedAt: META.timestamp,
+    });
+    expect(removeGoalFromData(data, "missing")).toBe(data);
+  });
+
+  it("removes dependent habit logs and other user-created records", () => {
+    const data = createActionFixture();
+    const withHabitLog = toggleHabitInData(
+      data,
+      "habit-plan",
+      "2026-07-24",
+      META,
+    );
+    const withoutHabit = removeHabitFromData(withHabitLog, "habit-plan");
+    expect(withoutHabit.habits).toEqual([]);
+    expect(withoutHabit.habitLogs).toEqual([]);
+
+    const withModule = addModuleToData(
+      data,
+      {
+        code: "CS101",
+        name: "Foundations",
+        credits: 4,
+        targetGrade: "A",
+        color: "#7eb8da",
+      },
+      { ...META, id: "module-1" },
+    );
+    expect(removeModuleFromData(withModule, "module-1").modules).toEqual([]);
+
+    const withLog = addAlgorithmLogToData(
+      data,
+      {
+        platform: "Practice",
+        problemName: "Two Sum",
+        topic: "Arrays",
+        difficulty: "Easy",
+        completedDate: "2026-07-24",
+        minutes: 20,
+        usedHints: false,
+        confidence: 4,
+        lesson: "Check complements first.",
+      },
+      { ...META, id: "log-1" },
+    );
+    expect(
+      removeAlgorithmLogFromData(withLog, "log-1").algorithmLogs,
+    ).toEqual([]);
+
+    const withApplication = addApplicationToData(
+      data,
+      {
+        company: "Acme",
+        role: "Engineer",
+        applicationDate: "2026-07-24",
+        stage: "applied",
+      },
+      { ...META, id: "application-1" },
+    );
+    expect(
+      removeApplicationFromData(withApplication, "application-1")
+        .applications,
+    ).toEqual([]);
+
+    const withSession = addGuitarSessionToData(
+      data,
+      {
+        date: "2026-07-24",
+        durationMinutes: 30,
+        category: "Technique",
+        techniques: ["Alternate picking"],
+      },
+      { ...META, id: "session-1" },
+    );
+    expect(
+      removeGuitarSessionFromData(withSession, "session-1").guitarSessions,
+    ).toEqual([]);
+
+    const withReflection = saveReflectionToData(
+      data,
+      {
+        type: "daily",
+        periodStart: "2026-07-24",
+        periodEnd: "2026-07-24",
+        wins: "Practised",
+      },
+      { ...META, id: "reflection-1" },
+    );
+    expect(
+      removeReflectionFromData(withReflection, "reflection-1").reflections,
+    ).toEqual([]);
   });
 });
 

@@ -71,7 +71,7 @@ describe("Guitar Studio page integration", () => {
       screen.getByText("Understand it, hear it, use it"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Friendly placement · about 3 minutes"),
+      await screen.findByText("Friendly placement · about 3 minutes"),
     ).toBeInTheDocument();
 
     await user.click(
@@ -81,7 +81,7 @@ describe("Guitar Studio page integration", () => {
       screen.getByText("See the route behind the next note"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("See why each concept comes next"),
+      await screen.findByText("See why each concept comes next"),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: /Overview/ }));

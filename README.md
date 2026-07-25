@@ -37,7 +37,10 @@ src/
 │   ├── character/       # Anime companion
 │   ├── layout/          # Sidebar, mobile nav, shell
 │   └── ui/              # Reusable UI primitives
-├── contexts/            # Auth provider
+├── contexts/            # Stable provider entry points
+├── features/
+│   ├── guitar-learning/ # Curriculum, tools, audio, learning state
+│   └── workspace/       # Account data provider, actions, analytics
 ├── lib/
 │   ├── character/       # Dialogue rules
 │   ├── constants/       # Categories, navigation
@@ -54,7 +57,8 @@ The main semester loop is implemented:
 - Semester setup and automatic episode/week calculations
 - Interactive goals, daily tasks, weekly scheduling, and priorities
 - Seven-day habit check-ins with forgiving consistency metrics
-- Guitar practice sessions with clean-BPM and practice-mix tracking
+- Interactive Guitar Studio with guided lessons, visual tools, guitar audio,
+  learning paths, and practice evidence
 - Academic module tracking
 - Career practice logs and application pipeline
 - Daily reflections, semester timeline, charts, and rule-based insights
@@ -66,11 +70,13 @@ Signed-in workspaces synchronize in real time through a private
 an offline fallback, and Settings shows whether changes are connecting, saving,
 synced, or offline.
 
-## Next production steps
+## Quality checks
 
-1. Add calendar drag-and-drop and recurring task rules.
-2. Add achievement unlocks and notification preferences.
-3. Deploy the app and Firestore rules.
+```bash
+npm run lint
+npm test
+npm run build
+```
 
 ## Firebase setup
 

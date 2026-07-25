@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { LogOut, MessageCircle, Settings, Sparkles } from "lucide-react";
@@ -20,6 +20,31 @@ export function AppHeader({
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const [reactionOpen, setReactionOpen] = useState(false);
+  const reactionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!reactionOpen) return;
+
+    function closeOnOutsidePress(event: PointerEvent) {
+      if (
+        reactionRef.current &&
+        !reactionRef.current.contains(event.target as Node)
+      ) {
+        setReactionOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setReactionOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [reactionOpen]);
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -58,7 +83,7 @@ export function AppHeader({
         </div>
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
-        <div className="relative">
+        <div ref={reactionRef} className="relative">
           <button
             type="button"
             onClick={() => setReactionOpen((open) => !open)}

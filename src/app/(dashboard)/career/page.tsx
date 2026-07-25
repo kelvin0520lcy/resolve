@@ -5,6 +5,7 @@ import { BrainCircuit, Briefcase, Clock3, Plus, X } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -38,7 +39,9 @@ export default function CareerPage() {
     algorithmLogs,
     applications,
     addAlgorithmLog,
+    removeAlgorithmLog,
     addApplication,
+    removeApplication,
     updateApplicationStage,
   } = useResolve();
   const [activeForm, setActiveForm] = useState<
@@ -377,7 +380,14 @@ export default function CareerPage() {
                         {log.platform} · {log.topic} · {log.minutes} minutes
                       </p>
                     </div>
-                    <Badge>{log.confidence}/5 confidence</Badge>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Badge>{log.confidence}/5 confidence</Badge>
+                      <ConfirmDeleteButton
+                        itemLabel={`practice log ${log.problemName}`}
+                        onConfirm={() => removeAlgorithmLog(log.id)}
+                        className="flex-wrap justify-end"
+                      />
+                    </div>
                   </div>
                   {log.lesson && (
                     <p className="mt-3 rounded-xl bg-surface-muted p-3 text-sm leading-6">
@@ -444,6 +454,11 @@ export default function CareerPage() {
                           <option value="closed">Closed</option>
                         </select>
                       </label>
+                      <ConfirmDeleteButton
+                        itemLabel={`application ${application.company} ${application.role}`}
+                        onConfirm={() => removeApplication(application.id)}
+                        className="flex-wrap justify-end"
+                      />
                     </div>
                   </div>
                   {application.nextAction && (

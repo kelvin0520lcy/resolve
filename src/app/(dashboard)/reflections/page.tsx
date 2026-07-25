@@ -14,6 +14,7 @@ import {
 import { CharacterCompanion } from "@/components/character/character-companion";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -42,6 +43,7 @@ export default function ReflectionsPage() {
   const {
     reflections,
     saveReflection,
+    removeReflection,
     storageMode,
     syncStatus,
   } = useResolve();
@@ -175,12 +177,31 @@ export default function ReflectionsPage() {
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <Card>
             <CardHeader>
-              <CardTitle>Today&apos;s review</CardTitle>
-              <CardDescription>
-                {todayReflection
-                  ? "Your saved review is loaded below. Edit it and save again at any time."
-                  : "You only need to answer the prompts that reveal something useful."}
-              </CardDescription>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle>Today&apos;s review</CardTitle>
+                  <CardDescription className="mt-1">
+                    {todayReflection
+                      ? "Your saved review is loaded below. Edit it and save again at any time."
+                      : "You only need to answer the prompts that reveal something useful."}
+                  </CardDescription>
+                </div>
+                {todayReflection && (
+                  <ConfirmDeleteButton
+                    itemLabel="today's review"
+                    onConfirm={() => {
+                      removeReflection(todayReflection.id);
+                      setWins("");
+                      setDifficulties("");
+                      setLessons("");
+                      setNextChanges("");
+                      setEnergy(3);
+                      setSaved(false);
+                    }}
+                    className="flex-wrap justify-end"
+                  />
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <form

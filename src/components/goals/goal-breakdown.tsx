@@ -20,7 +20,7 @@ import {
 import { offsetDate } from "@/lib/date";
 import { formatDate } from "@/lib/utils";
 import type { Goal, Milestone } from "@/types";
-import type { NewMilestoneInput } from "@/lib/resolve-actions";
+import type { NewMilestoneInput } from "@/features/workspace/lib/resolve-actions";
 
 export function GoalBreakdown({
   goal,

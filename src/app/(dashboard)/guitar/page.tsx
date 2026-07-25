@@ -18,6 +18,7 @@ import {
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge, ProgressBar } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -40,13 +41,47 @@ import {
   getSuggestedGuitarArea,
 } from "@/lib/guitar-learning";
 import { formatDate } from "@/lib/utils";
-import { GuitarLearnMode } from "@/features/guitar-learning/components/learn-mode";
-import { GuitarLearningMap } from "@/features/guitar-learning/components/learning-map";
 import {
   GuitarStudioNav,
   type GuitarStudioMode,
 } from "@/features/guitar-learning/components/studio-nav";
 import type { GuitarToolId } from "@/features/guitar-learning/types";
+
+function StudioPanelLoading({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      className="flex min-h-96 items-center justify-center rounded-[22px] border-2 border-dashed border-border bg-surface/70"
+    >
+      <div className="text-center">
+        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-accent/25 border-t-accent" />
+        <p className="mt-3 text-xs font-black uppercase tracking-wide text-muted">
+          {label}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const GuitarLearnMode = dynamic(
+  () =>
+    import(
+      "@/features/guitar-learning/components/learn-mode"
+    ).then((module) => module.GuitarLearnMode),
+  {
+    loading: () => <StudioPanelLoading label="Preparing guided lessons" />,
+  },
+);
+
+const GuitarLearningMap = dynamic(
+  () =>
+    import(
+      "@/features/guitar-learning/components/learning-map"
+    ).then((module) => module.GuitarLearningMap),
+  {
+    loading: () => <StudioPanelLoading label="Drawing the learning map" />,
+  },
+);
 
 const GuitarExploreMode = dynamic(
   () =>
@@ -55,17 +90,7 @@ const GuitarExploreMode = dynamic(
     ).then((module) => module.GuitarExploreMode),
   {
     loading: () => (
-      <div
-        role="status"
-        className="flex min-h-96 items-center justify-center rounded-[22px] border-2 border-dashed border-border bg-surface/70"
-      >
-        <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-accent/25 border-t-accent" />
-          <p className="mt-3 text-xs font-black uppercase tracking-wide text-muted">
-            Opening the interactive studio
-          </p>
-        </div>
-      </div>
+      <StudioPanelLoading label="Opening the interactive studio" />
     ),
   },
 );
@@ -216,8 +241,10 @@ export default function GuitarPage() {
 }
 
 function GuitarOverview() {
-  const { guitarSessions, addGuitarSession } = useResolve();
+  const { guitarSessions, addGuitarSession, removeGuitarSession } =
+    useResolve();
   const [showForm, setShowForm] = useState(false);
+  const [showAllSessions, setShowAllSessions] = useState(false);
   const [practiceDate, setPracticeDate] = useState(offsetDate(0));
   const [duration, setDuration] = useState("30");
   const [category, setCategory] = useState(
@@ -260,6 +287,9 @@ function GuitarOverview() {
   const dominantSkill = Object.entries(skillMinutes).sort(
     (a, b) => b[1] - a[1],
   )[0];
+  const visibleSessions = showAllSessions
+    ? guitarSessions
+    : guitarSessions.slice(0, 6);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -710,7 +740,7 @@ function GuitarOverview() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {guitarSessions.map((session) => (
+              {visibleSessions.map((session) => (
                 <div
                   key={session.id}
                   className="rounded-2xl border border-border bg-surface p-4"
@@ -737,6 +767,11 @@ function GuitarOverview() {
                       {session.difficulty && (
                         <Badge>Challenge {session.difficulty}/5</Badge>
                       )}
+                      <ConfirmDeleteButton
+                        itemLabel={`practice session from ${session.date}`}
+                        onConfirm={() => removeGuitarSession(session.id)}
+                        className="flex-wrap justify-end"
+                      />
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -766,6 +801,18 @@ function GuitarOverview() {
                   title="No sessions logged"
                   description="Your real practice history and next-focus notes will appear here."
                 />
+              )}
+              {guitarSessions.length > 6 && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setShowAllSessions((current) => !current)}
+                >
+                  {showAllSessions
+                    ? "Show six most recent"
+                    : `Show all ${guitarSessions.length} sessions`}
+                </Button>
               )}
             </CardContent>
           </Card>

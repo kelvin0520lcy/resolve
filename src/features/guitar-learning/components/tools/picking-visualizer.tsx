@@ -161,7 +161,10 @@ export function PickingVisualizer() {
             max="1.5"
             step="0.25"
             value={speed}
-            onChange={(event) => setSpeed(Number(event.target.value))}
+            onChange={(event) => {
+              stop();
+              setSpeed(Number(event.target.value));
+            }}
           />
         </label>
       </div>
@@ -223,7 +226,10 @@ export function PickingVisualizer() {
             <button
               key={`${step.string}-${step.fret}-${index}`}
               type="button"
-              onClick={() => setActiveIndex(index)}
+              onClick={() => {
+                stop();
+                setActiveIndex(index);
+              }}
               className={`rounded-2xl border-2 p-3 text-left ${
                 activeIndex === index
                   ? "border-accent bg-accent/10"
@@ -269,7 +275,10 @@ export function PickingVisualizer() {
         <Button
           type="button"
           variant="secondary"
-          onClick={() => setActiveIndex(0)}
+          onClick={() => {
+            stop();
+            setActiveIndex(0);
+          }}
         >
           <RotateCcw className="h-4 w-4" />
           First step

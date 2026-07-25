@@ -26,6 +26,7 @@ import {
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
 import { resolveCharacterState } from "@/lib/character/dialogue";
 import { getCharacterTask } from "@/lib/character-tasks";
+import { getScheduledHabits } from "@/features/workspace/lib/habits";
 import { formatDate } from "@/lib/utils";
 import type { GoalCategory } from "@/types";
 
@@ -61,6 +62,10 @@ export default function TodayPage() {
     () => tasks.filter((task) => task.scheduledDate === today),
     [tasks, today],
   );
+  const todayHabits = useMemo(
+    () => getScheduledHabits(habits, today),
+    [habits, today],
+  );
   const complete = todayTasks.filter(
     (task) => task.status === "completed",
   ).length;
@@ -68,7 +73,7 @@ export default function TodayPage() {
     (sum, task) => sum + (task.estimatedMinutes ?? 0),
     0,
   );
-  const habitCount = habits.filter((habit) =>
+  const habitCount = todayHabits.filter((habit) =>
     habitLogs.some(
       (log) =>
         log.habitId === habit.id && log.date === today && log.completed,
@@ -235,7 +240,7 @@ export default function TodayPage() {
           />
           <MetricCard
             label="Habits"
-            value={`${habitCount}/${habits.length}`}
+            value={`${habitCount}/${todayHabits.length}`}
             detail="checked in today"
             icon={<Sparkles className="h-5 w-5" />}
           />
@@ -347,7 +352,7 @@ export default function TodayPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                {habits.map((habit) => {
+                {todayHabits.map((habit) => {
                   const checked = habitLogs.some(
                     (log) =>
                       log.habitId === habit.id &&
@@ -377,10 +382,10 @@ export default function TodayPage() {
                     </button>
                   );
                 })}
-                {!habits.length && (
+                {!todayHabits.length && (
                   <EmptyState
-                    title="No daily rhythms yet"
-                    description="Create habits from Nijika’s Habits page, then check them in here."
+                    title="No habits scheduled today"
+                    description="Create or review your schedule on Nijika’s Habits page."
                   />
                 )}
               </CardContent>

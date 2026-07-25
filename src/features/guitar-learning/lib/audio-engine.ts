@@ -11,7 +11,10 @@ type GuitarPluckOptions = {
   durationSeconds: number;
   sampleRate: number;
   muted?: boolean;
+  variation?: number;
 };
+
+const GUITAR_TONE_MODEL_VERSION = "steel-string-v2";
 
 export function slowAudioPattern(pattern: AudioPattern): AudioPattern {
   if (pattern.kind === "notes") {
@@ -57,6 +60,7 @@ export function renderGuitarPluck({
   durationSeconds,
   sampleRate,
   muted = false,
+  variation = 0,
 }: GuitarPluckOptions): Float32Array {
   const safeMidi = Math.max(
     28,
@@ -81,45 +85,103 @@ export function renderGuitarPluck({
   );
   const output = new Float32Array(sampleCount);
   const delayLine = new Float32Array(delayLength);
+  const safeVariation =
+    Math.abs(
+      Math.round(Number.isFinite(variation) ? variation : 0),
+    ) % 4;
   const noise = createNoise(
     safeMidi * 2_654_435_761 +
       Math.round(safeDuration * 1_000) +
-      (muted ? 97 : 0),
+      (muted ? 97 : 0) +
+      safeVariation * 1_013_904_223,
   );
 
-  // A little correlation removes harsh white-noise fizz while retaining the
-  // bright transient of a plectrum against a string.
+  // A steel string starts with a broad, asymmetric pick impulse. Keeping most
+  // of the noise uncorrelated preserves the upper partials; the delayed
+  // subtraction models the harmonic notch created by the pick position.
+  const excitation = new Float32Array(delayLength);
+  const pickOffset = Math.max(
+    1,
+    Math.min(
+      delayLength - 1,
+      Math.round(delayLength * (0.17 + safeVariation * 0.013)),
+    ),
+  );
   let previousExcitation = 0;
   for (let index = 0; index < delayLength; index += 1) {
-    const excitation = noise();
+    const raw = noise();
+    const correlated = muted
+      ? raw * 0.64 + previousExcitation * 0.36
+      : raw * 0.84 + previousExcitation * 0.16;
+    excitation[index] = correlated;
+    const pickReflection =
+      index >= pickOffset ? excitation[index - pickOffset] : 0;
     delayLine[index] =
-      excitation * 0.72 + previousExcitation * 0.28;
-    previousExcitation = excitation;
+      correlated - pickReflection * (muted ? 0.12 : 0.28);
+    previousExcitation = raw;
   }
 
   const damping = muted
-    ? 0.82
-    : Math.max(0.988, 0.997 - Math.max(0, safeMidi - 40) * 0.000055);
+    ? 0.8
+    : Math.max(0.993, 0.9982 - Math.max(0, safeMidi - 40) * 0.00004);
+  const currentWeight = muted ? 0.5 : 0.68;
+  const nextWeight = 1 - currentWeight;
   const pickAttackSamples = Math.max(
     1,
-    Math.round(safeSampleRate * 0.0007),
+    Math.round(safeSampleRate * 0.00018),
   );
   const fadeSamples = Math.min(
     sampleCount,
-    Math.max(1, Math.round(safeSampleRate * (muted ? 0.012 : 0.035))),
+    Math.max(1, Math.round(safeSampleRate * (muted ? 0.008 : 0.022))),
   );
+  const pickDecaySamples = Math.max(
+    1,
+    safeSampleRate * (muted ? 0.0012 : 0.0032),
+  );
+  const pickupLowPassCoefficient =
+    1 - Math.exp((-2 * Math.PI * 1_650) / safeSampleRate);
+  const dcBlockCoefficient = Math.exp(
+    (-2 * Math.PI * 38) / safeSampleRate,
+  );
+  let pickupLowPass = 0;
+  let previousVoicedSample = 0;
+  let previousHighPassedSample = 0;
 
   for (let index = 0; index < sampleCount; index += 1) {
     const delayIndex = index % delayLength;
     const current = delayLine[delayIndex];
     const next = delayLine[(delayIndex + 1) % delayLength];
-    delayLine[delayIndex] = (current + next) * 0.5 * damping;
+    delayLine[delayIndex] =
+      (current * currentWeight + next * nextWeight) * damping;
 
     const attack =
       index < pickAttackSamples ? index / pickAttackSamples : 1;
     const remaining = sampleCount - index;
     const fade = remaining < fadeSamples ? remaining / fadeSamples : 1;
-    output[index] = current * attack * fade;
+    const pickTransient =
+      noise() *
+      Math.exp(-index / pickDecaySamples) *
+      (muted ? 0.24 : 0.16);
+    const stringSample = (current + pickTransient) * attack * fade;
+
+    // A clean electric-guitar pickup has more presence than the raw delay
+    // line. This gentle high shelf adds pick definition without the brittle
+    // fizz of simply mixing in more white noise.
+    pickupLowPass +=
+      (stringSample - pickupLowPass) * pickupLowPassCoefficient;
+    const presence = stringSample - pickupLowPass;
+    const voicedSample =
+      stringSample + presence * (muted ? 0.18 : 0.42);
+
+    // Remove sub-audio drift before a mild saturation stage. The saturation
+    // adds the subtle upper harmonics and compression of a clean guitar amp.
+    const highPassed =
+      voicedSample -
+      previousVoicedSample +
+      dcBlockCoefficient * previousHighPassedSample;
+    previousVoicedSample = voicedSample;
+    previousHighPassedSample = highPassed;
+    output[index] = Math.tanh(highPassed * (muted ? 1.05 : 1.16));
   }
 
   let peak = 0;
@@ -140,6 +202,7 @@ export class GuitarAudioEngine {
   private context: AudioContext | null = null;
   private activeSources = new Set<AudioBufferSourceNode>();
   private bufferCache = new Map<string, AudioBuffer>();
+  private pluckSequence = 0;
 
   isSupported() {
     if (typeof window === "undefined") return false;
@@ -169,12 +232,15 @@ export class GuitarAudioEngine {
     midi: number,
     duration: number,
     muted: boolean,
+    variation: number,
   ) {
     const normalizedDuration = Math.max(0.05, duration);
     const key = [
+      GUITAR_TONE_MODEL_VERSION,
       Math.round(midi),
       normalizedDuration.toFixed(3),
       muted ? "muted" : "open",
+      variation,
       context.sampleRate,
     ].join(":");
     const cached = this.bufferCache.get(key);
@@ -189,6 +255,7 @@ export class GuitarAudioEngine {
       durationSeconds: normalizedDuration,
       sampleRate: context.sampleRate,
       muted,
+      variation,
     });
     const buffer = context.createBuffer(
       1,
@@ -218,13 +285,22 @@ export class GuitarAudioEngine {
       0.05,
       Number.isFinite(duration) ? duration : 0.5,
     );
+    const variation = this.pluckSequence % 4;
+    this.pluckSequence += 1;
     source.buffer = this.getPluckBuffer(
       context,
       midi,
       safeDuration,
       muted,
+      variation,
     );
     gain.gain.setValueAtTime(Math.max(0.001, volume), startAt);
+    const releaseSeconds = Math.min(
+      muted ? 0.012 : 0.045,
+      safeDuration * (muted ? 0.18 : 0.16),
+    );
+    const releaseAt = startAt + safeDuration - releaseSeconds;
+    gain.gain.setValueAtTime(Math.max(0.001, volume), releaseAt);
     gain.gain.exponentialRampToValueAtTime(
       0.0001,
       startAt + safeDuration,

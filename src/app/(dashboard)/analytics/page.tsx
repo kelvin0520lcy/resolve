@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/resolve";
 import { GOAL_CATEGORIES } from "@/lib/constants/categories";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
+import { getTrackedMinutesByCategory } from "@/features/workspace/lib/analytics";
 
 export default function AnalyticsPage() {
   const { tasks, goals, milestones, habits, habitLogs, guitarSessions } =
@@ -49,11 +50,10 @@ export default function AnalyticsPage() {
         : 0,
     };
   });
+  const trackedMinutes = getTrackedMinutesByCategory(tasks, guitarSessions);
   const categoryTime = GOAL_CATEGORIES.map((category) => ({
     name: category.label,
-    value: tasks
-      .filter((task) => task.category === category.id)
-      .reduce((sum, task) => sum + (task.actualMinutes ?? task.estimatedMinutes ?? 0), 0),
+    value: trackedMinutes[category.id] ?? 0,
     color: category.color,
   })).filter((item) => item.value > 0);
   const plannedMinutes = tasks.reduce(

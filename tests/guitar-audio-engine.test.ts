@@ -8,6 +8,8 @@ import {
 const starts: number[] = [];
 const stops: number[] = [];
 const renderedBuffers: Float32Array[] = [];
+const gainSetCalls: Array<[number, number]> = [];
+const gainRampCalls: Array<[number, number]> = [];
 const resume = vi.fn(async () => {});
 const constructorSpy = vi.fn();
 
@@ -53,8 +55,12 @@ class MockAudioContext {
   createGain() {
     return {
       gain: {
-        setValueAtTime: vi.fn(),
-        exponentialRampToValueAtTime: vi.fn(),
+        setValueAtTime(value: number, at: number) {
+          gainSetCalls.push([value, at]);
+        },
+        exponentialRampToValueAtTime(value: number, at: number) {
+          gainRampCalls.push([value, at]);
+        },
       },
       connect: vi.fn(),
       disconnect: vi.fn(),
@@ -67,6 +73,17 @@ function averageEnergy(samples: Float32Array) {
     samples.reduce((sum, sample) => sum + sample * sample, 0) /
     Math.max(1, samples.length)
   );
+}
+
+function brightnessRatio(samples: Float32Array) {
+  let signalEnergy = 0;
+  let differenceEnergy = 0;
+  for (let index = 1; index < samples.length; index += 1) {
+    signalEnergy += samples[index] * samples[index];
+    const difference = samples[index] - samples[index - 1];
+    differenceEnergy += difference * difference;
+  }
+  return differenceEnergy / Math.max(Number.EPSILON, signalEnergy);
 }
 
 describe("procedural guitar pluck", () => {
@@ -126,6 +143,43 @@ describe("procedural guitar pluck", () => {
     );
   });
 
+  it("keeps a bright steel-string attack without clipping", () => {
+    const pluck = renderGuitarPluck({
+      midi: 57,
+      durationSeconds: 0.6,
+      sampleRate: 12_000,
+    });
+    const attack = pluck.slice(0, 1_200);
+    expect(brightnessRatio(attack)).toBeGreaterThan(0.16);
+    expect(
+      averageEnergy(attack.slice(0, 300)),
+    ).toBeGreaterThan(averageEnergy(attack.slice(900, 1_200)));
+    expect(Math.max(...pluck.map(Math.abs))).toBeLessThanOrEqual(0.861);
+  });
+
+  it("creates stable but distinct pick variations for repeated notes", () => {
+    const first = renderGuitarPluck({
+      midi: 57,
+      durationSeconds: 0.4,
+      sampleRate: 12_000,
+      variation: 1,
+    });
+    const repeated = renderGuitarPluck({
+      midi: 57,
+      durationSeconds: 0.4,
+      sampleRate: 12_000,
+      variation: 1,
+    });
+    const alternate = renderGuitarPluck({
+      midi: 57,
+      durationSeconds: 0.4,
+      sampleRate: 12_000,
+      variation: 2,
+    });
+    expect(first).toEqual(repeated);
+    expect(first).not.toEqual(alternate);
+  });
+
   it("falls back safely when external pattern values are not finite", () => {
     const pluck = renderGuitarPluck({
       midi: Number.NaN,
@@ -142,6 +196,8 @@ describe("guitar Web Audio engine", () => {
     starts.length = 0;
     stops.length = 0;
     renderedBuffers.length = 0;
+    gainSetCalls.length = 0;
+    gainRampCalls.length = 0;
     resume.mockClear();
     constructorSpy.mockClear();
     Object.defineProperty(window, "AudioContext", {
@@ -164,6 +220,10 @@ describe("guitar Web Audio engine", () => {
     expect(starts).toEqual([10.04, 10.459999999999999]);
     expect(renderedBuffers).toHaveLength(2);
     expect(renderedBuffers[0].some((sample) => sample !== 0)).toBe(true);
+    expect(gainSetCalls).toHaveLength(4);
+    expect(gainRampCalls).toHaveLength(2);
+    expect(gainSetCalls[1][1]).toBeGreaterThan(10.45);
+    expect(gainRampCalls[0][1]).toBeGreaterThan(gainSetCalls[1][1]);
   });
 
   it("strums chords from low to high with a guitar buffer per note", async () => {
@@ -190,8 +250,7 @@ describe("guitar Web Audio engine", () => {
       bpm: 120,
     });
     expect(starts).toEqual([10.04, 10.54, 11.79]);
-    // Repeated unaccented ticks reuse the same rendered guitar buffer.
-    expect(renderedBuffers).toHaveLength(2);
+    expect(renderedBuffers).toHaveLength(3);
     expect(renderedBuffers.every((buffer) => buffer.length < 6_000)).toBe(
       true,
     );

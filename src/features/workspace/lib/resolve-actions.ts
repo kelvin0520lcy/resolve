@@ -1,5 +1,5 @@
 import { isDateKey, offsetDate } from "@/lib/date";
-import type { ResolveData } from "@/contexts/resolve-context";
+import type { ResolveData } from "@/features/workspace/types";
 import type {
   AcademicModule,
   AlgorithmLog,
@@ -220,6 +220,38 @@ export function addGoalToData(
         updatedAt: timestamp,
       },
     ],
+  };
+}
+
+export function removeGoalFromData(
+  current: ResolveData,
+  goalId: string,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  if (!current.goals.some((goal) => goal.id === goalId)) return current;
+  const milestoneIds = new Set(
+    current.milestones
+      .filter((milestone) => milestone.goalId === goalId)
+      .map((milestone) => milestone.id),
+  );
+
+  return {
+    ...current,
+    goals: current.goals.filter((goal) => goal.id !== goalId),
+    milestones: current.milestones.filter(
+      (milestone) => milestone.goalId !== goalId,
+    ),
+    tasks: current.tasks.map((task) =>
+      task.goalId === goalId ||
+      (task.milestoneId && milestoneIds.has(task.milestoneId))
+        ? {
+            ...task,
+            goalId: undefined,
+            milestoneId: undefined,
+            updatedAt: timestamp,
+          }
+        : task,
+    ),
   };
 }
 
@@ -450,6 +482,18 @@ export function addHabitToData(
   };
 }
 
+export function removeHabitFromData(
+  current: ResolveData,
+  habitId: string,
+): ResolveData {
+  if (!current.habits.some((habit) => habit.id === habitId)) return current;
+  return {
+    ...current,
+    habits: current.habits.filter((habit) => habit.id !== habitId),
+    habitLogs: current.habitLogs.filter((log) => log.habitId !== habitId),
+  };
+}
+
 export function addModuleToData(
   current: ResolveData,
   module: NewModuleInput,
@@ -480,6 +524,17 @@ export function addModuleToData(
         assessments: [],
       },
     ],
+  };
+}
+
+export function removeModuleFromData(
+  current: ResolveData,
+  moduleId: string,
+): ResolveData {
+  if (!current.modules.some((module) => module.id === moduleId)) return current;
+  return {
+    ...current,
+    modules: current.modules.filter((module) => module.id !== moduleId),
   };
 }
 
@@ -667,6 +722,17 @@ export function addAlgorithmLogToData(
   };
 }
 
+export function removeAlgorithmLogFromData(
+  current: ResolveData,
+  logId: string,
+): ResolveData {
+  if (!current.algorithmLogs.some((log) => log.id === logId)) return current;
+  return {
+    ...current,
+    algorithmLogs: current.algorithmLogs.filter((log) => log.id !== logId),
+  };
+}
+
 export function addApplicationToData(
   current: ResolveData,
   application: NewApplicationInput,
@@ -694,6 +760,25 @@ export function addApplicationToData(
       },
       ...current.applications,
     ],
+  };
+}
+
+export function removeApplicationFromData(
+  current: ResolveData,
+  applicationId: string,
+): ResolveData {
+  if (
+    !current.applications.some(
+      (application) => application.id === applicationId,
+    )
+  ) {
+    return current;
+  }
+  return {
+    ...current,
+    applications: current.applications.filter(
+      (application) => application.id !== applicationId,
+    ),
   };
 }
 
@@ -785,6 +870,21 @@ export function addGuitarSessionToData(
   };
 }
 
+export function removeGuitarSessionFromData(
+  current: ResolveData,
+  sessionId: string,
+): ResolveData {
+  if (!current.guitarSessions.some((session) => session.id === sessionId)) {
+    return current;
+  }
+  return {
+    ...current,
+    guitarSessions: current.guitarSessions.filter(
+      (session) => session.id !== sessionId,
+    ),
+  };
+}
+
 export function saveReflectionToData(
   current: ResolveData,
   reflection: Omit<
@@ -841,6 +941,25 @@ export function saveReflectionToData(
           item.id === existing.id ? normalized : item,
         )
       : [normalized, ...current.reflections],
+  };
+}
+
+export function removeReflectionFromData(
+  current: ResolveData,
+  reflectionId: string,
+): ResolveData {
+  if (
+    !current.reflections.some(
+      (reflection) => reflection.id === reflectionId,
+    )
+  ) {
+    return current;
+  }
+  return {
+    ...current,
+    reflections: current.reflections.filter(
+      (reflection) => reflection.id !== reflectionId,
+    ),
   };
 }
 

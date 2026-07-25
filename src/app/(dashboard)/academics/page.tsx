@@ -36,6 +36,7 @@ export default function AcademicsPage() {
   const {
     modules,
     addModule,
+    removeModule,
     addAssessment,
     removeAssessment,
     updateAssessmentProgress,
@@ -354,7 +355,14 @@ export default function AcademicsPage() {
                         {module.name}
                       </CardTitle>
                     </div>
-                    <Badge>{module.credits} CU</Badge>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Badge>{module.credits} CU</Badge>
+                      <ConfirmDeleteButton
+                        itemLabel={`module ${module.code}`}
+                        onConfirm={() => removeModule(module.id)}
+                        className="flex-wrap justify-end"
+                      />
+                    </div>
                   </div>
                   <CardDescription>{module.lecturer}</CardDescription>
                 </CardHeader>

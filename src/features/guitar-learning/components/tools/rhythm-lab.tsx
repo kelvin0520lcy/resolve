@@ -137,6 +137,7 @@ export function RhythmLab() {
         patternInput,
         subdivision,
       );
+      stopPlayback();
       setCells(next);
       setPatternError("");
       setTransformationNote(
@@ -152,6 +153,7 @@ export function RhythmLab() {
   }
 
   function applyTransformation(transformation: RhythmTransformation) {
+    stopPlayback();
     setCells((current) => transformRhythm(current, transformation));
     setTransformationNote(describeRhythmChange(transformation));
   }
@@ -167,7 +169,10 @@ export function RhythmLab() {
             min="30"
             max="240"
             value={bpm}
-            onChange={(event) => setBpm(Number(event.target.value))}
+            onChange={(event) => {
+              stopPlayback();
+              setBpm(Number(event.target.value));
+            }}
           />
         </label>
         <label className="text-xs font-black">
@@ -243,7 +248,8 @@ export function RhythmLab() {
                   type="button"
                   className="mt-2 flex h-11 w-full items-center justify-center rounded-lg border border-border bg-surface-muted text-lg font-black hover:border-accent"
                   aria-label={`Step ${cell.index + 1}, ${cell.count}, ${cell.direction}, ${cell.state}`}
-                  onClick={() =>
+                  onClick={() => {
+                    stopPlayback();
                     setCells((current) =>
                       current.map((candidate) =>
                         candidate.index === cell.index
@@ -253,8 +259,8 @@ export function RhythmLab() {
                             }
                           : candidate,
                       ),
-                    )
-                  }
+                    );
+                  }}
                 >
                   {rhythmCellToSymbol(cell)}
                 </button>
@@ -262,7 +268,8 @@ export function RhythmLab() {
                   <input
                     type="checkbox"
                     checked={cell.accented}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      stopPlayback();
                       setCells((current) =>
                         current.map((candidate) =>
                           candidate.index === cell.index
@@ -272,8 +279,8 @@ export function RhythmLab() {
                               }
                             : candidate,
                         ),
-                      )
-                    }
+                      );
+                    }}
                   />
                   Accent
                 </label>
@@ -281,7 +288,8 @@ export function RhythmLab() {
                   <input
                     type="checkbox"
                     checked={cell.palmMuted}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      stopPlayback();
                       setCells((current) =>
                         current.map((candidate) =>
                           candidate.index === cell.index
@@ -291,8 +299,8 @@ export function RhythmLab() {
                               }
                             : candidate,
                         ),
-                      )
-                    }
+                      );
+                    }}
                   />
                   Palm mute
                 </label>

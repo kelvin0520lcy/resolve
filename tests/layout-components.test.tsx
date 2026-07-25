@@ -122,6 +122,18 @@ describe("interactive anime header", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("dismisses the character reaction with Escape", async () => {
+    const user = userEvent.setup();
+    render(<AppHeader title="Today" theme={PAGE_THEMES.nijika} />);
+    const trigger = screen.getByRole("button", {
+      name: "Hear Nijika's reaction",
+    });
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("calls the configured sign-out action", async () => {
     const user = userEvent.setup();
     render(<AppHeader title="Today" theme={PAGE_THEMES.nijika} />);
