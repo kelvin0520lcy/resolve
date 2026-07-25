@@ -55,6 +55,11 @@ import {
   saveWorkspace,
   subscribeToWorkspace,
 } from "@/lib/firebase/workspace";
+import {
+  createEmptyGuitarLearningState,
+  normalizeGuitarLearningState,
+} from "@/features/guitar-learning/lib/learning-state";
+import type { GuitarLearningState } from "@/features/guitar-learning/types";
 import type {
   AcademicModule,
   AlgorithmLog,
@@ -77,6 +82,7 @@ export type ResolveData = {
   habits: Habit[];
   habitLogs: HabitLog[];
   guitarSessions: GuitarPracticeSession[];
+  guitarLearning: GuitarLearningState;
   reflections: Reflection[];
   modules: AcademicModule[];
   algorithmLogs: AlgorithmLog[];
@@ -125,6 +131,9 @@ type ResolveContextValue = ResolveData & {
   addGuitarSession: (
     session: Omit<GuitarPracticeSession, "id" | "userId" | "semesterId">,
   ) => void;
+  updateGuitarLearning: (
+    updater: (current: GuitarLearningState) => GuitarLearningState,
+  ) => void;
   saveReflection: (
     reflection: Omit<
       Reflection,
@@ -159,6 +168,7 @@ export function createEmptyData(userId: string): ResolveData {
     habits: [],
     habitLogs: [],
     guitarSessions: [],
+    guitarLearning: createEmptyGuitarLearningState(userId),
     reflections: [],
     modules: [],
     algorithmLogs: [],
@@ -462,6 +472,10 @@ export function normalizeStoredData(
         ? Math.min(5, Math.max(1, Math.round(session.difficulty!)))
         : undefined,
     }));
+  const guitarLearning = normalizeGuitarLearningState(
+    stored.guitarLearning,
+    userId,
+  );
   const validReflectionTypes: Reflection["type"][] = [
     "daily",
     "weekly",
@@ -622,6 +636,7 @@ export function normalizeStoredData(
     habits,
     habitLogs,
     guitarSessions,
+    guitarLearning,
     reflections,
     modules,
     algorithmLogs,
@@ -964,6 +979,15 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
         setData((current) =>
           addGuitarSessionToData(current, session, { identity }),
         );
+      },
+      updateGuitarLearning(updater) {
+        setData((current) => ({
+          ...current,
+          guitarLearning: normalizeGuitarLearningState(
+            updater(current.guitarLearning),
+            identity,
+          ),
+        }));
       },
       saveReflection(reflection) {
         setData((current) =>

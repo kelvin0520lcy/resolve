@@ -1,12 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState, type FormEvent } from "react";
 import {
   BookOpen,
   Check,
   Clock3,
+  Compass,
   Gauge,
   Guitar,
+  MapPinned,
   Music2,
   Plus,
   Sparkles,
@@ -37,8 +40,182 @@ import {
   getSuggestedGuitarArea,
 } from "@/lib/guitar-learning";
 import { formatDate } from "@/lib/utils";
+import { GuitarLearnMode } from "@/features/guitar-learning/components/learn-mode";
+import { GuitarLearningMap } from "@/features/guitar-learning/components/learning-map";
+import {
+  GuitarStudioNav,
+  type GuitarStudioMode,
+} from "@/features/guitar-learning/components/studio-nav";
+import type { GuitarToolId } from "@/features/guitar-learning/types";
+
+const GuitarExploreMode = dynamic(
+  () =>
+    import(
+      "@/features/guitar-learning/components/explore-mode"
+    ).then((module) => module.GuitarExploreMode),
+  {
+    loading: () => (
+      <div
+        role="status"
+        className="flex min-h-96 items-center justify-center rounded-[22px] border-2 border-dashed border-border bg-surface/70"
+      >
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-accent/25 border-t-accent" />
+          <p className="mt-3 text-xs font-black uppercase tracking-wide text-muted">
+            Opening the interactive studio
+          </p>
+        </div>
+      </div>
+    ),
+  },
+);
+
+const MODE_INTROS: Record<
+  Exclude<GuitarStudioMode, "overview">,
+  { eyebrow: string; title: string; description: string }
+> = {
+  learn: {
+    eyebrow: "Guided learning",
+    title: "Understand it, hear it, use it",
+    description:
+      "Follow a prerequisite-aware lesson, compare the sound, try it on the guitar, and confirm understanding through musical evidence.",
+  },
+  explore: {
+    eyebrow: "Interactive studio",
+    title: "Touch the theory and hear it move",
+    description:
+      "Experiment with the fretboard, rhythm, picking, harmony, phrasing, ear training, metronome, and drones without polluting your practice history.",
+  },
+  "learning-map": {
+    eyebrow: "Knowledge map",
+    title: "See the route behind the next note",
+    description:
+      "Inspect seven complete learning paths, understand every locked prerequisite, and override concepts you already know.",
+  },
+};
 
 export default function GuitarPage() {
+  const {
+    guitarLearning,
+    updateGuitarLearning,
+    goals,
+    guitarSessions,
+  } = useResolve();
+  const [mode, setMode] = useState<GuitarStudioMode>("overview");
+  const [selectedToolId, setSelectedToolId] =
+    useState<GuitarToolId>("fretboard");
+  const [lessonToOpen, setLessonToOpen] = useState<string>();
+  const [lessonStageById, setLessonStageById] = useState<
+    Record<string, number>
+  >({});
+
+  function openTool(toolId: GuitarToolId) {
+    setSelectedToolId(toolId);
+    setMode("explore");
+  }
+
+  return (
+    <PageShell title="Guitar Studio">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <GuitarStudioNav
+          mode={mode}
+          onChange={setMode}
+        />
+
+        <div
+          id={`guitar-${mode}-panel`}
+          role="tabpanel"
+          aria-label={`${mode.replace("-", " ")} guitar studio`}
+          className="min-w-0"
+        >
+          {mode === "overview" ? (
+            <GuitarOverview />
+          ) : (
+            <>
+              <PageIntro
+                eyebrow={MODE_INTROS[mode].eyebrow}
+                title={MODE_INTROS[mode].title}
+                description={MODE_INTROS[mode].description}
+                action={
+                  mode === "learn" ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setMode("learning-map")}
+                    >
+                      <MapPinned className="h-4 w-4" />
+                      View prerequisites
+                    </Button>
+                  ) : mode === "explore" ? (
+                    <Badge variant="accent">
+                      <Compass className="mr-1 h-3.5 w-3.5" />
+                      15 working tools
+                    </Badge>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setMode("learn")}
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      Return to Learn
+                    </Button>
+                  )
+                }
+              />
+              <div className="mt-6">
+                {mode === "learn" && (
+                  <GuitarLearnMode
+                    state={guitarLearning}
+                    updateState={updateGuitarLearning}
+                    goals={goals}
+                    sessions={guitarSessions}
+                    onOpenTool={openTool}
+                    initialLessonId={lessonToOpen}
+                    initialLessonStage={
+                      lessonToOpen
+                        ? lessonStageById[lessonToOpen]
+                        : undefined
+                    }
+                    onActiveLessonChange={setLessonToOpen}
+                    onLessonStageChange={(lessonId, stage) =>
+                      setLessonStageById((current) => ({
+                        ...current,
+                        [lessonId]: stage,
+                      }))
+                    }
+                  />
+                )}
+                {mode === "explore" && (
+                  <GuitarExploreMode
+                    selectedToolId={selectedToolId}
+                    onSelectTool={setSelectedToolId}
+                    onOpenLesson={(lessonId) => {
+                      setLessonToOpen(lessonId);
+                      setMode("learn");
+                    }}
+                  />
+                )}
+                {mode === "learning-map" && (
+                  <GuitarLearningMap
+                    state={guitarLearning}
+                    updateState={updateGuitarLearning}
+                    onOpenLesson={(lessonId) => {
+                      setLessonToOpen(lessonId);
+                      setMode("learn");
+                    }}
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </PageShell>
+  );
+}
+
+function GuitarOverview() {
   const { guitarSessions, addGuitarSession } = useResolve();
   const [showForm, setShowForm] = useState(false);
   const [practiceDate, setPracticeDate] = useState(offsetDate(0));
@@ -134,8 +311,7 @@ export default function GuitarPage() {
   }
 
   return (
-    <PageShell title="Guitar">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="space-y-6">
         <PageIntro
           eyebrow="Practice room"
           title="Make improvement audible"
@@ -412,7 +588,7 @@ export default function GuitarPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Guitar learning map</CardTitle>
+            <CardTitle>Practice-area coverage</CardTitle>
             <CardDescription>
               A broad curriculum from first clean notes to playing complete
               music with other people. Tap any topic to prepare a practice log.
@@ -595,6 +771,5 @@ export default function GuitarPage() {
           </Card>
         </div>
       </div>
-    </PageShell>
   );
 }

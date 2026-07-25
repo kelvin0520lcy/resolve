@@ -8,7 +8,7 @@ import {
 import { getFirebaseDb } from "@/lib/firebase/config";
 
 export const WORKSPACE_COLLECTION = "workspaces";
-export const WORKSPACE_SCHEMA_VERSION = 2;
+export const WORKSPACE_SCHEMA_VERSION = 3;
 
 export type WorkspaceSchemaCompatibility =
   | "current"
