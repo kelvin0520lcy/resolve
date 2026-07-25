@@ -36,6 +36,7 @@ describe("guitar curriculum", () => {
       "picking-animation",
       "chord-diagram",
       "scale-comparison",
+      "song-structure",
     ];
 
     for (const lessonId of REQUIRED_SEED_LESSON_IDS) {
@@ -50,6 +51,19 @@ describe("guitar curriculum", () => {
         types.some((type) => visualTypes.includes(type)),
         `${lesson.title} needs an interactive visual`,
       ).toBe(true);
+      const visual = lesson.sections.find((section) =>
+        visualTypes.includes(section.type),
+      );
+      expect(
+        visual && "observationGuide" in visual
+          ? visual.observationGuide
+          : [],
+      ).toHaveLength(3);
+      expect(
+        visual && "successCriteria" in visual
+          ? visual.successCriteria.length
+          : 0,
+      ).toBeGreaterThan(60);
       expect(lesson.learningObjectives).toHaveLength(3);
       expect(lesson.summary.length).toBeGreaterThan(80);
       expect(lesson.alternativeExplanation.length).toBeGreaterThan(100);
@@ -66,5 +80,37 @@ describe("guitar curriculum", () => {
     for (const path of GUITAR_PATHS) {
       expect(path.lessonIds.length).toBeGreaterThanOrEqual(18);
     }
+  });
+
+  it("uses path-specific visual and hands-on instructions instead of one generic drill", () => {
+    const expectedVisualByPath = {
+      rhythm: "rhythm-grid",
+      lead: "picking-animation",
+      fretboard: "fretboard",
+      improvisation: "fretboard",
+      chords: "chord-diagram",
+      "ear-theory": "scale-comparison",
+      application: "song-structure",
+    } as const;
+    const firstExerciseSteps = new Set<string>();
+
+    for (const path of GUITAR_PATHS) {
+      const lesson = GUITAR_LESSONS.find(
+        (candidate) => candidate.pathId === path.id,
+      )!;
+      expect(lesson.sections.map((section) => section.type)).toContain(
+        expectedVisualByPath[path.id],
+      );
+      const exercise = lesson.sections.find(
+        (section) => section.type === "guided-exercise",
+      );
+      expect(exercise?.type).toBe("guided-exercise");
+      if (exercise?.type === "guided-exercise") {
+        expect(exercise.steps).toHaveLength(4);
+        firstExerciseSteps.add(exercise.steps[0]);
+      }
+    }
+
+    expect(firstExerciseSteps).toHaveLength(7);
   });
 });

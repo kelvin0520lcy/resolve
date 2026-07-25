@@ -89,10 +89,13 @@ export type VisualSection = LessonSectionBase & {
     | "rhythm-grid"
     | "picking-animation"
     | "chord-diagram"
-    | "scale-comparison";
+    | "scale-comparison"
+    | "song-structure";
   body: string;
   toolId: GuitarToolId;
   prompt: string;
+  observationGuide: string[];
+  successCriteria: string;
 };
 
 export type AudioComparisonSection = LessonSectionBase & {

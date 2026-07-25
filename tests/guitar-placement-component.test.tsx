@@ -16,6 +16,14 @@ describe("PlacementAssessment", () => {
     await user.click(
       screen.getByRole("button", { name: "Start the soundcheck" }),
     );
+    expect(
+      screen.getByRole("img", {
+        name: "Open strings and natural note location test",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Try this before rating yourself"),
+    ).toBeInTheDocument();
 
     for (let index = 0; index < PLACEMENT_QUESTIONS.length; index += 1) {
       await user.click(

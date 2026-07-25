@@ -13,6 +13,28 @@ type GuitarPluckOptions = {
   muted?: boolean;
 };
 
+export function slowAudioPattern(pattern: AudioPattern): AudioPattern {
+  if (pattern.kind === "notes") {
+    return {
+      ...pattern,
+      beatSeconds: Math.max(0.55, (pattern.beatSeconds ?? 0.42) * 1.6),
+    };
+  }
+  if (pattern.kind === "chord") {
+    return {
+      ...pattern,
+      durationSeconds: Math.max(
+        1.6,
+        (pattern.durationSeconds ?? 1.25) * 1.4,
+      ),
+    };
+  }
+  return {
+    ...pattern,
+    bpm: Math.max(30, Math.round((pattern.bpm ?? 84) * 0.7)),
+  };
+}
+
 function createNoise(seed: number) {
   let state = seed >>> 0;
   return () => {

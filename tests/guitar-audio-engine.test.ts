@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   GuitarAudioEngine,
   renderGuitarPluck,
+  slowAudioPattern,
 } from "@/features/guitar-learning/lib/audio-engine";
 
 const starts: number[] = [];
@@ -69,6 +70,27 @@ function averageEnergy(samples: Float32Array) {
 }
 
 describe("procedural guitar pluck", () => {
+  it("creates slower recovery examples without mutating lesson audio", () => {
+    const notes = {
+      kind: "notes" as const,
+      midiNotes: [57, 60],
+      beatSeconds: 0.4,
+    };
+    const rhythm = {
+      kind: "rhythm" as const,
+      subdivisions: 8 as const,
+      activeSteps: [0, 2],
+      bpm: 100,
+    };
+    const slowerNotes = slowAudioPattern(notes);
+    expect(
+      slowerNotes.kind === "notes" ? slowerNotes.beatSeconds : 0,
+    ).toBeCloseTo(0.64);
+    expect(slowAudioPattern(rhythm)).toMatchObject({ bpm: 70 });
+    expect(notes.beatSeconds).toBe(0.4);
+    expect(rhythm.bpm).toBe(100);
+  });
+
   it("is deterministic, non-silent, and decays like a plucked string", () => {
     const first = renderGuitarPluck({
       midi: 57,

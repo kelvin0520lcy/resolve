@@ -587,11 +587,198 @@ function toolForCategory(category: GuitarLessonCategory): GuitarToolId {
 
 function visualTypeForCategory(
   category: GuitarLessonCategory,
-): "fretboard" | "rhythm-grid" | "picking-animation" | "chord-diagram" {
+):
+  | "fretboard"
+  | "rhythm-grid"
+  | "picking-animation"
+  | "chord-diagram"
+  | "scale-comparison"
+  | "song-structure" {
   if (category === "rhythm") return "rhythm-grid";
   if (category === "lead") return "picking-animation";
   if (category === "chords") return "chord-diagram";
+  if (category === "ear" || category === "theory") {
+    return "scale-comparison";
+  }
+  if (category === "application") return "song-structure";
   return "fretboard";
+}
+
+function visualGuideForCategory(
+  title: string,
+  category: GuitarLessonCategory,
+) {
+  if (category === "rhythm") {
+    return {
+      body:
+        "Read the diagram from top to bottom: count location, continuous hand direction, then the stroke that actually sounds.",
+      observationGuide: [
+        "Point to every numbered beat before reading the smaller subdivisions.",
+        "Trace the D/U row without stopping at a silent or muted cell.",
+        `Find the cell where ${title.toLowerCase()} changes the groove without moving the pulse.`,
+      ],
+      successCriteria:
+        "You can count the entire grid aloud and identify exactly which hand movements create sound, silence, or emphasis.",
+    };
+  }
+  if (category === "lead") {
+    return {
+      body:
+        "Follow the pick path one event at a time. String height, pick direction, and articulation are separate controls.",
+      observationGuide: [
+        "Say down or up before following each arrow.",
+        "Notice whether the next event stays on one string or crosses to another.",
+        `Identify the smallest movement that performs ${title.toLowerCase()} cleanly.`,
+      ],
+      successCriteria:
+        "You can predict the next pick direction and string before playing the sequence.",
+    };
+  }
+  if (category === "chords") {
+    return {
+      body:
+        "Use the interval recipe first, then inspect how one playable voicing distributes those ingredients across the strings.",
+      observationGuide: [
+        "Name the root before reading any chord-shape dots.",
+        "Trace the third or suspended note that determines the chord colour.",
+        `Compare the formula with the voicing used for ${title.toLowerCase()}.`,
+      ],
+      successCriteria:
+        "You can name the chord ingredients and locate which string carries each important colour tone.",
+    };
+  }
+  if (category === "ear" || category === "theory") {
+    return {
+      body:
+        "Connect three representations of the same idea: what you hear, the interval or function label, and where it can be played.",
+      observationGuide: [
+        "Start with the sound description instead of the theory name.",
+        "Follow the distance or harmonic-function arrow in the centre.",
+        `Use the final guitar example to verify ${title.toLowerCase()} physically.`,
+      ],
+      successCriteria:
+        "You can move from sound to label to guitar location—and reverse that route—without guessing.",
+    };
+  }
+  if (category === "application") {
+    return {
+      body:
+        "Treat the song as a timeline of sections, transitions, and intensity rather than one uninterrupted block.",
+      observationGuide: [
+        "Find the smallest section or transition that contains the problem.",
+        "Separate what repeats from what changes on the next pass.",
+        `Choose where ${title.toLowerCase()} belongs in the arrangement timeline.`,
+      ],
+      successCriteria:
+        "You can point to the exact section, transition, or repeat where the musical decision happens.",
+    };
+  }
+  return {
+    body:
+      "Use the root as an anchor, then read the highlighted notes as interval relationships rather than isolated dots.",
+    observationGuide: [
+      "Find every highlighted root before following the surrounding notes.",
+      "Trace one relationship across two neighbouring strings.",
+      `Explain how the repeated shape supports ${title.toLowerCase()}.`,
+    ],
+    successCriteria:
+      "You can find the same relationship in at least two places and explain it without relying on the diagram.",
+  };
+}
+
+function guidedExerciseForCategory(
+  title: string,
+  category: GuitarLessonCategory,
+) {
+  if (category === "rhythm") {
+    return {
+      body: `Build ${title.toLowerCase()} from a counted hand motion before adding chord changes.`,
+      steps: [
+        "Mute the strings with the fretting hand and count one complete bar aloud.",
+        "Move the strumming hand through every subdivision, including the silent positions.",
+        "Add only the required sounding strokes at 60 BPM and repeat the bar three times.",
+        "Play the same bar with one chord change while keeping the count and hand motion unchanged.",
+      ],
+      completionPrompt:
+        "The exercise is complete when three bars have identical timing and the silent hand passes remain visible.",
+    };
+  }
+  if (category === "lead") {
+    return {
+      body: `Isolate the smallest physical motion required for ${title.toLowerCase()}, then place it inside a phrase.`,
+      steps: [
+        "Choose one comfortable note or two adjacent strings and remove all unnecessary fretting pressure.",
+        "Perform the motion five times slowly while watching pick depth and unused-string muting.",
+        "Add a 60 BPM pulse and place one clean movement on each click without increasing its size.",
+        "Use the movement once inside a short three-note phrase, leaving a rest after it.",
+      ],
+      completionPrompt:
+        "Continue only when the isolated motion and the phrase version feel equally relaxed and controlled.",
+    };
+  }
+  if (category === "fretboard") {
+    return {
+      body: `Turn ${title.toLowerCase()} into a location-and-sound relationship rather than a memorised diagram.`,
+      steps: [
+        "Choose A as a temporary root and find the first example shown in the visual.",
+        "Say the note name and interval role aloud before playing it.",
+        "Find the same relationship on another string or in another octave.",
+        "Hide the visual, locate both examples again, and describe the route you used.",
+      ],
+      completionPrompt:
+        "You are ready when you can relocate the relationship from an anchor note instead of scanning every fret.",
+    };
+  }
+  if (category === "improvisation") {
+    return {
+      body: `Use ${title.toLowerCase()} as one audible phrase decision over a stable tonal centre.`,
+      steps: [
+        "Start an A minor drone or backing context and locate two safe anchor notes.",
+        "Create a two-beat call using no more than three notes, then leave two beats of silence.",
+        `Create an answer that demonstrates ${title.toLowerCase()} while preserving one feature of the call.`,
+        "Repeat both phrases, changing only the ending, and compare which version communicates more clearly.",
+      ],
+      completionPrompt:
+        "The result should sound like two intentional phrases, not a scale run with an accidental pause.",
+    };
+  }
+  if (category === "chords") {
+    return {
+      body: `Build ${title.toLowerCase()} from interval ingredients before relying on a memorised grip.`,
+      steps: [
+        "Name the root and write or say the interval recipe shown in the visual.",
+        "Locate each ingredient in one small three- or four-string area.",
+        "Fret the notes together and check every string individually for clean sound or intentional muting.",
+        "Move to a second voicing while keeping shared notes still whenever possible.",
+      ],
+      completionPrompt:
+        "The voicing is understood when you can identify its ingredients and move it without losing clean note separation.",
+    };
+  }
+  if (category === "ear" || category === "theory") {
+    return {
+      body: `Learn ${title.toLowerCase()} through sound first, then confirm the label on the guitar.`,
+      steps: [
+        "Play the listening example three times without looking at the answer or touching the guitar.",
+        "Hum the final note or clap the rhythm back from memory.",
+        "State one audible clue—direction, distance, chord colour, function, or rhythmic location.",
+        "Use the fretboard, chord, or rhythm tool to reproduce the answer and compare it with the original.",
+      ],
+      completionPrompt:
+        "The exercise is complete when your audible clue predicts the answer before the theory label appears.",
+    };
+  }
+  return {
+    body: `Place ${title.toLowerCase()} inside a real song section instead of practising it as an isolated trick.`,
+    steps: [
+      "Choose a four- or eight-bar section and identify its musical job in one sentence.",
+      "Mark the exact beat or transition where the target idea begins and ends.",
+      "Practise that small unit three times, then reconnect one bar before and one bar after it.",
+      "Record or play the full section twice and compare timing, dynamics, and recovery after mistakes.",
+    ],
+    completionPrompt:
+      "The application is ready when the complete section flows through the edited moment without a visible restart.",
+  };
 }
 
 function getCoreCopy(title: string, category: GuitarLessonCategory) {
@@ -633,6 +820,8 @@ function buildSections(
   const copy = getCoreCopy(title, category);
   const toolId = toolForCategory(category);
   const midiNotes = categoryDefaultMidi(category);
+  const visualGuide = visualGuideForCategory(title, category);
+  const guidedExercise = guidedExerciseForCategory(title, category);
 
   return [
     {
@@ -655,9 +844,11 @@ function buildSections(
       id: `${id}:visual`,
       type: visualTypeForCategory(category),
       title: "See it in motion",
-      body: `Use the interactive ${toolId.replace("-", " ")} view to change one variable at a time.`,
+      body: visualGuide.body,
       toolId,
       prompt: `Locate or construct ${title.toLowerCase()}, then explain what changed and what stayed constant.`,
+      observationGuide: visualGuide.observationGuide,
+      successCriteria: visualGuide.successCriteria,
       required: true,
     },
     {
@@ -708,15 +899,9 @@ function buildSections(
       id: `${id}:exercise`,
       type: "guided-exercise",
       title: "Try it",
-      body: `Build ${title.toLowerCase()} from a slow, observable starting point.`,
-      steps: [
-        "Set a comfortable tempo and establish the pulse before touching the strings.",
-        "Perform the smallest version of the idea three times with no extra movement.",
-        "Add one musical variable—another note, stroke, chord, or articulation—and compare the result.",
-        "Repeat without watching the diagram, then describe what you heard.",
-      ],
-      completionPrompt:
-        "Complete the steps with controlled timing before checking this section.",
+      body: guidedExercise.body,
+      steps: guidedExercise.steps,
+      completionPrompt: guidedExercise.completionPrompt,
       required: true,
     },
     {

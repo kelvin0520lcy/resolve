@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  BookOpen,
   Ear,
   Headphones,
   Play,
@@ -70,7 +71,23 @@ const EXERCISES: Array<{
   },
 ];
 
-export function EarTrainingLab() {
+export const EAR_EXERCISE_LESSONS: Record<EarExerciseId, string> = {
+  "higher-lower": "ear-theory:higher-and-lower-pitch",
+  "same-different": "ear-theory:same-and-different-notes",
+  interval: "ear-theory:interval-recognition",
+  "major-minor": "ear-theory:major-versus-minor",
+  "chord-quality": "ear-theory:chord-quality-recognition",
+  "tension-resolution": "ear-theory:tension-and-resolution-by-ear",
+  "note-matching": "ear-theory:matching-a-heard-note",
+  "rhythm-imitation": "ear-theory:rhythm-imitation",
+  "phrase-ending": "ear-theory:recognising-phrase-endings",
+};
+
+export function EarTrainingLab({
+  onOpenLesson,
+}: {
+  onOpenLesson?: (lessonId: string) => void;
+}) {
   const [exerciseId, setExerciseId] =
     useState<EarExerciseId>("higher-lower");
   const [root, setRoot] = useState("A");
@@ -271,17 +288,31 @@ export function EarTrainingLab() {
         </div>
 
         {submitted && (
-          <div
-            role="status"
-            className={`mt-4 rounded-2xl p-4 text-sm leading-6 ${
-              correct
-                ? "border border-success/30 bg-success/10"
-                : "border border-warning/30 bg-warning/10"
-            }`}
-          >
-            <strong>{correct ? "Correct." : "Not this time."}</strong>{" "}
-            {question.explanation}
-          </div>
+          <>
+            <div
+              role="status"
+              className={`mt-4 rounded-2xl p-4 text-sm leading-6 ${
+                correct
+                  ? "border border-success/30 bg-success/10"
+                  : "border border-warning/30 bg-warning/10"
+              }`}
+            >
+              <strong>{correct ? "Correct." : "Not this time."}</strong>{" "}
+              {question.explanation}
+            </div>
+            {onOpenLesson && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => onOpenLesson(EAR_EXERCISE_LESSONS[exerciseId])}
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                Review the related lesson
+              </Button>
+            )}
+          </>
         )}
       </div>
 

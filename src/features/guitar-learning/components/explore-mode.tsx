@@ -270,6 +270,87 @@ export const GUITAR_TOOLS: GuitarToolDefinition[] = [
   },
 ];
 
+export const GUITAR_TOOL_QUICK_START: Record<
+  GuitarToolId,
+  { setup: string; action: string; success: string }
+> = {
+  fretboard: {
+    setup: "Choose a root and one display layer: notes, intervals, scale, or chord.",
+    action: "Find the highlighted root twice, then trace one interval from each root.",
+    success: "You can predict the second location before revealing or playing it.",
+  },
+  scales: {
+    setup: "Choose a root and scale, then read the interval formula before the note names.",
+    action: "Play the scale, change one scale type, and identify the notes that changed.",
+    success: "You can explain the new colour using the changed scale degrees.",
+  },
+  rhythm: {
+    setup: "Choose the subdivision and start slowly enough to count every cell aloud.",
+    action: "Toggle sound, mute, accent, and rest cells while the hand-direction row stays continuous.",
+    success: "You can count and loop three identical bars without losing a silent hand pass.",
+  },
+  picking: {
+    setup: "Choose a picking pattern and inspect its D/U arrows before pressing play.",
+    action: "Follow one event at a time, saying the direction and destination string first.",
+    success: "Your pick arrives on the correct side of the next string without resetting.",
+  },
+  chords: {
+    setup: "Choose a root and chord quality, then read the interval recipe.",
+    action: "Inspect each chord tone and compare a second voicing or nearby chord.",
+    success: "You can name the colour tone and keep shared notes still during the change.",
+  },
+  triads: {
+    setup: "Choose a major or minor triad and one three-string set.",
+    action: "Cycle root position, first inversion, and second inversion while naming the bass note.",
+    success: "You can predict the next note order and move to it with minimal motion.",
+  },
+  arpeggios: {
+    setup: "Choose a chord quality and compare its chord tones with the full parent scale.",
+    action: "Play the arpeggio, then make one phrase land on a chord tone.",
+    success: "The landing note sounds connected to the harmony rather than merely inside the scale.",
+  },
+  progressions: {
+    setup: "Choose a key and read the Roman numerals before the chord names.",
+    action: "Play the progression, transpose the key, and track each chord’s function.",
+    success: "You hear which chord feels stable, prepares motion, or demands resolution.",
+  },
+  theory: {
+    setup: "Choose one theory visual and keep a single root fixed.",
+    action: "Change one interval, scale, chord, or key parameter and play both versions.",
+    success: "You can describe the audible change before reading its label.",
+  },
+  emotional: {
+    setup: "Set brightness, tension, motion, and intensity to match one intended mood.",
+    action: "Use the suggested scale, chord, rhythm, and articulation as a four-bar constraint.",
+    success: "A listener can hear the intended contrast when you change only one mood control.",
+  },
+  improvisation: {
+    setup: "Choose a tonal centre and one constraint such as roots, rests, motifs, or phrase endings.",
+    action: "Play a short call, leave space, then answer while preserving one feature.",
+    success: "Both phrases have audible beginnings and endings instead of sounding like scale runs.",
+  },
+  "phrase-builder": {
+    setup: "Begin with the sample phrase and listen once before editing.",
+    action: "Change only one pitch, duration, rest, accent, or articulation event.",
+    success: "You can name the edit and accurately predict how it changes the phrase.",
+  },
+  "ear-training": {
+    setup: "Choose one listening skill and listen before looking at the choices.",
+    action: "Hum, clap, or predict the answer, then submit and replay the comparison.",
+    success: "Your audible clue predicts the answer consistently across several questions.",
+  },
+  metronome: {
+    setup: "Set a comfortable tempo, subdivision, and accent pattern.",
+    action: "Count aloud, play one bar, then leave one bar silent while keeping the pulse.",
+    success: "You re-enter on beat one without chasing or waiting for the click.",
+  },
+  drone: {
+    setup: "Choose a root and tonal quality that matches the skill you are practising.",
+    action: "Play a short phrase, hold its final note, and compare its stability against the drone.",
+    success: "You can hear and deliberately choose a stable or tense phrase ending.",
+  },
+};
+
 const COACH_ASSETS = {
   bocchi: "/illustrations/cut-in-bocchi-v2.webp",
   nijika: "/illustrations/cut-in-nijika-v2.webp",
@@ -279,8 +360,10 @@ const COACH_ASSETS = {
 
 function ContextualGuide({
   onSelectTool,
+  onOpenLesson,
 }: {
   onSelectTool: (toolId: GuitarToolId) => void;
+  onOpenLesson: (lessonId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
@@ -371,10 +454,17 @@ function ContextualGuide({
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
                 {result.lessonIds.map((lessonId) => (
-                  <Badge key={lessonId} variant="default">
+                  <Button
+                    key={lessonId}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onOpenLesson(lessonId)}
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
                     {GUITAR_LESSON_BY_ID.get(lessonId)?.title ??
                       "Related lesson"}
-                  </Badge>
+                  </Button>
                 ))}
               </div>
             </article>
@@ -388,14 +478,17 @@ function ContextualGuide({
 export function GuitarExploreMode({
   selectedToolId,
   onSelectTool,
+  onOpenLesson,
 }: {
   selectedToolId: GuitarToolId;
   onSelectTool: (toolId: GuitarToolId) => void;
+  onOpenLesson: (lessonId: string) => void;
 }) {
   const activeTool =
     GUITAR_TOOLS.find((tool) => tool.id === selectedToolId) ??
     GUITAR_TOOLS[0];
   const ActiveIcon = activeTool.icon;
+  const quickStart = GUITAR_TOOL_QUICK_START[activeTool.id];
   const groups = [...new Set(GUITAR_TOOLS.map((tool) => tool.group))];
 
   function renderTool() {
@@ -434,7 +527,9 @@ export function GuitarExploreMode({
     ) {
       return <ImprovisationCoach mode={selectedToolId} />;
     }
-    if (selectedToolId === "ear-training") return <EarTrainingLab />;
+    if (selectedToolId === "ear-training") {
+      return <EarTrainingLab onOpenLesson={onOpenLesson} />;
+    }
     return (
       <PracticeAudioTools
         mode={selectedToolId as "metronome" | "drone"}
@@ -509,13 +604,40 @@ export function GuitarExploreMode({
           </div>
         </section>
 
+        <section
+          aria-labelledby="guitar-tool-quick-start"
+          className="grid gap-2 rounded-2xl border-2 border-accent/20 bg-accent/5 p-4 sm:grid-cols-3"
+        >
+          <h3 id="guitar-tool-quick-start" className="sr-only">
+            Quick start for {activeTool.title}
+          </h3>
+          {[
+            ["1 · Set up", quickStart.setup],
+            ["2 · Try it", quickStart.action],
+            ["3 · You’ve got it when", quickStart.success],
+          ].map(([label, instruction]) => (
+            <div
+              key={label}
+              className="rounded-xl border border-border bg-surface p-3"
+            >
+              <p className="text-[9px] font-black uppercase tracking-[0.14em] text-accent">
+                {label}
+              </p>
+              <p className="mt-2 text-xs leading-5">{instruction}</p>
+            </div>
+          ))}
+        </section>
+
         <Card className="min-w-0">
           <CardContent className="min-w-0 pt-5">
             {renderTool()}
           </CardContent>
         </Card>
 
-        <ContextualGuide onSelectTool={onSelectTool} />
+        <ContextualGuide
+          onSelectTool={onSelectTool}
+          onOpenLesson={onOpenLesson}
+        />
       </div>
     </div>
   );

@@ -105,6 +105,9 @@ export default function GuitarPage() {
   const [selectedToolId, setSelectedToolId] =
     useState<GuitarToolId>("fretboard");
   const [lessonToOpen, setLessonToOpen] = useState<string>();
+  const [lessonStageById, setLessonStageById] = useState<
+    Record<string, number>
+  >({});
 
   function openTool(toolId: GuitarToolId) {
     setSelectedToolId(toolId);
@@ -116,10 +119,7 @@ export default function GuitarPage() {
       <div className="mx-auto max-w-7xl space-y-6">
         <GuitarStudioNav
           mode={mode}
-          onChange={(nextMode) => {
-            setMode(nextMode);
-            if (nextMode !== "learn") setLessonToOpen(undefined);
-          }}
+          onChange={setMode}
         />
 
         <div
@@ -172,12 +172,28 @@ export default function GuitarPage() {
                     sessions={guitarSessions}
                     onOpenTool={openTool}
                     initialLessonId={lessonToOpen}
+                    initialLessonStage={
+                      lessonToOpen
+                        ? lessonStageById[lessonToOpen]
+                        : undefined
+                    }
+                    onActiveLessonChange={setLessonToOpen}
+                    onLessonStageChange={(lessonId, stage) =>
+                      setLessonStageById((current) => ({
+                        ...current,
+                        [lessonId]: stage,
+                      }))
+                    }
                   />
                 )}
                 {mode === "explore" && (
                   <GuitarExploreMode
                     selectedToolId={selectedToolId}
                     onSelectTool={setSelectedToolId}
+                    onOpenLesson={(lessonId) => {
+                      setLessonToOpen(lessonId);
+                      setMode("learn");
+                    }}
                   />
                 )}
                 {mode === "learning-map" && (

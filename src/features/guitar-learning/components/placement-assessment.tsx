@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PlacementCue } from "@/features/guitar-learning/components/placement-cue";
 import {
   PLACEMENT_PATH_OPTIONS,
   PLACEMENT_QUESTIONS,
@@ -57,7 +58,7 @@ export function PlacementAssessment({
             {[
               [
                 "No microphone",
-                "Listening examples use generated guitar notes.",
+                "Visual and listening cues let you test the skill before rating it.",
               ],
               ["No lost progress", "Strong concepts can be marked already known."],
               ["No fixed track", "Change paths whenever your goal changes."],
@@ -151,6 +152,7 @@ export function PlacementAssessment({
         />
       </CardHeader>
       <CardContent>
+        <PlacementCue key={question.id} question={question} />
         <fieldset>
           <legend className="max-w-3xl text-lg font-black leading-7">
             {question.prompt}

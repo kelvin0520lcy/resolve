@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { GUITAR_TOOLS } from "@/features/guitar-learning/components/explore-mode";
+import {
+  GUITAR_TOOL_QUICK_START,
+  GUITAR_TOOLS,
+} from "@/features/guitar-learning/components/explore-mode";
 import type { GuitarToolId } from "@/features/guitar-learning/types";
 
 describe("guitar Explore registry", () => {
@@ -32,5 +35,13 @@ describe("guitar Explore registry", () => {
         (tool) => tool.description.length > 70 && tool.coach,
       ),
     ).toBe(true);
+    expect(Object.keys(GUITAR_TOOL_QUICK_START).sort()).toEqual(
+      expected.sort(),
+    );
+    for (const guide of Object.values(GUITAR_TOOL_QUICK_START)) {
+      expect(guide.setup.length).toBeGreaterThan(45);
+      expect(guide.action.length).toBeGreaterThan(45);
+      expect(guide.success.length).toBeGreaterThan(45);
+    }
   });
 });

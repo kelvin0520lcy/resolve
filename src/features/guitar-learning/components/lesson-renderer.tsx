@@ -29,7 +29,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { guitarAudioEngine } from "@/features/guitar-learning/lib/audio-engine";
+import {
+  ConnectionBridgeVisual,
+  LessonConceptRoute,
+  MusicalUseVisual,
+  PracticeLoopVisual,
+  TechniqueControlVisual,
+} from "@/features/guitar-learning/components/lesson-stage-visuals";
+import { LessonVisualization } from "@/features/guitar-learning/components/lesson-visualization";
+import {
+  guitarAudioEngine,
+  slowAudioPattern,
+} from "@/features/guitar-learning/lib/audio-engine";
 import {
   completeLessonSection,
   getLessonCompletionRequirements,
@@ -44,11 +55,13 @@ import type {
   AudioComparisonSection,
   GuitarLearningState,
   GuitarLesson,
+  GuitarLessonCategory,
   GuitarLessonSection,
   GuitarToolId,
   GuidedExerciseSection,
   InteractiveQuestionSection,
   MusicalApplicationSection,
+  VisualSection,
 } from "@/features/guitar-learning/types";
 
 type UpdateLearningState = (
@@ -198,10 +211,14 @@ function AudioComparison({
 
 function GuidedExercise({
   section,
+  conceptTitle,
+  category,
   completed,
   onComplete,
 }: {
   section: GuidedExerciseSection;
+  conceptTitle: string;
+  category: GuitarLessonCategory;
   completed: boolean;
   onComplete: () => void;
 }) {
@@ -220,6 +237,10 @@ function GuidedExercise({
       }
     >
       <p className="text-sm leading-6 text-muted">{section.body}</p>
+      <PracticeLoopVisual
+        conceptTitle={conceptTitle}
+        category={category}
+      />
       <ol className="mt-4 space-y-3">
         {section.steps.map((step, index) => {
           const checked = checkedSteps.includes(index);
@@ -254,6 +275,106 @@ function GuidedExercise({
       </p>
     </SectionFrame>
   );
+}
+
+function VisualLessonStage({
+  section,
+  conceptTitle,
+  completed,
+  onComplete,
+  onOpenTool,
+}: {
+  section: VisualSection;
+  conceptTitle: string;
+  completed: boolean;
+  onComplete: () => void;
+  onOpenTool: (toolId: GuitarToolId) => void;
+}) {
+  const [confirmedObservation, setConfirmedObservation] = useState(false);
+
+  return (
+    <SectionFrame
+      eyebrow="Interactive visual"
+      title={section.title}
+      footer={
+        <CompletionButton
+          completed={completed}
+          disabled={!confirmedObservation}
+          label="I traced and explained it"
+          onClick={onComplete}
+        />
+      }
+    >
+      <p className="text-sm leading-6 text-muted">{section.body}</p>
+      <div className="mt-4">
+        <LessonVisualization
+          section={section}
+          conceptTitle={conceptTitle}
+        />
+      </div>
+      <div className="mt-4 rounded-2xl border border-accent/25 bg-accent/5 p-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-accent">
+          How to read it
+        </p>
+        <ol className="mt-3 space-y-2">
+          {section.observationGuide.map((instruction, index) => (
+            <li key={instruction} className="flex gap-3 text-sm leading-6">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[10px] font-black text-white">
+                {index + 1}
+              </span>
+              <span>{instruction}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div className="mt-4 rounded-2xl border border-warning/30 bg-warning/10 p-4">
+        <p className="text-sm font-black">Check your understanding</p>
+        <p className="mt-1 text-sm leading-6">{section.prompt}</p>
+        <p className="mt-3 text-xs leading-5 text-muted">
+          <strong className="text-foreground">You’ve got it when:</strong>{" "}
+          {section.successCriteria}
+        </p>
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface/70 p-3 text-sm leading-6">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 accent-[var(--accent)]"
+            checked={confirmedObservation}
+            onChange={(event) =>
+              setConfirmedObservation(event.target.checked)
+            }
+          />
+          I traced the diagram and can state the relationship without reading
+          the answer.
+        </label>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="mt-4"
+        onClick={() => onOpenTool(section.toolId)}
+      >
+        <Wrench className="h-3.5 w-3.5" />
+        Open full {section.toolId.replace("-", " ")} tool
+      </Button>
+      <p className="mt-2 text-xs leading-5 text-muted">
+        The full tool is optional. Opening it will not mark this stage complete.
+      </p>
+    </SectionFrame>
+  );
+}
+
+function isVisualSection(
+  section: GuitarLessonSection,
+): section is VisualSection {
+  return [
+    "fretboard",
+    "rhythm-grid",
+    "picking-animation",
+    "chord-diagram",
+    "scale-comparison",
+    "song-structure",
+  ].includes(section.type);
 }
 
 function InteractiveQuestion({
@@ -326,10 +447,14 @@ function InteractiveQuestion({
 
 function MusicalApplication({
   section,
+  conceptTitle,
+  category,
   completed,
   onComplete,
 }: {
   section: MusicalApplicationSection;
+  conceptTitle: string;
+  category: GuitarLessonCategory;
   completed: boolean;
   onComplete: () => void;
 }) {
@@ -348,6 +473,10 @@ function MusicalApplication({
       }
     >
       <p className="text-sm leading-6 text-muted">{section.body}</p>
+      <MusicalUseVisual
+        conceptTitle={conceptTitle}
+        category={category}
+      />
       <fieldset className="mt-4">
         <legend className="text-sm font-black">{section.prompt}</legend>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -381,15 +510,24 @@ export function LessonRenderer({
   state,
   updateState,
   onOpenTool,
+  onOpenLesson,
   onExit,
+  initialStage = 0,
+  onStageChange,
 }: {
   lesson: GuitarLesson;
   state: GuitarLearningState;
   updateState: UpdateLearningState;
   onOpenTool: (toolId: GuitarToolId) => void;
+  onOpenLesson?: (lessonId: string) => void;
   onExit: () => void;
+  initialStage?: number;
+  onStageChange?: (stage: number) => void;
 }) {
-  const [stage, setStage] = useState(0);
+  const totalStages = lesson.sections.length + 2;
+  const [stage, setStage] = useState(() =>
+    Math.max(0, Math.min(totalStages - 1, initialStage)),
+  );
   const [showAlternative, setShowAlternative] = useState(false);
   const [checkpointAnswer, setCheckpointAnswer] = useState<number>();
   const [checkpointFeedback, setCheckpointFeedback] = useState("");
@@ -400,7 +538,6 @@ export function LessonRenderer({
     [progress?.completedSectionIds],
   );
   const requirements = getLessonCompletionRequirements(state, lesson);
-  const totalStages = lesson.sections.length + 2;
   const currentSection = lesson.sections[stage];
   const atCheckpoint = stage === lesson.sections.length;
   const atApplication = stage === lesson.sections.length + 1;
@@ -411,6 +548,22 @@ export function LessonRenderer({
   const requiredCount = lesson.sections.filter(
     (section) => section.required,
   ).length;
+  const visualSection = lesson.sections.find(isVisualSection);
+  const audioSection = lesson.sections.find(
+    (section): section is AudioComparisonSection =>
+      section.type === "audio-comparison",
+  );
+  const connectionSection = lesson.sections.find(
+    (section) => section.type === "connection",
+  );
+  const prerequisiteId =
+    lesson.prerequisiteIds[0] ?? lesson.reviewLessonIds?.[0];
+  const nextLessonId = lesson.nextLessonIds[0];
+  const stageLabels = [
+    ...lesson.sections.map((section) => section.title),
+    "Concept checkpoint",
+    "Final musical application",
+  ];
 
   useEffect(
     () => () => guitarAudioEngine.stop(),
@@ -421,6 +574,18 @@ export function LessonRenderer({
     updateState((current) =>
       completeLessonSection(current, lesson.id, section.id),
     );
+  }
+
+  function goToStage(nextStage: number) {
+    const safeStage = Math.max(0, Math.min(totalStages - 1, nextStage));
+    setStage(safeStage);
+    onStageChange?.(safeStage);
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById("guitar-lesson-stage");
+      if (typeof target?.scrollIntoView === "function") {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
   }
 
   function renderSection(section: GuitarLessonSection) {
@@ -438,6 +603,8 @@ export function LessonRenderer({
       return (
         <GuidedExercise
           section={section}
+          conceptTitle={lesson.title}
+          category={lesson.category}
           completed={completed}
           onComplete={() => completeSection(section)}
         />
@@ -456,47 +623,23 @@ export function LessonRenderer({
       return (
         <MusicalApplication
           section={section}
+          conceptTitle={lesson.title}
+          category={lesson.category}
           completed={completed}
           onComplete={() => completeSection(section)}
         />
       );
     }
-    if (
-      section.type === "fretboard" ||
-      section.type === "rhythm-grid" ||
-      section.type === "picking-animation" ||
-      section.type === "chord-diagram" ||
-      section.type === "scale-comparison"
-    ) {
+    if (isVisualSection(section)) {
       return (
-        <SectionFrame
-          eyebrow="Interactive visual"
-          title={section.title}
-          footer={
-            <CompletionButton
-              completed={completed}
-              label="I located the relationship"
-              onClick={() => completeSection(section)}
-            />
-          }
-        >
-          <p className="text-sm leading-6 text-muted">{section.body}</p>
-          <div className="mt-4 rounded-2xl border-2 border-dashed border-accent/35 bg-accent/5 p-4">
-            <p className="text-sm leading-6">{section.prompt}</p>
-            <Button
-              type="button"
-              size="sm"
-              className="mt-3"
-              onClick={() => {
-                onOpenTool(section.toolId);
-                completeSection(section);
-              }}
-            >
-              <Wrench className="h-3.5 w-3.5" />
-              Open {section.toolId.replace("-", " ")}
-            </Button>
-          </div>
-        </SectionFrame>
+        <VisualLessonStage
+          key={section.id}
+          section={section}
+          conceptTitle={lesson.title}
+          completed={completed}
+          onComplete={() => completeSection(section)}
+          onOpenTool={onOpenTool}
+        />
       );
     }
     if (section.type === "explanation") {
@@ -534,6 +677,11 @@ export function LessonRenderer({
         >
           <Badge variant="accent">{section.knownConcept}</Badge>
           <p className="mt-4 text-sm leading-7">{section.body}</p>
+          <ConnectionBridgeVisual
+            conceptTitle={lesson.title}
+            knownConcept={section.knownConcept}
+            category={lesson.category}
+          />
         </SectionFrame>
       );
     }
@@ -564,6 +712,10 @@ export function LessonRenderer({
               <p className="mt-2 text-sm leading-6">{section.correct}</p>
             </div>
           </div>
+          <TechniqueControlVisual
+            conceptTitle={lesson.title}
+            category={lesson.category}
+          />
           <p className="mt-4 text-sm leading-6 text-muted">
             <strong className="text-foreground">Listen for:</strong>{" "}
             {section.listenFor}
@@ -714,11 +866,15 @@ export function LessonRenderer({
               </span>
             ))}
           </div>
+          <LessonConceptRoute
+            conceptTitle={lesson.title}
+            category={lesson.category}
+          />
         </CardContent>
       </Card>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
-        <div className="min-w-0">
+        <div id="guitar-lesson-stage" className="min-w-0 scroll-mt-24">
           {currentSection && renderSection(currentSection)}
 
           {atCheckpoint && (
@@ -832,9 +988,7 @@ export function LessonRenderer({
               type="button"
               variant="secondary"
               disabled={stage === 0}
-              onClick={() =>
-                setStage((current) => Math.max(0, current - 1))
-              }
+              onClick={() => goToStage(stage - 1)}
             >
               <ArrowLeft className="h-4 w-4" />
               Previous
@@ -846,11 +1000,7 @@ export function LessonRenderer({
               type="button"
               variant="secondary"
               disabled={stage === totalStages - 1}
-              onClick={() =>
-                setStage((current) =>
-                  Math.min(totalStages - 1, current + 1),
-                )
-              }
+              onClick={() => goToStage(stage + 1)}
             >
               Next
               <ArrowRight className="h-4 w-4" />
@@ -859,6 +1009,50 @@ export function LessonRenderer({
         </div>
 
         <aside className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lesson route</CardTitle>
+              <CardDescription>
+                Jump to a stage without losing completed work.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ol className="max-h-72 space-y-1 overflow-y-auto pr-1">
+                {stageLabels.map((label, index) => {
+                  const section = lesson.sections[index];
+                  const complete = section
+                    ? completedSectionIds.has(section.id)
+                    : index === lesson.sections.length
+                      ? requirements.checkpointPassed
+                      : requirements.applicationCompleted;
+                  return (
+                    <li key={`${label}-${index}`}>
+                      <button
+                        type="button"
+                        aria-current={index === stage ? "step" : undefined}
+                        onClick={() => goToStage(index)}
+                        className={`flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-xs leading-5 transition ${
+                          index === stage
+                            ? "bg-accent/12 font-black text-accent"
+                            : "hover:bg-surface-muted"
+                        }`}
+                      >
+                        {complete ? (
+                          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+                        ) : (
+                          <span className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-border text-[8px] font-black">
+                            {index + 1}
+                          </span>
+                        )}
+                        <span>{label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Studio checklist</CardTitle>
@@ -909,6 +1103,28 @@ export function LessonRenderer({
                   understanding.
                 </p>
               )}
+              {progress?.status === "understood" && (
+                <div className="rounded-xl border border-success/25 bg-success/10 p-3">
+                  <p className="text-xs font-black text-success">
+                    Lesson understood
+                  </p>
+                  {nextLessonId && onOpenLesson ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-3 w-full"
+                      onClick={() => onOpenLesson(nextLessonId)}
+                    >
+                      Next lesson
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : (
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      Return to Learn to choose the next recommendation.
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -927,8 +1143,51 @@ export function LessonRenderer({
                 Explain differently
               </Button>
               {showAlternative && (
-                <div className="mt-4 rounded-2xl bg-warning/10 p-4 text-sm leading-6">
-                  {lesson.alternativeExplanation}
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-2xl bg-warning/10 p-4 text-sm leading-6">
+                    {lesson.alternativeExplanation}
+                  </div>
+                  {visualSection && (
+                    <LessonVisualization
+                      section={visualSection}
+                      conceptTitle={lesson.title}
+                      alternative
+                    />
+                  )}
+                  {connectionSection?.type === "connection" && (
+                    <div className="rounded-xl border border-border bg-surface-muted/45 p-3 text-xs leading-5">
+                      <strong>Compare it with something familiar:</strong>{" "}
+                      {connectionSection.knownConcept}
+                    </div>
+                  )}
+                  {audioSection && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="w-full"
+                      onClick={() =>
+                        void guitarAudioEngine.play(
+                          slowAudioPattern(audioSection.correctPattern),
+                        )
+                      }
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      Play slower example
+                    </Button>
+                  )}
+                  {prerequisiteId && onOpenLesson && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => onOpenLesson(prerequisiteId)}
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                      Review prerequisite
+                    </Button>
+                  )}
                 </div>
               )}
               {currentSection && (

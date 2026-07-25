@@ -81,6 +81,9 @@ export function GuitarLearnMode({
   sessions,
   onOpenTool,
   initialLessonId,
+  initialLessonStage,
+  onActiveLessonChange,
+  onLessonStageChange,
 }: {
   state: GuitarLearningState;
   updateState: UpdateLearningState;
@@ -88,6 +91,9 @@ export function GuitarLearnMode({
   sessions: GuitarPracticeSession[];
   onOpenTool: (toolId: GuitarToolId) => void;
   initialLessonId?: string;
+  initialLessonStage?: number;
+  onActiveLessonChange?: (lessonId?: string) => void;
+  onLessonStageChange?: (lessonId: string, stage: number) => void;
 }) {
   const [activeLessonId, setActiveLessonId] = useState<string | null>(
     initialLessonId && GUITAR_LESSON_BY_ID.has(initialLessonId)
@@ -135,6 +141,7 @@ export function GuitarLearnMode({
     }
     updateState((current) => openGuitarLesson(current, lessonId));
     setActiveLessonId(lessonId);
+    onActiveLessonChange?.(lessonId);
     window.requestAnimationFrame(() =>
       window.scrollTo({ top: 0, behavior: "smooth" }),
     );
@@ -148,6 +155,7 @@ export function GuitarLearnMode({
       ),
     );
     setActiveLessonId(result.recommendedLessonId);
+    onActiveLessonChange?.(result.recommendedLessonId);
   }
 
   if (!state.profile.placementCompleted) {
@@ -162,7 +170,15 @@ export function GuitarLearnMode({
         state={state}
         updateState={updateState}
         onOpenTool={onOpenTool}
-        onExit={() => setActiveLessonId(null)}
+        onOpenLesson={openLesson}
+        initialStage={initialLessonStage}
+        onStageChange={(stage) =>
+          onLessonStageChange?.(activeLesson.id, stage)
+        }
+        onExit={() => {
+          setActiveLessonId(null);
+          onActiveLessonChange?.(undefined);
+        }}
       />
     );
   }
