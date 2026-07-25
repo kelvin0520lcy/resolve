@@ -194,7 +194,7 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={task.id}
-                    className="group flex items-center gap-3 rounded-2xl border-2 border-border bg-surface p-3 transition hover:-translate-y-0.5 hover:border-accent/50"
+                    className="group grid grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 rounded-2xl border-2 border-border bg-surface p-3 transition hover:-translate-y-0.5 hover:border-accent/50 sm:grid-cols-[2.25rem_minmax(0,1fr)_auto] sm:items-center"
                   >
                     <button
                       type="button"
@@ -204,7 +204,7 @@ export default function DashboardPage() {
                           ? `Mark ${task.title} incomplete`
                           : `Complete ${task.title}`
                       }
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 transition ${
+                      className={`flex h-9 w-9 items-center justify-center rounded-xl border-2 transition ${
                         done
                           ? "border-success bg-success text-white"
                           : "border-border hover:border-accent"
@@ -214,17 +214,17 @@ export default function DashboardPage() {
                     </button>
                     <div className="min-w-0 flex-1">
                       <p
-                        className={`font-semibold ${
+                        className={`break-words font-semibold leading-6 [overflow-wrap:anywhere] ${
                           done ? "text-muted line-through" : ""
                         }`}
                       >
                         {task.title}
                       </p>
-                      <p className="mt-0.5 text-xs text-muted">
+                      <p className="mt-0.5 break-words text-xs leading-5 text-muted">
                         {task.estimatedMinutes ?? 0} min · {task.priority} priority
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:col-start-3 sm:row-start-1 sm:justify-end">
                       <CategoryBadge category={task.category} />
                       <ConfirmDeleteButton
                         itemLabel={`task ${task.title}`}

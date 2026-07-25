@@ -266,11 +266,11 @@ export default function TodayPage() {
                     key={task.id}
                     className="rounded-2xl border border-border bg-surface p-4"
                   >
-                    <div className="flex flex-wrap items-center gap-4">
+                    <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 sm:grid-cols-[2rem_minmax(0,1fr)_auto] sm:items-center">
                       <button
                         type="button"
                         onClick={() => toggleTask(task.id)}
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-2 ${
+                        className={`flex h-8 w-8 items-center justify-center rounded-xl border-2 ${
                           done
                             ? "border-success bg-success text-white"
                             : "border-border text-muted hover:border-accent"
@@ -281,18 +281,18 @@ export default function TodayPage() {
                       </button>
                       <div className="min-w-0 flex-1">
                         <p
-                          className={`font-bold ${done ? "text-muted line-through" : ""}`}
+                          className={`break-words font-bold leading-6 [overflow-wrap:anywhere] ${done ? "text-muted line-through" : ""}`}
                         >
                           {task.title}
                         </p>
-                        <p className="mt-1 text-xs text-muted">
+                        <p className="mt-1 break-words text-xs leading-5 text-muted">
                           {task.estimatedMinutes ?? 0} planned minutes
                           {task.deadline
                             ? ` · due ${formatDate(`${task.deadline}T12:00:00`)}`
                             : ""}
                         </p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:col-start-3 sm:row-start-1 sm:justify-end">
                         <CategoryBadge category={task.category} />
                         <ConfirmDeleteButton
                           itemLabel={`task ${task.title}`}

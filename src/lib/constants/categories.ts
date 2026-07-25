@@ -11,7 +11,7 @@ export const GOAL_CATEGORIES: {
   { id: "technical", label: "Technical Skills", color: "#8b7cf6", scene: "dev-room" },
   { id: "guitar", label: "Guitar", color: "#ff6b9d", scene: "practice-room" },
   { id: "health", label: "Health", color: "#6bcf8e", scene: "outdoor" },
-  { id: "personal", label: "Personal Projects", color: "#ffb347", scene: "workshop" },
+  { id: "personal", label: "Personal", color: "#ffb347", scene: "workshop" },
   { id: "finance", label: "Finance", color: "#ffd166", scene: "desk" },
   { id: "social", label: "Social", color: "#c084fc", scene: "rooftop" },
   { id: "custom", label: "Custom", color: "#94a3b8", scene: "neutral" },
