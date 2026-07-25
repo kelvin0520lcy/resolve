@@ -34,7 +34,7 @@ export type NavArc = {
 export const DASHBOARD_NAV: NavItem = {
   href: "/dashboard",
   label: "Dashboard",
-  description: "Your main resolution, next proof, and semester pulse",
+  description: "Your resolutions, next proof, and semester pulse",
   icon: Home,
   mobile: true,
 };

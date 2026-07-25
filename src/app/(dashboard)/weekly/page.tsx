@@ -1,7 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, Check, Save } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  Check,
+  Pencil,
+  Save,
+  X,
+} from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
@@ -16,6 +28,7 @@ import {
   CategoryBadge,
   MetricCard,
   PageIntro,
+  alignedFieldLabelClassName,
   fieldClassName,
 } from "@/components/ui/resolve";
 import {
@@ -24,17 +37,26 @@ import {
   useResolve,
 } from "@/contexts/resolve-context";
 import { formatDate } from "@/lib/utils";
+import type { Task } from "@/types";
 
 export default function WeeklyPage() {
   const {
     tasks,
     weeklyPriorities,
     updatePriorities,
+    updateTask,
     moveTask,
     removeTask,
   } = useResolve();
   const dates = useMemo(() => getWeekDateKeys(), []);
   const [priorities, setPriorities] = useState(weeklyPriorities);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("academics");
+  const [priority, setPriority] = useState<Task["priority"]>("medium");
+  const [minutes, setMinutes] = useState("30");
+  const [scheduledDate, setScheduledDate] = useState(dates[0]);
+  const [deadline, setDeadline] = useState("");
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() =>
@@ -61,6 +83,45 @@ export default function WeeklyPage() {
         .filter((task) => task.scheduledDate === date)
         .reduce((sum, task) => sum + (task.estimatedMinutes ?? 0), 0) > 480,
   );
+
+  function resetTaskEditor() {
+    setEditingTaskId(null);
+    setTitle("");
+    setCategory("academics");
+    setPriority("medium");
+    setMinutes("30");
+    setScheduledDate(dates[0]);
+    setDeadline("");
+  }
+
+  function startEditingTask(task: Task) {
+    setEditingTaskId(task.id);
+    setTitle(task.title);
+    setCategory(task.category);
+    setPriority(task.priority);
+    setMinutes(String(task.estimatedMinutes ?? 30));
+    setScheduledDate(task.scheduledDate ?? dates[0]);
+    setDeadline(task.deadline ?? "");
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("weekly-task-editor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function submitTaskChanges(event: FormEvent) {
+    event.preventDefault();
+    if (!editingTaskId || !title.trim()) return;
+    updateTask(editingTaskId, {
+      title: title.trim(),
+      category,
+      priority,
+      estimatedMinutes: Number(minutes) || 0,
+      scheduledDate,
+      deadline: deadline || undefined,
+    });
+    resetTaskEditor();
+  }
 
   return (
     <PageShell title="Weekly Plan">
@@ -139,6 +200,131 @@ export default function WeeklyPage() {
           </CardContent>
         </Card>
 
+        {editingTaskId && (
+          <Card id="weekly-task-editor" className="border-accent/30">
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>Edit scheduled task</CardTitle>
+                <CardDescription>
+                  Update the action without moving it back to Today first.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={resetTaskEditor}
+              >
+                <X className="h-4 w-4" />
+                Close
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={submitTaskChanges}
+                className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+              >
+                <label className={alignedFieldLabelClassName}>
+                  <span>Task</span>
+                  <input
+                    className={fieldClassName}
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span>Category</span>
+                  <select
+                    className={fieldClassName}
+                    value={category}
+                    onChange={(event) => setCategory(event.target.value)}
+                  >
+                    <option value="academics">Academics</option>
+                    <option value="career">Career</option>
+                    <option value="technical">Technical skills</option>
+                    <option value="guitar">Guitar</option>
+                    <option value="health">Health</option>
+                    <option value="personal">Personal</option>
+                    <option value="finance">Finance</option>
+                    <option value="social">Social</option>
+                    <option value="custom">Other</option>
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span>Priority</span>
+                  <select
+                    className={fieldClassName}
+                    value={priority}
+                    onChange={(event) =>
+                      setPriority(event.target.value as Task["priority"])
+                    }
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span>
+                    Planned time{" "}
+                    <span className="font-medium text-muted">(minutes)</span>
+                  </span>
+                  <input
+                    className={fieldClassName}
+                    type="number"
+                    min="5"
+                    max="720"
+                    step="5"
+                    value={minutes}
+                    onChange={(event) => setMinutes(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span>Scheduled day</span>
+                  <select
+                    className={fieldClassName}
+                    value={scheduledDate}
+                    onChange={(event) => setScheduledDate(event.target.value)}
+                  >
+                    {dates.map((date) => (
+                      <option key={date} value={date}>
+                        {formatDate(`${date}T12:00:00`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span>
+                    Deadline{" "}
+                    <span className="font-medium text-muted">(optional)</span>
+                  </span>
+                  <input
+                    className={fieldClassName}
+                    type="date"
+                    value={deadline}
+                    onChange={(event) => setDeadline(event.target.value)}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-3">
+                  <Button type="submit">
+                    <Save className="h-4 w-4" />
+                    Save task changes
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={resetTaskEditor}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
           {dates.map((date) => {
             const dayTasks = weekTasks.filter(
@@ -187,11 +373,23 @@ export default function WeeklyPage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <CategoryBadge category={task.category} />
-                        <ConfirmDeleteButton
-                          itemLabel={`task ${task.title}`}
-                          onConfirm={() => removeTask(task.id)}
-                          className="flex-wrap justify-end"
-                        />
+                        <div className="flex flex-wrap justify-end gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => startEditingTask(task)}
+                            aria-label={`Edit task ${task.title}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </Button>
+                          <ConfirmDeleteButton
+                            itemLabel={`task ${task.title}`}
+                            onConfirm={() => removeTask(task.id)}
+                            className="flex-wrap justify-end"
+                          />
+                        </div>
                       </div>
                       <p className="mt-2 text-xs font-bold leading-5">
                         {task.title}

@@ -8,7 +8,10 @@ import {
   createEmptyGuitarLearningState,
   openGuitarLesson,
 } from "@/features/guitar-learning/lib/learning-state";
-import type { GuitarLearningState } from "@/features/guitar-learning/types";
+import type {
+  GuitarLearningState,
+  GuitarToolId,
+} from "@/features/guitar-learning/types";
 
 const lesson = GUITAR_LESSON_BY_ID.get(
   "rhythm:feeling-and-identifying-the-pulse",
@@ -19,7 +22,7 @@ function Harness({
   initialStage,
   onStageChange,
 }: {
-  onOpenTool?: (toolId: never) => void;
+  onOpenTool?: (toolId: GuitarToolId) => void;
   initialStage?: number;
   onStageChange?: (stage: number) => void;
 }) {
@@ -82,9 +85,7 @@ describe("LessonRenderer", () => {
     const user = userEvent.setup();
     const onOpenTool = vi.fn();
     render(
-      <Harness
-        onOpenTool={onOpenTool as unknown as (toolId: never) => void}
-      />,
+      <Harness onOpenTool={onOpenTool} />,
     );
     await user.click(screen.getByRole("button", { name: "Next" }));
     await user.click(screen.getByRole("button", { name: "Next" }));

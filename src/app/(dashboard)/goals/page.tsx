@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { AlertTriangle, CheckCircle2, Plus, Target, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Pencil,
+  Plus,
+  Target,
+  X,
+} from "lucide-react";
 import { GoalBreakdown } from "@/components/goals/goal-breakdown";
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
@@ -31,32 +38,68 @@ export default function GoalsPage() {
     goals,
     milestones,
     addGoal,
+    updateGoal,
     removeGoal,
     addMilestone,
+    updateMilestone,
     toggleMilestone,
     removeMilestone,
     setGoalCompleted,
   } = useResolve();
   const [showForm, setShowForm] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<GoalCategory>("academics");
   const [priority, setPriority] = useState<Goal["priority"]>("medium");
   const [deadline, setDeadline] = useState(offsetDate(60));
 
+  function resetForm() {
+    setTitle("");
+    setDescription("");
+    setCategory("academics");
+    setPriority("medium");
+    setDeadline(offsetDate(60));
+    setEditingGoalId(null);
+    setShowForm(false);
+  }
+
+  function startNewGoal() {
+    resetForm();
+    setShowForm(true);
+  }
+
+  function startEditingGoal(goal: Goal) {
+    setEditingGoalId(goal.id);
+    setTitle(goal.title);
+    setDescription(goal.description);
+    setCategory(goal.category as GoalCategory);
+    setPriority(goal.priority);
+    setDeadline(goal.deadline ?? offsetDate(60));
+    setShowForm(true);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("goal-editor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!title.trim() || !description.trim()) return;
-    addGoal({
+    const changes = {
       title: title.trim(),
       description: description.trim(),
       category,
       priority,
       deadline,
-    });
-    setTitle("");
-    setDescription("");
-    setShowForm(false);
+    };
+    if (editingGoalId) {
+      updateGoal(editingGoalId, changes);
+    } else {
+      addGoal(changes);
+    }
+    resetForm();
   }
 
   return (
@@ -65,9 +108,14 @@ export default function GoalsPage() {
         <PageIntro
           eyebrow="Semester resolutions"
           title="Turn intention into evidence"
-          description="Every goal gets a clear outcome, smaller finish lines, and a completion rule you can trust."
+          description="Give every goal a clear outcome, then add smaller finish lines only when they are useful."
           action={
-            <Button onClick={() => setShowForm((value) => !value)}>
+            <Button
+              onClick={() => {
+                if (showForm) resetForm();
+                else startNewGoal();
+              }}
+            >
               {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               {showForm ? "Close" : "New goal"}
             </Button>
@@ -96,11 +144,14 @@ export default function GoalsPage() {
         </div>
 
         {showForm && (
-          <Card className="border-accent/30">
+          <Card id="goal-editor" className="border-accent/30">
             <CardHeader>
-              <CardTitle>Create a goal</CardTitle>
+              <CardTitle>
+                {editingGoalId ? "Edit goal" : "Create a goal"}
+              </CardTitle>
               <CardDescription>
-                Describe the outcome, then break it into smaller finish lines.
+                Describe the outcome. Add smaller finish lines only when they
+                make the goal easier to act on.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -130,6 +181,9 @@ export default function GoalsPage() {
                     <option value="guitar">Guitar</option>
                     <option value="health">Health</option>
                     <option value="personal">Personal project</option>
+                    <option value="finance">Finance</option>
+                    <option value="social">Social</option>
+                    <option value="custom">Other</option>
                   </select>
                 </label>
                 <label className="text-sm font-bold md:col-span-2">
@@ -167,7 +221,7 @@ export default function GoalsPage() {
                   />
                 </label>
                 <Button className="md:col-span-2" type="submit">
-                  Add semester goal
+                  {editingGoalId ? "Save goal changes" : "Add semester goal"}
                 </Button>
               </form>
             </CardContent>
@@ -203,6 +257,16 @@ export default function GoalsPage() {
                       >
                         {goal.status.replace("_", " ")}
                       </Badge>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startEditingGoal(goal)}
+                        aria-label={`Edit goal ${goal.title}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
                       <ConfirmDeleteButton
                         itemLabel={`goal ${goal.title}`}
                         onConfirm={() => removeGoal(goal.id)}
@@ -218,7 +282,11 @@ export default function GoalsPage() {
                 <CardContent>
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface/60 px-3 py-2">
                     <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">
-                      Complete every breakdown step to finish this goal
+                      {milestones.some(
+                        (milestone) => milestone.goalId === goal.id,
+                      )
+                        ? "Breakdown steps control completion"
+                        : "Ready for direct completion"}
                     </p>
                     {goal.deadline && (
                       <p className="text-xs text-muted">
@@ -232,6 +300,7 @@ export default function GoalsPage() {
                       (milestone) => milestone.goalId === goal.id,
                     )}
                     addMilestone={addMilestone}
+                    updateMilestone={updateMilestone}
                     toggleMilestone={toggleMilestone}
                     removeMilestone={removeMilestone}
                     setGoalCompleted={setGoalCompleted}
@@ -244,9 +313,9 @@ export default function GoalsPage() {
           <EmptyState
             icon={<Target className="h-6 w-6" />}
             title="No goals yet"
-            description="Create one meaningful outcome, then add the smaller steps that make it achievable."
+            description="Create one meaningful outcome. You can complete it directly or add a breakdown later."
             action={
-              <Button onClick={() => setShowForm(true)}>Create a goal</Button>
+              <Button onClick={startNewGoal}>Create a goal</Button>
             }
           />
         )}

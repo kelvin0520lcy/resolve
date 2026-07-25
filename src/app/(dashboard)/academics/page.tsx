@@ -7,6 +7,7 @@ import {
   Clock3,
   GraduationCap,
   Minus,
+  Pencil,
   Plus,
   X,
 } from "lucide-react";
@@ -36,18 +37,26 @@ export default function AcademicsPage() {
   const {
     modules,
     addModule,
+    updateModule,
     removeModule,
     addAssessment,
+    updateAssessment,
     removeAssessment,
     updateAssessmentProgress,
     updateModuleStudyMinutes,
   } = useResolve();
   const [showForm, setShowForm] = useState(false);
   const [showAssessment, setShowAssessment] = useState(false);
+  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
+  const [editingAssessmentId, setEditingAssessmentId] = useState<
+    string | null
+  >(null);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [lecturer, setLecturer] = useState("");
   const [credits, setCredits] = useState("4");
   const [targetGrade, setTargetGrade] = useState("A");
+  const [moduleColor, setModuleColor] = useState("#7eb8da");
   const [assessmentModuleId, setAssessmentModuleId] = useState("");
   const [assessmentTitle, setAssessmentTitle] = useState("");
   const [assessmentType, setAssessmentType] =
@@ -55,34 +64,113 @@ export default function AcademicsPage() {
   const [assessmentWeight, setAssessmentWeight] = useState("20");
   const [assessmentDeadline, setAssessmentDeadline] = useState(offsetDate(7));
 
+  function resetModuleForm() {
+    setCode("");
+    setName("");
+    setLecturer("");
+    setCredits("4");
+    setTargetGrade("A");
+    setModuleColor("#7eb8da");
+    setEditingModuleId(null);
+    setShowForm(false);
+  }
+
+  function startNewModule() {
+    resetModuleForm();
+    setShowAssessment(false);
+    setEditingAssessmentId(null);
+    setShowForm(true);
+  }
+
+  function startEditingModule(module: (typeof modules)[number]) {
+    setEditingModuleId(module.id);
+    setCode(module.code);
+    setName(module.name);
+    setLecturer(module.lecturer ?? "");
+    setCredits(String(module.credits));
+    setTargetGrade(module.targetGrade);
+    setModuleColor(module.color);
+    setShowAssessment(false);
+    setEditingAssessmentId(null);
+    setShowForm(true);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("module-editor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function resetAssessmentForm() {
+    setAssessmentModuleId("");
+    setAssessmentTitle("");
+    setAssessmentType("assignment");
+    setAssessmentWeight("20");
+    setAssessmentDeadline(offsetDate(7));
+    setEditingAssessmentId(null);
+    setShowAssessment(false);
+  }
+
+  function startNewAssessment(moduleId?: string) {
+    resetAssessmentForm();
+    setAssessmentModuleId(moduleId ?? modules[0]?.id ?? "");
+    setShowForm(false);
+    setEditingModuleId(null);
+    setShowAssessment(true);
+  }
+
+  function startEditingAssessment(assessment: Assessment) {
+    setEditingAssessmentId(assessment.id);
+    setAssessmentModuleId(assessment.moduleId);
+    setAssessmentTitle(assessment.title);
+    setAssessmentType(assessment.type);
+    setAssessmentWeight(String(assessment.weight));
+    setAssessmentDeadline(assessment.deadline);
+    setShowForm(false);
+    setEditingModuleId(null);
+    setShowAssessment(true);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("assessment-editor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!code.trim() || !name.trim()) return;
-    addModule({
+    const changes = {
       code,
       name,
+      lecturer,
       credits: Number(credits),
       targetGrade,
-      color: "#7eb8da",
-    });
-    setCode("");
-    setName("");
-    setShowForm(false);
+      color: moduleColor,
+    };
+    if (editingModuleId) {
+      updateModule(editingModuleId, changes);
+    } else {
+      addModule(changes);
+    }
+    resetModuleForm();
   }
 
   function submitAssessment(event: FormEvent) {
     event.preventDefault();
     const moduleId = assessmentModuleId || modules[0]?.id;
     if (!moduleId || !assessmentTitle.trim()) return;
-    addAssessment({
+    const changes = {
       moduleId,
       title: assessmentTitle,
       type: assessmentType,
       weight: Number(assessmentWeight),
       deadline: assessmentDeadline,
-    });
-    setAssessmentTitle("");
-    setShowAssessment(false);
+    };
+    if (editingAssessmentId) {
+      updateAssessment(editingAssessmentId, changes);
+    } else {
+      addAssessment(changes);
+    }
+    resetAssessmentForm();
   }
   const studyMinutes = modules.reduce(
     (sum, module) => sum + module.weeklyStudyMinutes,
@@ -112,8 +200,8 @@ export default function AcademicsPage() {
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => {
-                  setShowForm((value) => !value);
-                  setShowAssessment(false);
+                  if (showForm) resetModuleForm();
+                  else startNewModule();
                 }}
               >
                 {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -123,8 +211,8 @@ export default function AcademicsPage() {
                 variant="secondary"
                 disabled={!modules.length}
                 onClick={() => {
-                  setShowAssessment((value) => !value);
-                  setShowForm(false);
+                  if (showAssessment) resetAssessmentForm();
+                  else startNewAssessment();
                 }}
               >
                 {showAssessment ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -135,9 +223,11 @@ export default function AcademicsPage() {
         />
 
         {showForm && (
-          <Card className="border-accent/30">
+          <Card id="module-editor" className="border-accent/30">
             <CardHeader>
-              <CardTitle>Add a module</CardTitle>
+              <CardTitle>
+                {editingModuleId ? "Edit module" : "Add a module"}
+              </CardTitle>
               <CardDescription>
                 Start with the course identity. Study time and assessments will
                 build its health signal.
@@ -146,7 +236,7 @@ export default function AcademicsPage() {
             <CardContent>
               <form
                 onSubmit={submit}
-                className="grid gap-3 md:grid-cols-2 xl:grid-cols-[140px_1fr_150px_140px_auto]"
+                className="grid gap-3 md:grid-cols-2 xl:grid-cols-6"
               >
                 <label className={alignedFieldLabelClassName}>
                   <span className="flex items-end">Module code</span>
@@ -165,6 +255,19 @@ export default function AcademicsPage() {
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Lecturer{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (optional)
+                    </span>
+                  </span>
+                  <input
+                    className={fieldClassName}
+                    value={lecturer}
+                    onChange={(event) => setLecturer(event.target.value)}
                   />
                 </label>
                 <label className={alignedFieldLabelClassName}>
@@ -193,8 +296,18 @@ export default function AcademicsPage() {
                     required
                   />
                 </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Module colour</span>
+                  <input
+                    className={`${fieldClassName} p-1`}
+                    value={moduleColor}
+                    onChange={(event) => setModuleColor(event.target.value)}
+                    type="color"
+                    aria-label="Module colour"
+                  />
+                </label>
                 <Button type="submit" className="self-end">
-                  Add module
+                  {editingModuleId ? "Save module" : "Add module"}
                 </Button>
               </form>
             </CardContent>
@@ -202,9 +315,13 @@ export default function AcademicsPage() {
         )}
 
         {showAssessment && (
-          <Card className="border-accent/30">
+          <Card id="assessment-editor" className="border-accent/30">
             <CardHeader>
-              <CardTitle>Add an assessment</CardTitle>
+              <CardTitle>
+                {editingAssessmentId
+                  ? "Edit assessment"
+                  : "Add an assessment"}
+              </CardTitle>
               <CardDescription>
                 Attach the deadline and weight to the module it affects.
               </CardDescription>
@@ -293,7 +410,9 @@ export default function AcademicsPage() {
                   />
                 </label>
                 <Button type="submit" className="self-end">
-                  Add assessment
+                  {editingAssessmentId
+                    ? "Save assessment"
+                    : "Add assessment"}
                 </Button>
               </form>
             </CardContent>
@@ -357,6 +476,16 @@ export default function AcademicsPage() {
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <Badge>{module.credits} CU</Badge>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startEditingModule(module)}
+                        aria-label={`Edit module ${module.code}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
                       <ConfirmDeleteButton
                         itemLabel={`module ${module.code}`}
                         onConfirm={() => removeModule(module.id)}
@@ -452,7 +581,7 @@ export default function AcademicsPage() {
             icon={<BookOpen className="h-6 w-6" />}
             title="Add your first module"
             description="Once your real modules are here, this page can compare workload and show where attention is needed."
-            action={<Button onClick={() => setShowForm(true)}>Add module</Button>}
+            action={<Button onClick={startNewModule}>Add module</Button>}
           />
         )}
 
@@ -555,6 +684,16 @@ export default function AcademicsPage() {
                         ? "Completed"
                         : "Mark complete"}
                     </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => startEditingAssessment(assessment)}
+                      aria-label={`Edit assessment ${assessment.title}`}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </Button>
                     <ConfirmDeleteButton
                       itemLabel={`assessment ${assessment.title}`}
                       onConfirm={() =>
@@ -574,7 +713,7 @@ export default function AcademicsPage() {
                 description="Add the first real deadline to turn this runway into a preparation plan."
                 action={
                   modules.length ? (
-                    <Button onClick={() => setShowAssessment(true)}>
+                    <Button onClick={() => startNewAssessment()}>
                       Add assessment
                     </Button>
                   ) : undefined

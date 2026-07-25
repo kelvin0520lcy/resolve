@@ -30,7 +30,7 @@ class MockAudioContext {
     renderedBuffers.push(channel);
     return {
       getChannelData: () => channel,
-    } as AudioBuffer;
+    } as unknown as AudioBuffer;
   }
 
   createBufferSource() {

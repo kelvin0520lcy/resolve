@@ -20,7 +20,9 @@ const syncMocks = vi.hoisted(() => ({
   }) => void) | null,
   onMissing: null as (() => void) | null,
   onError: null as ((error: Error) => void) | null,
-  saveWorkspace: vi.fn(async () => {}),
+  saveWorkspace: vi
+    .fn<(userId: string, data: unknown) => Promise<void>>()
+    .mockResolvedValue(undefined),
   unsubscribe: vi.fn(),
 }));
 

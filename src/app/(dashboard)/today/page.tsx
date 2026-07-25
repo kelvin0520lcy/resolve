@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Clock3, Plus, Sparkles, X } from "lucide-react";
+import { Check, Clock3, Pencil, Plus, Sparkles, X } from "lucide-react";
 import { CharacterCompanion } from "@/components/character/character-companion";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
@@ -23,12 +23,21 @@ import {
   alignedFieldLabelClassName,
   fieldClassName,
 } from "@/components/ui/resolve";
-import { offsetDate, useResolve } from "@/contexts/resolve-context";
+import {
+  getWeekDateKeys,
+  offsetDate,
+  useResolve,
+} from "@/contexts/resolve-context";
 import { resolveCharacterState } from "@/lib/character/dialogue";
 import { getCharacterTask } from "@/lib/character-tasks";
-import { getScheduledHabits } from "@/features/workspace/lib/habits";
+import {
+  getHabitCompletionCount,
+  getHabitScheduleLabel,
+  getHabitTargetCount,
+  getScheduledHabits,
+} from "@/features/workspace/lib/habits";
 import { formatDate } from "@/lib/utils";
-import type { GoalCategory } from "@/types";
+import type { GoalCategory, Task } from "@/types";
 
 export default function TodayPage() {
   const {
@@ -36,6 +45,7 @@ export default function TodayPage() {
     habits,
     habitLogs,
     addTask,
+    updateTask,
     toggleTask,
     removeTask,
     toggleHabit,
@@ -43,11 +53,14 @@ export default function TodayPage() {
   } = useResolve();
   const today = offsetDate(0);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<GoalCategory>("academics");
+  const [priority, setPriority] = useState<Task["priority"]>("medium");
   const [minutes, setMinutes] = useState("45");
   const [deadline, setDeadline] = useState("");
   const router = useRouter();
+  const weekDates = getWeekDateKeys();
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -105,26 +118,55 @@ export default function TodayPage() {
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!title.trim()) return;
-    addTask({
+    const changes = {
       title: title.trim(),
       category,
-      priority: "medium",
+      priority,
       scheduledDate: today,
       deadline: deadline || undefined,
       estimatedMinutes: Number(minutes) || 0,
-    });
-    setTitle("");
-    setDeadline("");
-    setShowAdd(false);
+    } as const;
+    if (editingTaskId) {
+      updateTask(editingTaskId, changes);
+    } else {
+      addTask(changes);
+    }
+    resetTaskForm();
     router.replace("/today", { scroll: false });
+  }
+
+  function resetTaskForm() {
+    setTitle("");
+    setCategory("academics");
+    setPriority("medium");
+    setMinutes("45");
+    setDeadline("");
+    setEditingTaskId(null);
+    setShowAdd(false);
+  }
+
+  function startEditingTask(task: Task) {
+    setEditingTaskId(task.id);
+    setTitle(task.title);
+    setCategory(task.category as GoalCategory);
+    setPriority(task.priority);
+    setMinutes(String(task.estimatedMinutes ?? 30));
+    setDeadline(task.deadline ?? "");
+    setShowAdd(true);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("today-task-editor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function toggleAddForm() {
     if (showAdd) {
-      setShowAdd(false);
+      resetTaskForm();
       router.replace("/today", { scroll: false });
       return;
     }
+    resetTaskForm();
     setShowAdd(true);
   }
 
@@ -144,9 +186,13 @@ export default function TodayPage() {
         />
 
         {showAdd && (
-          <Card className="border-accent/30">
+          <Card id="today-task-editor" className="border-accent/30">
             <CardHeader>
-              <CardTitle>Add one focused action</CardTitle>
+              <CardTitle>
+                {editingTaskId
+                  ? "Edit this focused action"
+                  : "Add one focused action"}
+              </CardTitle>
               <CardDescription>
                 Small enough to complete, specific enough to start.
               </CardDescription>
@@ -154,7 +200,7 @@ export default function TodayPage() {
             <CardContent>
               <form
                 onSubmit={submit}
-                className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_170px_170px_auto]"
+                className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_125px_150px_170px_auto]"
               >
                 <label className={alignedFieldLabelClassName}>
                   <span className="flex items-end">Task</span>
@@ -177,9 +223,27 @@ export default function TodayPage() {
                   >
                     <option value="academics">Academics</option>
                     <option value="career">Career</option>
+                    <option value="technical">Technical skills</option>
                     <option value="guitar">Guitar</option>
                     <option value="health">Health</option>
                     <option value="personal">Personal</option>
+                    <option value="finance">Finance</option>
+                    <option value="social">Social</option>
+                    <option value="custom">Other</option>
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Priority</span>
+                  <select
+                    className={fieldClassName}
+                    value={priority}
+                    onChange={(event) =>
+                      setPriority(event.target.value as Task["priority"])
+                    }
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
                   </select>
                 </label>
                 <label className={alignedFieldLabelClassName}>
@@ -216,7 +280,7 @@ export default function TodayPage() {
                   />
                 </label>
                 <Button type="submit" className="self-end">
-                  Add to today
+                  {editingTaskId ? "Save task changes" : "Add to today"}
                 </Button>
               </form>
             </CardContent>
@@ -299,6 +363,16 @@ export default function TodayPage() {
                       </div>
                       <div className="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:col-start-3 sm:row-start-1 sm:justify-end">
                         <CategoryBadge category={task.category} />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEditingTask(task)}
+                          aria-label={`Edit task ${task.title}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
                         <ConfirmDeleteButton
                           itemLabel={`task ${task.title}`}
                           onConfirm={() => removeTask(task.id)}
@@ -376,7 +450,17 @@ export default function TodayPage() {
                         {checked && <Check className="h-3 w-3" />}
                       </span>
                       <span className="flex-1 text-sm font-medium">
-                        {habit.title}
+                        <span className="block">{habit.title}</span>
+                        <span className="mt-0.5 block text-[10px] font-semibold text-muted">
+                          {getHabitScheduleLabel(habit)}
+                          {habit.scheduleType === "times_per_week"
+                            ? ` · ${getHabitCompletionCount(
+                                habit,
+                                habitLogs,
+                                weekDates,
+                              )}/${getHabitTargetCount(habit, weekDates)} this week`
+                            : ""}
+                        </span>
                       </span>
                       <CategoryBadge category={habit.category} />
                     </button>

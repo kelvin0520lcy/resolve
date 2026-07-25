@@ -19,10 +19,21 @@ export type Semester = {
   readingWeekStart?: string;
   examPeriodStart?: string;
   theme?: string;
+  resolutions?: SemesterResolution[];
+  /** Legacy single-resolution field retained for storage migration. */
   mainResolution?: string;
   targetGpa?: number;
   description?: string;
   status: "upcoming" | "active" | "completed";
+};
+
+export type SemesterResolution = {
+  id: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
 };
 
 export type GoalCategory =
@@ -115,7 +126,9 @@ export type Habit = {
   measurementType: "boolean" | "count" | "duration" | "rating";
   targetValue?: number;
   unit?: string;
+  scheduleType: "days_of_week" | "times_per_week";
   targetDays: number[];
+  targetFrequency: number;
   isActive: boolean;
 };
 

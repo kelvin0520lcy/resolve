@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { BrainCircuit, Briefcase, Clock3, Plus, X } from "lucide-react";
+import {
+  BrainCircuit,
+  Briefcase,
+  Clock3,
+  Pencil,
+  Plus,
+  X,
+} from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,16 +46,26 @@ export default function CareerPage() {
     algorithmLogs,
     applications,
     addAlgorithmLog,
+    updateAlgorithmLog,
     removeAlgorithmLog,
     addApplication,
+    updateApplication,
     removeApplication,
     updateApplicationStage,
   } = useResolve();
   const [activeForm, setActiveForm] = useState<
     "practice" | "application" | null
   >(null);
+  const [editingPracticeId, setEditingPracticeId] = useState<string | null>(
+    null,
+  );
+  const [editingApplicationId, setEditingApplicationId] = useState<
+    string | null
+  >(null);
+  const [platform, setPlatform] = useState("LeetCode");
   const [problemName, setProblemName] = useState("");
   const [topic, setTopic] = useState("");
+  const [completedDate, setCompletedDate] = useState(offsetDate(0));
   const [minutes, setMinutes] = useState("30");
   const [difficulty, setDifficulty] =
     useState<AlgorithmLog["difficulty"]>("Medium");
@@ -57,6 +74,7 @@ export default function CareerPage() {
   const [lesson, setLesson] = useState("");
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
+  const [applicationDate, setApplicationDate] = useState(offsetDate(0));
   const [stage, setStage] =
     useState<JobApplication["stage"]>("applied");
   const [nextAction, setNextAction] = useState("");
@@ -70,44 +88,119 @@ export default function CareerPage() {
       Math.max(algorithmLogs.length, 1),
   );
 
+  function resetPracticeForm() {
+    setPlatform("LeetCode");
+    setProblemName("");
+    setTopic("");
+    setCompletedDate(offsetDate(0));
+    setMinutes("30");
+    setDifficulty("Medium");
+    setConfidence("3");
+    setUsedHints(false);
+    setLesson("");
+    setEditingPracticeId(null);
+    setActiveForm(null);
+  }
+
+  function startNewPractice() {
+    resetPracticeForm();
+    setEditingApplicationId(null);
+    setActiveForm("practice");
+  }
+
+  function startEditingPractice(log: AlgorithmLog) {
+    setEditingPracticeId(log.id);
+    setPlatform(log.platform);
+    setProblemName(log.problemName);
+    setTopic(log.topic);
+    setCompletedDate(log.completedDate);
+    setMinutes(String(log.minutes));
+    setDifficulty(log.difficulty);
+    setConfidence(String(log.confidence));
+    setUsedHints(log.usedHints);
+    setLesson(log.lesson);
+    setEditingApplicationId(null);
+    setActiveForm("practice");
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("practice-log-editor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function resetApplicationForm() {
+    setCompany("");
+    setRole("");
+    setApplicationDate(offsetDate(0));
+    setStage("applied");
+    setNextAction("");
+    setNextActionDate(offsetDate(3));
+    setEditingApplicationId(null);
+    setActiveForm(null);
+  }
+
+  function startNewApplication() {
+    resetApplicationForm();
+    setEditingPracticeId(null);
+    setActiveForm("application");
+  }
+
+  function startEditingApplication(application: JobApplication) {
+    setEditingApplicationId(application.id);
+    setCompany(application.company);
+    setRole(application.role);
+    setApplicationDate(application.applicationDate);
+    setStage(application.stage);
+    setNextAction(application.nextAction ?? "");
+    setNextActionDate(application.nextActionDate ?? offsetDate(3));
+    setEditingPracticeId(null);
+    setActiveForm("application");
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("application-editor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function submitPractice(event: FormEvent) {
     event.preventDefault();
     if (!problemName.trim() || !topic.trim() || !lesson.trim()) return;
-    addAlgorithmLog({
-      platform: "LeetCode",
+    const changes = {
+      platform,
       problemName,
       topic,
       difficulty,
-      completedDate: offsetDate(0),
+      completedDate,
       minutes: Number(minutes),
       usedHints,
       confidence: Number(confidence),
       lesson,
-    });
-    setProblemName("");
-    setTopic("");
-    setLesson("");
-    setConfidence("3");
-    setUsedHints(false);
-    setActiveForm(null);
+    };
+    if (editingPracticeId) {
+      updateAlgorithmLog(editingPracticeId, changes);
+    } else {
+      addAlgorithmLog(changes);
+    }
+    resetPracticeForm();
   }
 
   function submitApplication(event: FormEvent) {
     event.preventDefault();
     if (!company.trim() || !role.trim()) return;
-    addApplication({
+    const changes = {
       company,
       role,
-      applicationDate: offsetDate(0),
+      applicationDate,
       stage,
       nextAction,
       nextActionDate: nextAction.trim() ? nextActionDate : undefined,
-    });
-    setCompany("");
-    setRole("");
-    setNextAction("");
-    setNextActionDate(offsetDate(3));
-    setActiveForm(null);
+    };
+    if (editingApplicationId) {
+      updateApplication(editingApplicationId, changes);
+    } else {
+      addApplication(changes);
+    }
+    resetApplicationForm();
   }
 
   return (
@@ -121,11 +214,10 @@ export default function CareerPage() {
             <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
-                onClick={() =>
-                  setActiveForm((value) =>
-                    value === "practice" ? null : "practice",
-                  )
-                }
+                onClick={() => {
+                  if (activeForm === "practice") resetPracticeForm();
+                  else startNewPractice();
+                }}
               >
                 {activeForm === "practice" ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 Practice
@@ -133,11 +225,10 @@ export default function CareerPage() {
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() =>
-                  setActiveForm((value) =>
-                    value === "application" ? null : "application",
-                  )
-                }
+                onClick={() => {
+                  if (activeForm === "application") resetApplicationForm();
+                  else startNewApplication();
+                }}
               >
                 {activeForm === "application" ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 Application
@@ -147,17 +238,30 @@ export default function CareerPage() {
         />
 
         {activeForm === "practice" && (
-          <Card className="border-accent/30">
+          <Card id="practice-log-editor" className="border-accent/30">
             <CardHeader>
-              <CardTitle>Log interview practice</CardTitle>
+              <CardTitle>
+                {editingPracticeId
+                  ? "Edit interview practice"
+                  : "Log interview practice"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <form
                 onSubmit={submitPractice}
                 className="grid gap-3 md:grid-cols-2 xl:grid-cols-6"
               >
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Platform</span>
+                  <input
+                    className={fieldClassName}
+                    value={platform}
+                    onChange={(event) => setPlatform(event.target.value)}
+                    required
+                  />
+                </label>
                 <label
-                  className={`${alignedFieldLabelClassName} md:col-span-2 xl:col-span-2`}
+                  className={`${alignedFieldLabelClassName} md:col-span-1 xl:col-span-2`}
                 >
                   <span className="flex items-end">Problem</span>
                   <input
@@ -174,6 +278,17 @@ export default function CareerPage() {
                     className={fieldClassName}
                     value={topic}
                     onChange={(event) => setTopic(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Practice date</span>
+                  <input
+                    className={fieldClassName}
+                    value={completedDate}
+                    onChange={(event) => setCompletedDate(event.target.value)}
+                    type="date"
+                    max={offsetDate(0)}
                     required
                   />
                 </label>
@@ -245,7 +360,9 @@ export default function CareerPage() {
                   Used hints
                 </label>
                 <Button type="submit" className="md:col-span-2 xl:col-span-6">
-                  Save practice evidence
+                  {editingPracticeId
+                    ? "Save practice changes"
+                    : "Save practice evidence"}
                 </Button>
               </form>
             </CardContent>
@@ -253,9 +370,13 @@ export default function CareerPage() {
         )}
 
         {activeForm === "application" && (
-          <Card className="border-accent/30">
+          <Card id="application-editor" className="border-accent/30">
             <CardHeader>
-              <CardTitle>Add an application</CardTitle>
+              <CardTitle>
+                {editingApplicationId
+                  ? "Edit application"
+                  : "Add an application"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <form
@@ -278,6 +399,19 @@ export default function CareerPage() {
                     className={fieldClassName}
                     value={role}
                     onChange={(event) => setRole(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Application date</span>
+                  <input
+                    className={fieldClassName}
+                    value={applicationDate}
+                    onChange={(event) =>
+                      setApplicationDate(event.target.value)
+                    }
+                    type="date"
+                    max={offsetDate(0)}
                     required
                   />
                 </label>
@@ -318,7 +452,9 @@ export default function CareerPage() {
                   />
                 </label>
                 <Button type="submit" className="md:col-span-2">
-                  Add application
+                  {editingApplicationId
+                    ? "Save application changes"
+                    : "Add application"}
                 </Button>
               </form>
             </CardContent>
@@ -382,6 +518,16 @@ export default function CareerPage() {
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <Badge>{log.confidence}/5 confidence</Badge>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startEditingPractice(log)}
+                        aria-label={`Edit practice log ${log.problemName}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
                       <ConfirmDeleteButton
                         itemLabel={`practice log ${log.problemName}`}
                         onConfirm={() => removeAlgorithmLog(log.id)}
@@ -401,7 +547,7 @@ export default function CareerPage() {
                   icon={<BrainCircuit className="h-6 w-6" />}
                   title="No practice logged"
                   description="Log the problem, topic, and time so preparation becomes visible evidence."
-                  action={<Button onClick={() => setActiveForm("practice")}>Log practice</Button>}
+                  action={<Button onClick={startNewPractice}>Log practice</Button>}
                 />
               )}
             </CardContent>
@@ -459,6 +605,16 @@ export default function CareerPage() {
                         onConfirm={() => removeApplication(application.id)}
                         className="flex-wrap justify-end"
                       />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startEditingApplication(application)}
+                        aria-label={`Edit application ${application.company} ${application.role}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
                     </div>
                   </div>
                   {application.nextAction && (
@@ -486,7 +642,7 @@ export default function CareerPage() {
                   icon={<Briefcase className="h-6 w-6" />}
                   title="No applications yet"
                   description="Add an opportunity and its next action so nothing disappears into a spreadsheet."
-                  action={<Button onClick={() => setActiveForm("application")}>Add application</Button>}
+                  action={<Button onClick={startNewApplication}>Add application</Button>}
                 />
               )}
             </CardContent>

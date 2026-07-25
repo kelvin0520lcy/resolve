@@ -16,7 +16,6 @@ import {
   PageIntro,
   alignedFieldLabelClassName,
   fieldClassName,
-  textAreaClassName,
 } from "@/components/ui/resolve";
 import { useResolve } from "@/contexts/resolve-context";
 import { isDateKey } from "@/lib/date";
@@ -77,7 +76,6 @@ export default function SettingsPage() {
       name: draft.name.trim(),
       academicYear: draft.academicYear.trim(),
       theme: draft.theme?.trim() || undefined,
-      mainResolution: draft.mainResolution?.trim() || undefined,
       targetGpa:
         draft.targetGpa === undefined
           ? undefined
@@ -228,19 +226,13 @@ export default function SettingsPage() {
                     }
                   />
                 </label>
-                <label className="text-sm font-bold md:col-span-2">
-                  Main resolution
-                  <textarea
-                    className={`${textAreaClassName} mt-2`}
-                    value={draft.mainResolution ?? ""}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        mainResolution: event.target.value,
-                      })
-                    }
-                  />
-                </label>
+                <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4 md:col-span-2">
+                  <p className="text-sm font-black">Semester resolutions</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    Add, edit, complete, or remove individual resolutions from
+                    the Dashboard. Semester setup no longer limits you to one.
+                  </p>
+                </div>
                 <Button type="submit" className="md:col-span-2">
                   <Save className="h-4 w-4" />
                   Save semester setup

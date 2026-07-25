@@ -11,6 +11,7 @@ import type {
   Milestone,
   Reflection,
   Semester,
+  SemesterResolution,
   Task,
 } from "@/types";
 
@@ -18,40 +19,65 @@ export type NewTaskInput = Pick<Task, "title" | "category" | "priority"> &
   Partial<
     Pick<Task, "scheduledDate" | "deadline" | "estimatedMinutes" | "goalId">
   >;
+export type UpdateTaskInput = NewTaskInput;
 
 export type NewGoalInput = Pick<
   Goal,
   "title" | "description" | "category" | "priority"
 > &
   Partial<Pick<Goal, "deadline" | "motivation">>;
+export type UpdateGoalInput = NewGoalInput;
 
 export type NewMilestoneInput = Pick<Milestone, "title"> &
   Partial<Pick<Milestone, "description" | "deadline">>;
+export type UpdateMilestoneInput = NewMilestoneInput;
 
 export type NewHabitInput = Pick<
   Habit,
-  "title" | "category" | "measurementType" | "targetDays"
+  "title" | "category" | "measurementType"
 > &
-  Partial<Pick<Habit, "targetValue" | "unit">>;
+  Partial<
+    Pick<
+      Habit,
+      | "targetValue"
+      | "unit"
+      | "scheduleType"
+      | "targetDays"
+      | "targetFrequency"
+    >
+  >;
+export type UpdateHabitInput = NewHabitInput;
 
 export type NewModuleInput = Pick<
   AcademicModule,
   "code" | "name" | "credits" | "targetGrade" | "color"
 > &
   Partial<Pick<AcademicModule, "lecturer">>;
+export type UpdateModuleInput = NewModuleInput;
 
 export type NewAssessmentInput = Pick<
   Assessment,
   "moduleId" | "title" | "type" | "weight" | "deadline"
 > &
   Partial<Pick<Assessment, "targetScore">>;
+export type UpdateAssessmentInput = NewAssessmentInput;
 
 export type NewAlgorithmLogInput = Omit<
   AlgorithmLog,
   "id" | "userId" | "semesterId"
 >;
+export type UpdateAlgorithmLogInput = NewAlgorithmLogInput;
 
 export type NewApplicationInput = Omit<JobApplication, "id" | "userId">;
+export type UpdateApplicationInput = NewApplicationInput;
+
+export type GuitarSessionInput = Omit<
+  GuitarPracticeSession,
+  "id" | "userId" | "semesterId"
+>;
+
+export type NewSemesterResolutionInput = Pick<SemesterResolution, "title">;
+export type UpdateSemesterResolutionInput = NewSemesterResolutionInput;
 
 export type MutationMeta = {
   identity: string;
@@ -65,6 +91,32 @@ function mutationId(meta: MutationMeta) {
 
 function mutationTime(meta: MutationMeta) {
   return meta.timestamp ?? new Date().toISOString();
+}
+
+function normalizeHabitSchedule(habit: NewHabitInput) {
+  const targetDays = [...new Set(habit.targetDays ?? [])]
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    .sort((a, b) => a - b);
+  const scheduleType =
+    habit.scheduleType === "times_per_week"
+      ? ("times_per_week" as const)
+      : ("days_of_week" as const);
+  const targetFrequency =
+    scheduleType === "times_per_week"
+      ? Math.min(
+          7,
+          Math.max(
+            1,
+            Math.round(
+              Number.isFinite(habit.targetFrequency)
+                ? habit.targetFrequency!
+                : 1,
+            ),
+          ),
+        )
+      : targetDays.length;
+
+  return { scheduleType, targetDays, targetFrequency };
 }
 
 export function addTaskToData(
@@ -102,6 +154,48 @@ export function addTaskToData(
         updatedAt: timestamp,
       },
     ],
+  };
+}
+
+export function updateTaskInData(
+  current: ResolveData,
+  taskId: string,
+  changes: UpdateTaskInput,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  const cleanTitle = changes.title.trim();
+  const existing = current.tasks.find((task) => task.id === taskId);
+  if (!existing || !cleanTitle) return current;
+  const estimatedMinutes = Number.isFinite(changes.estimatedMinutes)
+    ? Math.min(720, Math.max(5, Math.round(changes.estimatedMinutes!)))
+    : existing.estimatedMinutes;
+
+  return {
+    ...current,
+    tasks: current.tasks.map((task) =>
+      task.id === taskId
+        ? {
+            ...task,
+            title: cleanTitle,
+            category: changes.category.trim() || "custom",
+            priority: changes.priority,
+            scheduledDate: isDateKey(changes.scheduledDate)
+              ? changes.scheduledDate
+              : task.scheduledDate,
+            deadline: isDateKey(changes.deadline)
+              ? changes.deadline
+              : undefined,
+            estimatedMinutes,
+            goalId:
+              changes.goalId === undefined
+                ? task.goalId
+                : current.goals.some((goal) => goal.id === changes.goalId)
+                  ? changes.goalId
+                  : task.goalId,
+            updatedAt: timestamp,
+          }
+        : task,
+    ),
   };
 }
 
@@ -213,13 +307,50 @@ export function addGoalToData(
         id: mutationId(meta),
         userId: meta.identity,
         semesterId: current.semester.id,
-        measurementType: "milestone",
+        measurementType: "manual",
         startDate: offsetDate(0),
         status: "active",
         createdAt: timestamp,
         updatedAt: timestamp,
       },
     ],
+  };
+}
+
+export function updateGoalInData(
+  current: ResolveData,
+  goalId: string,
+  changes: UpdateGoalInput,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  const title = changes.title.trim();
+  const description = changes.description.trim();
+  if (
+    !title ||
+    !description ||
+    !current.goals.some((goal) => goal.id === goalId)
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    goals: current.goals.map((goal) =>
+      goal.id === goalId
+        ? {
+            ...goal,
+            title,
+            description,
+            category: changes.category,
+            priority: changes.priority,
+            motivation: changes.motivation?.trim() || undefined,
+            deadline: isDateKey(changes.deadline)
+              ? changes.deadline
+              : undefined,
+            updatedAt: timestamp,
+          }
+        : goal,
+    ),
   };
 }
 
@@ -268,8 +399,7 @@ export function setGoalCompletedInData(
   );
   if (
     completed &&
-    (goalMilestones.length === 0 ||
-      goalMilestones.some((milestone) => !milestone.completed))
+    goalMilestones.some((milestone) => !milestone.completed)
   ) {
     return current;
   }
@@ -280,7 +410,7 @@ export function setGoalCompletedInData(
       item.id === goalId
         ? {
             ...item,
-            measurementType: "milestone",
+            measurementType: goalMilestones.length ? "milestone" : "manual",
             targetValue: undefined,
             currentValue: undefined,
             unit: undefined,
@@ -340,6 +470,40 @@ export function addMilestoneToData(
   };
 }
 
+export function updateMilestoneInData(
+  current: ResolveData,
+  milestoneId: string,
+  changes: UpdateMilestoneInput,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  const title = changes.title.trim();
+  const milestone = current.milestones.find(
+    (item) => item.id === milestoneId,
+  );
+  if (!milestone || !title) return current;
+
+  return {
+    ...current,
+    goals: current.goals.map((goal) =>
+      goal.id === milestone.goalId
+        ? { ...goal, updatedAt: timestamp }
+        : goal,
+    ),
+    milestones: current.milestones.map((item) =>
+      item.id === milestoneId
+        ? {
+            ...item,
+            title,
+            description: changes.description?.trim() || undefined,
+            deadline: isDateKey(changes.deadline)
+              ? changes.deadline
+              : undefined,
+          }
+        : item,
+    ),
+  };
+}
+
 export function toggleMilestoneInData(
   current: ResolveData,
   milestoneId: string,
@@ -390,18 +554,26 @@ export function removeMilestoneFromData(
       milestone.id !== milestoneId,
   );
   const completionStillValid =
-    remainingGoalMilestones.length > 0 &&
+    remainingGoalMilestones.length === 0 ||
     remainingGoalMilestones.every((milestone) => milestone.completed);
 
   return {
     ...current,
-    goals: completionStillValid
-      ? current.goals
-      : current.goals.map((goal) =>
-          goal.id === targetMilestone.goalId && goal.status === "completed"
-            ? { ...goal, status: "active", updatedAt: timestamp }
-            : goal,
-        ),
+    goals: current.goals.map((goal) =>
+      goal.id === targetMilestone.goalId
+        ? {
+            ...goal,
+            measurementType: remainingGoalMilestones.length
+              ? ("milestone" as const)
+              : ("manual" as const),
+            status:
+              goal.status === "completed" && !completionStillValid
+                ? ("active" as const)
+                : goal.status,
+            updatedAt: timestamp,
+          }
+        : goal,
+    ),
     milestones: current.milestones.filter(
       (milestone) => milestone.id !== milestoneId,
     ),
@@ -455,10 +627,14 @@ export function addHabitToData(
   meta: MutationMeta,
 ): ResolveData {
   const title = habit.title.trim();
-  const targetDays = [...new Set(habit.targetDays)]
-    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
-    .sort((a, b) => a - b);
-  if (!title || !targetDays.length) return current;
+  const schedule = normalizeHabitSchedule(habit);
+  if (
+    !title ||
+    (schedule.scheduleType === "days_of_week" &&
+      schedule.targetDays.length === 0)
+  ) {
+    return current;
+  }
 
   return {
     ...current,
@@ -470,7 +646,9 @@ export function addHabitToData(
         userId: meta.identity,
         semesterId: current.semester.id,
         title,
-        targetDays,
+        scheduleType: schedule.scheduleType,
+        targetDays: schedule.targetDays,
+        targetFrequency: schedule.targetFrequency,
         targetValue:
           habit.targetValue === undefined ||
           !Number.isFinite(habit.targetValue)
@@ -479,6 +657,46 @@ export function addHabitToData(
         isActive: true,
       },
     ],
+  };
+}
+
+export function updateHabitInData(
+  current: ResolveData,
+  habitId: string,
+  changes: UpdateHabitInput,
+): ResolveData {
+  const title = changes.title.trim();
+  const schedule = normalizeHabitSchedule(changes);
+  if (
+    !current.habits.some((habit) => habit.id === habitId) ||
+    !title ||
+    (schedule.scheduleType === "days_of_week" &&
+      schedule.targetDays.length === 0)
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    habits: current.habits.map((habit) =>
+      habit.id === habitId
+        ? {
+            ...habit,
+            title,
+            category: changes.category.trim() || "personal",
+            measurementType: changes.measurementType,
+            targetValue:
+              changes.targetValue === undefined ||
+              !Number.isFinite(changes.targetValue)
+                ? undefined
+                : Math.max(1, changes.targetValue),
+            unit: changes.unit?.trim() || undefined,
+            scheduleType: schedule.scheduleType,
+            targetDays: schedule.targetDays,
+            targetFrequency: schedule.targetFrequency,
+          }
+        : habit,
+    ),
   };
 }
 
@@ -524,6 +742,42 @@ export function addModuleToData(
         assessments: [],
       },
     ],
+  };
+}
+
+export function updateModuleInData(
+  current: ResolveData,
+  moduleId: string,
+  changes: UpdateModuleInput,
+): ResolveData {
+  const code = changes.code.trim().toUpperCase();
+  const name = changes.name.trim();
+  if (
+    !code ||
+    !name ||
+    !Number.isFinite(changes.credits) ||
+    !current.modules.some((module) => module.id === moduleId)
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    modules: current.modules.map((module) =>
+      module.id === moduleId
+        ? {
+            ...module,
+            code,
+            name,
+            lecturer: changes.lecturer?.trim() || undefined,
+            credits: Math.min(30, Math.max(1, Math.round(changes.credits))),
+            targetGrade: changes.targetGrade.trim() || "A",
+            color: /^#[0-9a-f]{6}$/i.test(changes.color)
+              ? changes.color
+              : module.color,
+          }
+        : module,
+    ),
   };
 }
 
@@ -581,6 +835,58 @@ export function addAssessmentToData(
           }
         : module,
     ),
+  };
+}
+
+export function updateAssessmentInData(
+  current: ResolveData,
+  assessmentId: string,
+  changes: UpdateAssessmentInput,
+): ResolveData {
+  const sourceModule = current.modules.find((module) =>
+    module.assessments.some((assessment) => assessment.id === assessmentId),
+  );
+  const targetModuleExists = current.modules.some(
+    (module) => module.id === changes.moduleId,
+  );
+  const title = changes.title.trim();
+  if (
+    !sourceModule ||
+    !targetModuleExists ||
+    !title ||
+    !isDateKey(changes.deadline) ||
+    !Number.isFinite(changes.weight)
+  ) {
+    return current;
+  }
+  const existing = sourceModule.assessments.find(
+    (assessment) => assessment.id === assessmentId,
+  )!;
+  const updated: Assessment = {
+    ...existing,
+    moduleId: changes.moduleId,
+    title,
+    type: changes.type,
+    weight: Math.min(100, Math.max(0, Math.round(changes.weight))),
+    deadline: changes.deadline,
+    targetScore:
+      changes.targetScore === undefined
+        ? existing.targetScore
+        : !Number.isFinite(changes.targetScore)
+          ? existing.targetScore
+          : Math.min(100, Math.max(0, changes.targetScore)),
+  };
+
+  return {
+    ...current,
+    modules: current.modules.map((module) => {
+      const withoutTarget = module.assessments.filter(
+        (assessment) => assessment.id !== assessmentId,
+      );
+      return module.id === changes.moduleId
+        ? { ...module, assessments: [...withoutTarget, updated] }
+        : { ...module, assessments: withoutTarget };
+    }),
   };
 }
 
@@ -722,6 +1028,46 @@ export function addAlgorithmLogToData(
   };
 }
 
+export function updateAlgorithmLogInData(
+  current: ResolveData,
+  logId: string,
+  changes: UpdateAlgorithmLogInput,
+): ResolveData {
+  const problemName = changes.problemName.trim();
+  if (
+    !current.algorithmLogs.some((log) => log.id === logId) ||
+    !problemName ||
+    !isDateKey(changes.completedDate) ||
+    !Number.isFinite(changes.minutes) ||
+    changes.minutes <= 0
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    algorithmLogs: current.algorithmLogs.map((log) =>
+      log.id === logId
+        ? {
+            ...log,
+            platform: changes.platform.trim() || "Practice",
+            problemName,
+            topic: changes.topic.trim() || "General",
+            difficulty: changes.difficulty,
+            completedDate: changes.completedDate,
+            minutes: Math.min(720, Math.max(1, Math.round(changes.minutes))),
+            usedHints: changes.usedHints,
+            confidence: Math.min(
+              5,
+              Math.max(1, Math.round(changes.confidence)),
+            ),
+            lesson: changes.lesson.trim(),
+          }
+        : log,
+    ),
+  };
+}
+
 export function removeAlgorithmLogFromData(
   current: ResolveData,
   logId: string,
@@ -760,6 +1106,44 @@ export function addApplicationToData(
       },
       ...current.applications,
     ],
+  };
+}
+
+export function updateApplicationInData(
+  current: ResolveData,
+  applicationId: string,
+  changes: UpdateApplicationInput,
+): ResolveData {
+  const company = changes.company.trim();
+  const role = changes.role.trim();
+  if (
+    !current.applications.some(
+      (application) => application.id === applicationId,
+    ) ||
+    !company ||
+    !role ||
+    !isDateKey(changes.applicationDate)
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    applications: current.applications.map((application) =>
+      application.id === applicationId
+        ? {
+            ...application,
+            company,
+            role,
+            applicationDate: changes.applicationDate,
+            stage: changes.stage,
+            nextAction: changes.nextAction?.trim() || undefined,
+            nextActionDate: isDateKey(changes.nextActionDate)
+              ? changes.nextActionDate
+              : undefined,
+          }
+        : application,
+    ),
   };
 }
 
@@ -816,7 +1200,7 @@ export function updateApplicationStageInData(
 
 export function addGuitarSessionToData(
   current: ResolveData,
-  session: Omit<GuitarPracticeSession, "id" | "userId" | "semesterId">,
+  session: GuitarSessionInput,
   meta: MutationMeta,
 ): ResolveData {
   const category = session.category.trim();
@@ -867,6 +1251,70 @@ export function addGuitarSessionToData(
       },
       ...current.guitarSessions,
     ],
+  };
+}
+
+export function updateGuitarSessionInData(
+  current: ResolveData,
+  sessionId: string,
+  changes: GuitarSessionInput,
+): ResolveData {
+  const category = changes.category.trim();
+  const techniques = changes.techniques
+    .map((technique) => technique.trim())
+    .filter(Boolean);
+  if (
+    !current.guitarSessions.some((session) => session.id === sessionId) ||
+    !isDateKey(changes.date) ||
+    !Number.isFinite(changes.durationMinutes) ||
+    changes.durationMinutes <= 0 ||
+    !category ||
+    techniques.length === 0
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    guitarSessions: current.guitarSessions.map((session) =>
+      session.id === sessionId
+        ? {
+            ...session,
+            ...changes,
+            category,
+            techniques,
+            durationMinutes: Math.min(
+              720,
+              Math.max(5, Math.round(changes.durationMinutes)),
+            ),
+            cleanBpm:
+              changes.cleanBpm === undefined ||
+              !Number.isFinite(changes.cleanBpm)
+                ? undefined
+                : Math.min(400, Math.max(20, Math.round(changes.cleanBpm))),
+            confidence:
+              changes.confidence === undefined ||
+              !Number.isFinite(changes.confidence)
+                ? undefined
+                : Math.min(
+                    5,
+                    Math.max(1, Math.round(changes.confidence)),
+                  ),
+            difficulty:
+              changes.difficulty === undefined ||
+              !Number.isFinite(changes.difficulty)
+                ? undefined
+                : Math.min(
+                    5,
+                    Math.max(1, Math.round(changes.difficulty)),
+                  ),
+            song: changes.song?.trim() || undefined,
+            exercise: changes.exercise?.trim() || undefined,
+            notes: changes.notes?.trim() || undefined,
+            nextFocus: changes.nextFocus?.trim() || undefined,
+          }
+        : session,
+    ),
   };
 }
 
@@ -963,6 +1411,113 @@ export function removeReflectionFromData(
   };
 }
 
+export function addSemesterResolutionToData(
+  current: ResolveData,
+  resolution: NewSemesterResolutionInput,
+  meta: MutationMeta,
+): ResolveData {
+  const title = resolution.title.trim();
+  if (!title) return current;
+  const timestamp = mutationTime(meta);
+
+  return {
+    ...current,
+    semester: {
+      ...current.semester,
+      mainResolution: undefined,
+      resolutions: [
+        ...(current.semester.resolutions ?? []),
+        {
+          id: mutationId(meta),
+          title,
+          completed: false,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+      ],
+    },
+  };
+}
+
+export function updateSemesterResolutionInData(
+  current: ResolveData,
+  resolutionId: string,
+  changes: UpdateSemesterResolutionInput,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  const title = changes.title.trim();
+  const resolutions = current.semester.resolutions ?? [];
+  if (
+    !title ||
+    !resolutions.some((resolution) => resolution.id === resolutionId)
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    semester: {
+      ...current.semester,
+      mainResolution: undefined,
+      resolutions: resolutions.map((resolution) =>
+        resolution.id === resolutionId
+          ? { ...resolution, title, updatedAt: timestamp }
+          : resolution,
+      ),
+    },
+  };
+}
+
+export function toggleSemesterResolutionInData(
+  current: ResolveData,
+  resolutionId: string,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  const resolutions = current.semester.resolutions ?? [];
+  if (!resolutions.some((resolution) => resolution.id === resolutionId)) {
+    return current;
+  }
+
+  return {
+    ...current,
+    semester: {
+      ...current.semester,
+      mainResolution: undefined,
+      resolutions: resolutions.map((resolution) =>
+        resolution.id === resolutionId
+          ? {
+              ...resolution,
+              completed: !resolution.completed,
+              completedAt: resolution.completed ? undefined : timestamp,
+              updatedAt: timestamp,
+            }
+          : resolution,
+      ),
+    },
+  };
+}
+
+export function removeSemesterResolutionFromData(
+  current: ResolveData,
+  resolutionId: string,
+): ResolveData {
+  const resolutions = current.semester.resolutions ?? [];
+  if (!resolutions.some((resolution) => resolution.id === resolutionId)) {
+    return current;
+  }
+
+  return {
+    ...current,
+    semester: {
+      ...current.semester,
+      mainResolution: undefined,
+      resolutions: resolutions.filter(
+        (resolution) => resolution.id !== resolutionId,
+      ),
+    },
+  };
+}
+
 export function updateSemesterInData(
   current: ResolveData,
   semester: Semester,
@@ -983,6 +1538,9 @@ export function updateSemesterInData(
       userId: identity,
       name: semester.name.trim(),
       academicYear: semester.academicYear.trim(),
+      resolutions:
+        semester.resolutions ?? current.semester.resolutions ?? [],
+      mainResolution: semester.mainResolution?.trim() || undefined,
       targetGpa:
         semester.targetGpa === undefined ||
         !Number.isFinite(semester.targetGpa)

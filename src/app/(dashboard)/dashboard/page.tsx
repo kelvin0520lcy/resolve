@@ -48,7 +48,10 @@ export default function DashboardPage() {
     weeklyPriorities,
     toggleTask,
     removeTask,
-    updateSemester,
+    addSemesterResolution,
+    updateSemesterResolution,
+    toggleSemesterResolution,
+    removeSemesterResolution,
   } = useResolve();
   const today = offsetDate(0);
   const weekDates = getWeekDateKeys();
@@ -131,7 +134,7 @@ export default function DashboardPage() {
       <div className="mx-auto max-w-7xl space-y-6">
         <section className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
           <MainResolutionPanel
-            resolution={semester.mainResolution}
+            resolutions={semester.resolutions ?? []}
             theme={semester.theme}
             semesterName={semester.name}
             weekNumber={semesterStats.weekNumber}
@@ -139,9 +142,10 @@ export default function DashboardPage() {
             daysRemaining={semesterStats.daysRemaining}
             focus={nextProof}
             quote={dailyQuote}
-            onSave={(mainResolution) =>
-              updateSemester({ ...semester, mainResolution })
-            }
+            onAdd={addSemesterResolution}
+            onUpdate={updateSemesterResolution}
+            onToggle={toggleSemesterResolution}
+            onRemove={removeSemesterResolution}
           />
           <CharacterCompanion state={characterState} className="h-full" />
         </section>

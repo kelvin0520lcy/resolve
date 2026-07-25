@@ -17,6 +17,7 @@ import {
   toDateKey,
 } from "@/lib/date";
 import {
+  addSemesterResolutionToData,
   addAssessmentToData,
   addAlgorithmLogToData,
   addApplicationToData,
@@ -36,18 +37,31 @@ import {
   removeMilestoneFromData,
   removeModuleFromData,
   removeReflectionFromData,
+  removeSemesterResolutionFromData,
   removeTaskFromData,
   saveReflectionToData,
   setGoalCompletedInData,
   toggleHabitInData,
   toggleMilestoneInData,
+  toggleSemesterResolutionInData,
   toggleTaskInData,
   updateApplicationStageInData,
+  updateApplicationInData,
+  updateAssessmentInData,
   updateAssessmentProgressInData,
+  updateAlgorithmLogInData,
+  updateGoalInData,
+  updateGuitarSessionInData,
+  updateHabitInData,
+  updateMilestoneInData,
+  updateModuleInData,
   updateModuleStudyMinutesInData,
   updatePrioritiesInData,
   updateSemesterInData,
+  updateSemesterResolutionInData,
+  updateTaskInData,
   updateTaskActualMinutesInData,
+  type GuitarSessionInput,
   type NewAlgorithmLogInput,
   type NewApplicationInput,
   type NewAssessmentInput,
@@ -56,6 +70,16 @@ import {
   type NewMilestoneInput,
   type NewModuleInput,
   type NewTaskInput,
+  type NewSemesterResolutionInput,
+  type UpdateAlgorithmLogInput,
+  type UpdateApplicationInput,
+  type UpdateAssessmentInput,
+  type UpdateGoalInput,
+  type UpdateHabitInput,
+  type UpdateMilestoneInput,
+  type UpdateModuleInput,
+  type UpdateTaskInput,
+  type UpdateSemesterResolutionInput,
 } from "@/features/workspace/lib/resolve-actions";
 import {
   getWorkspaceSchemaCompatibility,
@@ -79,6 +103,7 @@ import type {
   Milestone,
   Reflection,
   Semester,
+  SemesterResolution,
   Task,
 } from "@/types";
 
@@ -94,24 +119,44 @@ type ResolveContextValue = ResolveData & {
   syncError: string;
   lastSyncedAt: string | null;
   addTask: (task: NewTaskInput) => void;
+  updateTask: (taskId: string, task: UpdateTaskInput) => void;
   toggleTask: (taskId: string) => void;
   removeTask: (taskId: string) => void;
   moveTask: (taskId: string, scheduledDate: string) => void;
   addGoal: (goal: NewGoalInput) => void;
+  updateGoal: (goalId: string, goal: UpdateGoalInput) => void;
   removeGoal: (goalId: string) => void;
   addMilestone: (goalId: string, milestone: NewMilestoneInput) => void;
+  updateMilestone: (
+    milestoneId: string,
+    milestone: UpdateMilestoneInput,
+  ) => void;
   toggleMilestone: (milestoneId: string) => void;
   removeMilestone: (milestoneId: string) => void;
   setGoalCompleted: (goalId: string, completed: boolean) => void;
   addHabit: (habit: NewHabitInput) => void;
+  updateHabit: (habitId: string, habit: UpdateHabitInput) => void;
   removeHabit: (habitId: string) => void;
   addModule: (module: NewModuleInput) => void;
+  updateModule: (moduleId: string, module: UpdateModuleInput) => void;
   removeModule: (moduleId: string) => void;
   addAssessment: (assessment: NewAssessmentInput) => void;
+  updateAssessment: (
+    assessmentId: string,
+    assessment: UpdateAssessmentInput,
+  ) => void;
   removeAssessment: (moduleId: string, assessmentId: string) => void;
   addAlgorithmLog: (log: NewAlgorithmLogInput) => void;
+  updateAlgorithmLog: (
+    logId: string,
+    log: UpdateAlgorithmLogInput,
+  ) => void;
   removeAlgorithmLog: (logId: string) => void;
   addApplication: (application: NewApplicationInput) => void;
+  updateApplication: (
+    applicationId: string,
+    application: UpdateApplicationInput,
+  ) => void;
   removeApplication: (applicationId: string) => void;
   updateApplicationStage: (
     applicationId: string,
@@ -125,8 +170,10 @@ type ResolveContextValue = ResolveData & {
   updateModuleStudyMinutes: (moduleId: string, minutes: number) => void;
   updateTaskActualMinutes: (taskId: string, minutes: number) => void;
   toggleHabit: (habitId: string, date: string) => void;
-  addGuitarSession: (
-    session: Omit<GuitarPracticeSession, "id" | "userId" | "semesterId">,
+  addGuitarSession: (session: GuitarSessionInput) => void;
+  updateGuitarSession: (
+    sessionId: string,
+    session: GuitarSessionInput,
   ) => void;
   removeGuitarSession: (sessionId: string) => void;
   updateGuitarLearning: (
@@ -139,6 +186,13 @@ type ResolveContextValue = ResolveData & {
     >,
   ) => void;
   removeReflection: (reflectionId: string) => void;
+  addSemesterResolution: (resolution: NewSemesterResolutionInput) => void;
+  updateSemesterResolution: (
+    resolutionId: string,
+    resolution: UpdateSemesterResolutionInput,
+  ) => void;
+  toggleSemesterResolution: (resolutionId: string) => void;
+  removeSemesterResolution: (resolutionId: string) => void;
   updateSemester: (semester: Semester) => void;
   updatePriorities: (priorities: string[]) => void;
   resetWorkspace: () => void;
@@ -159,6 +213,7 @@ export function createEmptyData(userId: string): ResolveData {
       academicYear: `${year}/${year + 1}`,
       startDate: offsetDate(0),
       endDate: offsetDate(112),
+      resolutions: [],
       status: "active",
     },
     goals: [],
@@ -200,51 +255,101 @@ export function normalizeStoredData(
       : [];
   const optionalDate = (candidate: unknown) =>
     isDateKey(candidate) ? candidate : undefined;
-  const semester =
+  const storedSemester =
     stored.semester &&
     typeof stored.semester === "object" &&
-    isDateKey(stored.semester.startDate) &&
-    isDateKey(stored.semester.endDate) &&
-    stored.semester.endDate > stored.semester.startDate
+    !Array.isArray(stored.semester)
+      ? stored.semester
+      : undefined;
+  const legacyResolution =
+    typeof storedSemester?.mainResolution === "string"
+      ? storedSemester.mainResolution.trim() || undefined
+      : undefined;
+  const normalizedResolutions = recordArray<SemesterResolution>(
+    storedSemester?.resolutions,
+  )
+    .filter(
+      (resolution) =>
+        typeof resolution.id === "string" &&
+        Boolean(resolution.id) &&
+        typeof resolution.title === "string",
+    )
+    .map((resolution) => {
+      const completed = resolution.completed === true;
+      const createdAt =
+        typeof resolution.createdAt === "string" && resolution.createdAt
+          ? resolution.createdAt
+          : `${storedSemester?.startDate ?? seed.semester.startDate}T00:00:00.000Z`;
+      return {
+        id: resolution.id,
+        title: resolution.title.trim(),
+        completed,
+        createdAt,
+        updatedAt:
+          typeof resolution.updatedAt === "string" && resolution.updatedAt
+            ? resolution.updatedAt
+            : createdAt,
+        completedAt:
+          completed && typeof resolution.completedAt === "string"
+            ? resolution.completedAt
+            : undefined,
+      };
+    })
+    .filter((resolution) => Boolean(resolution.title));
+  const resolutions =
+    normalizedResolutions.length || !legacyResolution
+      ? normalizedResolutions
+      : [
+          {
+            id: "legacy-main-resolution",
+            title: legacyResolution,
+            completed: false,
+            createdAt: `${storedSemester?.startDate ?? seed.semester.startDate}T00:00:00.000Z`,
+            updatedAt: `${storedSemester?.startDate ?? seed.semester.startDate}T00:00:00.000Z`,
+          },
+        ];
+  const semester =
+    storedSemester &&
+    isDateKey(storedSemester.startDate) &&
+    isDateKey(storedSemester.endDate) &&
+    storedSemester.endDate > storedSemester.startDate
       ? {
           ...seed.semester,
-          ...stored.semester,
+          ...storedSemester,
           id:
-            typeof stored.semester.id === "string" && stored.semester.id
-              ? stored.semester.id
+            typeof storedSemester.id === "string" && storedSemester.id
+              ? storedSemester.id
               : seed.semester.id,
           userId,
           name:
-            typeof stored.semester.name === "string" &&
-            stored.semester.name.trim()
-              ? stored.semester.name.trim()
+            typeof storedSemester.name === "string" &&
+            storedSemester.name.trim()
+              ? storedSemester.name.trim()
               : seed.semester.name,
           academicYear:
-            typeof stored.semester.academicYear === "string"
-              ? stored.semester.academicYear.trim()
+            typeof storedSemester.academicYear === "string"
+              ? storedSemester.academicYear.trim()
               : seed.semester.academicYear,
-          recessWeekStart: optionalDate(stored.semester.recessWeekStart),
-          readingWeekStart: optionalDate(stored.semester.readingWeekStart),
-          examPeriodStart: optionalDate(stored.semester.examPeriodStart),
+          recessWeekStart: optionalDate(storedSemester.recessWeekStart),
+          readingWeekStart: optionalDate(storedSemester.readingWeekStart),
+          examPeriodStart: optionalDate(storedSemester.examPeriodStart),
           theme:
-            typeof stored.semester.theme === "string"
-              ? stored.semester.theme.trim() || undefined
+            typeof storedSemester.theme === "string"
+              ? storedSemester.theme.trim() || undefined
               : undefined,
-          mainResolution:
-            typeof stored.semester.mainResolution === "string"
-              ? stored.semester.mainResolution.trim() || undefined
-              : undefined,
-          targetGpa: Number.isFinite(stored.semester.targetGpa)
-            ? Math.min(5, Math.max(0, stored.semester.targetGpa!))
+          resolutions,
+          mainResolution: legacyResolution,
+          targetGpa: Number.isFinite(storedSemester.targetGpa)
+            ? Math.min(5, Math.max(0, storedSemester.targetGpa!))
             : undefined,
           description:
-            typeof stored.semester.description === "string"
-              ? stored.semester.description.trim() || undefined
+            typeof storedSemester.description === "string"
+              ? storedSemester.description.trim() || undefined
               : undefined,
           status: ["upcoming", "active", "completed"].includes(
-            stored.semester.status,
+            storedSemester.status,
           )
-            ? stored.semester.status
+            ? storedSemester.status
             : ("active" as const),
         }
       : seed.semester;
@@ -301,7 +406,7 @@ export function normalizeStoredData(
         (milestone) => milestone.goalId === goal.id,
       );
       const completionIsValid =
-        goalMilestones.length > 0 &&
+        goalMilestones.length === 0 ||
         goalMilestones.every((milestone) => milestone.completed);
 
       return {
@@ -318,7 +423,9 @@ export function normalizeStoredData(
         priority: validPriorities.includes(goal.priority)
           ? goal.priority
           : "medium",
-        measurementType: "milestone" as const,
+        measurementType: goalMilestones.length
+          ? ("milestone" as const)
+          : ("manual" as const),
         targetValue: undefined,
         currentValue: undefined,
         unit: undefined,
@@ -406,12 +513,8 @@ export function normalizeStoredData(
       (habit) =>
         typeof habit.id === "string" && typeof habit.title === "string",
     )
-    .map((habit) => ({
-      ...habit,
-      userId,
-      semesterId: semester.id,
-      title: habit.title.trim(),
-      targetDays: Array.isArray(habit.targetDays)
+    .map((habit) => {
+      const targetDays = Array.isArray(habit.targetDays)
         ? [
             ...new Set(
               habit.targetDays.filter(
@@ -422,10 +525,43 @@ export function normalizeStoredData(
               ),
             ),
           ].sort((a, b) => a - b)
-        : [],
-      isActive: habit.isActive !== false,
-    }))
-    .filter((habit) => Boolean(habit.title) && habit.targetDays.length > 0);
+        : [];
+      const scheduleType =
+        habit.scheduleType === "times_per_week"
+          ? ("times_per_week" as const)
+          : ("days_of_week" as const);
+      const targetFrequency =
+        scheduleType === "times_per_week"
+          ? Math.min(
+              7,
+              Math.max(
+                1,
+                Math.round(
+                  Number.isFinite(habit.targetFrequency)
+                    ? habit.targetFrequency
+                    : 1,
+                ),
+              ),
+            )
+          : targetDays.length;
+
+      return {
+        ...habit,
+        userId,
+        semesterId: semester.id,
+        title: habit.title.trim(),
+        scheduleType,
+        targetDays,
+        targetFrequency,
+        isActive: habit.isActive !== false,
+      };
+    })
+    .filter(
+      (habit) =>
+        Boolean(habit.title) &&
+        (habit.scheduleType === "times_per_week" ||
+          habit.targetDays.length > 0),
+    );
   const habitIds = new Set(habits.map((habit) => habit.id));
   const habitLogs = recordArray<HabitLog>(stored.habitLogs)
     .filter(
@@ -878,6 +1014,9 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           addTaskToData(current, task, { identity }),
         );
       },
+      updateTask(taskId, task) {
+        setData((current) => updateTaskInData(current, taskId, task));
+      },
       toggleTask(taskId) {
         setData((current) => toggleTaskInData(current, taskId));
       },
@@ -894,12 +1033,20 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           addGoalToData(current, goal, { identity }),
         );
       },
+      updateGoal(goalId, goal) {
+        setData((current) => updateGoalInData(current, goalId, goal));
+      },
       removeGoal(goalId) {
         setData((current) => removeGoalFromData(current, goalId));
       },
       addMilestone(goalId, milestone) {
         setData((current) =>
           addMilestoneToData(current, goalId, milestone, { identity }),
+        );
+      },
+      updateMilestone(milestoneId, milestone) {
+        setData((current) =>
+          updateMilestoneInData(current, milestoneId, milestone),
         );
       },
       toggleMilestone(milestoneId) {
@@ -922,6 +1069,9 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           addHabitToData(current, habit, { identity }),
         );
       },
+      updateHabit(habitId, habit) {
+        setData((current) => updateHabitInData(current, habitId, habit));
+      },
       removeHabit(habitId) {
         setData((current) => removeHabitFromData(current, habitId));
       },
@@ -930,12 +1080,22 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           addModuleToData(current, module, { identity }),
         );
       },
+      updateModule(moduleId, module) {
+        setData((current) =>
+          updateModuleInData(current, moduleId, module),
+        );
+      },
       removeModule(moduleId) {
         setData((current) => removeModuleFromData(current, moduleId));
       },
       addAssessment(assessment) {
         setData((current) =>
           addAssessmentToData(current, assessment, { identity }),
+        );
+      },
+      updateAssessment(assessmentId, assessment) {
+        setData((current) =>
+          updateAssessmentInData(current, assessmentId, assessment),
         );
       },
       removeAssessment(moduleId, assessmentId) {
@@ -948,6 +1108,11 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           addAlgorithmLogToData(current, log, { identity }),
         );
       },
+      updateAlgorithmLog(logId, log) {
+        setData((current) =>
+          updateAlgorithmLogInData(current, logId, log),
+        );
+      },
       removeAlgorithmLog(logId) {
         setData((current) =>
           removeAlgorithmLogFromData(current, logId),
@@ -956,6 +1121,11 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       addApplication(application) {
         setData((current) =>
           addApplicationToData(current, application, { identity }),
+        );
+      },
+      updateApplication(applicationId, application) {
+        setData((current) =>
+          updateApplicationInData(current, applicationId, application),
         );
       },
       removeApplication(applicationId) {
@@ -998,6 +1168,11 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           addGuitarSessionToData(current, session, { identity }),
         );
       },
+      updateGuitarSession(sessionId, session) {
+        setData((current) =>
+          updateGuitarSessionInData(current, sessionId, session),
+        );
+      },
       removeGuitarSession(sessionId) {
         setData((current) =>
           removeGuitarSessionFromData(current, sessionId),
@@ -1020,6 +1195,30 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       removeReflection(reflectionId) {
         setData((current) =>
           removeReflectionFromData(current, reflectionId),
+        );
+      },
+      addSemesterResolution(resolution) {
+        setData((current) =>
+          addSemesterResolutionToData(current, resolution, { identity }),
+        );
+      },
+      updateSemesterResolution(resolutionId, resolution) {
+        setData((current) =>
+          updateSemesterResolutionInData(
+            current,
+            resolutionId,
+            resolution,
+          ),
+        );
+      },
+      toggleSemesterResolution(resolutionId) {
+        setData((current) =>
+          toggleSemesterResolutionInData(current, resolutionId),
+        );
+      },
+      removeSemesterResolution(resolutionId) {
+        setData((current) =>
+          removeSemesterResolutionFromData(current, resolutionId),
         );
       },
       updateSemester(semester) {

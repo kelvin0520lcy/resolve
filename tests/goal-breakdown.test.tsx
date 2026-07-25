@@ -30,6 +30,7 @@ describe("goal breakdown", () => {
         goal={goal}
         milestones={[]}
         addMilestone={addMilestone}
+        updateMilestone={vi.fn()}
         toggleMilestone={vi.fn()}
         removeMilestone={vi.fn()}
         setGoalCompleted={vi.fn()}
@@ -37,7 +38,7 @@ describe("goal breakdown", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: "Add the first smaller step" }),
+      screen.getByRole("button", { name: "Add breakdown" }),
     );
     await user.type(
       screen.getByRole("textbox", { name: "Smaller step" }),
@@ -84,20 +85,26 @@ describe("goal breakdown", () => {
         goal={goal}
         milestones={milestones}
         addMilestone={vi.fn()}
+        updateMilestone={vi.fn()}
         toggleMilestone={toggleMilestone}
         removeMilestone={removeMilestone}
         setGoalCompleted={setGoalCompleted}
       />,
     );
 
-    expect(screen.getByText("1 of 2 smaller steps completed")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "View breakdown (2)" }),
+    );
+    expect(
+      screen.getByText("1 of 2 smaller steps completed"),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", {
         name: "Prepare a three-song live set breakdown progress",
       }),
     ).toHaveAttribute("aria-valuenow", "50");
     expect(
-      screen.getByRole("button", { name: "Mark goal complete" }),
+      screen.getByRole("button", { name: "Mark complete" }),
     ).toBeDisabled();
 
     await user.click(
@@ -136,6 +143,7 @@ describe("goal breakdown", () => {
         goal={goal}
         milestones={milestones}
         addMilestone={vi.fn()}
+        updateMilestone={vi.fn()}
         toggleMilestone={vi.fn()}
         removeMilestone={vi.fn()}
         setGoalCompleted={setGoalCompleted}
@@ -143,7 +151,7 @@ describe("goal breakdown", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: "Mark goal complete" }),
+      screen.getByRole("button", { name: "Mark complete" }),
     );
     expect(setGoalCompleted).toHaveBeenCalledWith("goal-1", true);
 
@@ -152,6 +160,7 @@ describe("goal breakdown", () => {
         goal={{ ...goal, status: "completed" }}
         milestones={milestones}
         addMilestone={vi.fn()}
+        updateMilestone={vi.fn()}
         toggleMilestone={vi.fn()}
         removeMilestone={vi.fn()}
         setGoalCompleted={setGoalCompleted}
@@ -159,5 +168,67 @@ describe("goal breakdown", () => {
     );
     await user.click(screen.getByRole("button", { name: "Reopen goal" }));
     expect(setGoalCompleted).toHaveBeenLastCalledWith("goal-1", false);
+  });
+
+  it("allows direct completion when no breakdown is attached", async () => {
+    const user = userEvent.setup();
+    const setGoalCompleted = vi.fn();
+
+    render(
+      <GoalBreakdown
+        goal={goal}
+        milestones={[]}
+        addMilestone={vi.fn()}
+        updateMilestone={vi.fn()}
+        toggleMilestone={vi.fn()}
+        removeMilestone={vi.fn()}
+        setGoalCompleted={setGoalCompleted}
+      />,
+    );
+
+    expect(screen.queryByText("Goal breakdown")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Mark complete" }));
+    expect(setGoalCompleted).toHaveBeenCalledWith("goal-1", true);
+  });
+
+  it("edits an existing breakdown step", async () => {
+    const user = userEvent.setup();
+    const updateMilestone = vi.fn();
+    const milestone: Milestone = {
+      id: "step-1",
+      goalId: "goal-1",
+      title: "Choose songs",
+      deadline: "2026-08-10",
+      completed: false,
+      order: 1,
+    };
+
+    render(
+      <GoalBreakdown
+        goal={goal}
+        milestones={[milestone]}
+        addMilestone={vi.fn()}
+        updateMilestone={updateMilestone}
+        toggleMilestone={vi.fn()}
+        removeMilestone={vi.fn()}
+        setGoalCompleted={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "View breakdown (1)" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Edit Choose songs" }),
+    );
+    const input = screen.getByRole("textbox", { name: "Smaller step" });
+    await user.clear(input);
+    await user.type(input, "Choose three songs");
+    await user.click(screen.getByRole("button", { name: "Save step" }));
+
+    expect(updateMilestone).toHaveBeenCalledWith("step-1", {
+      title: "Choose three songs",
+      deadline: "2026-08-10",
+    });
   });
 });

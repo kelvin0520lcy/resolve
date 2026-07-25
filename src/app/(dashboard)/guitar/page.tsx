@@ -11,6 +11,7 @@ import {
   Guitar,
   MapPinned,
   Music2,
+  Pencil,
   Plus,
   Sparkles,
   X,
@@ -241,12 +242,20 @@ export default function GuitarPage() {
 }
 
 function GuitarOverview() {
-  const { guitarSessions, addGuitarSession, removeGuitarSession } =
-    useResolve();
+  const {
+    guitarSessions,
+    addGuitarSession,
+    updateGuitarSession,
+    removeGuitarSession,
+  } = useResolve();
   const [showForm, setShowForm] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(
+    null,
+  );
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [practiceDate, setPracticeDate] = useState(offsetDate(0));
   const [duration, setDuration] = useState("30");
+  const [instrument, setInstrument] = useState("Electric guitar");
   const [category, setCategory] = useState(
     GUITAR_LEARNING_AREAS[0].name,
   );
@@ -291,6 +300,57 @@ function GuitarOverview() {
     ? guitarSessions
     : guitarSessions.slice(0, 6);
 
+  function resetForm() {
+    setPracticeDate(offsetDate(0));
+    setDuration("30");
+    setInstrument("Electric guitar");
+    setCategory(GUITAR_LEARNING_AREAS[0].name);
+    setTechnique(GUITAR_LEARNING_AREAS[0].topics[0]);
+    setCleanBpm("");
+    setConfidence("3");
+    setDifficulty("3");
+    setMaterial("");
+    setNotes("");
+    setNextFocus("");
+    setEditingSessionId(null);
+    setShowForm(false);
+  }
+
+  function startNewSession() {
+    resetForm();
+    setShowForm(true);
+  }
+
+  function startEditingSession(
+    session: (typeof guitarSessions)[number],
+  ) {
+    const area =
+      GUITAR_LEARNING_AREAS.find(
+        (item) => item.name === session.category,
+      ) ?? GUITAR_LEARNING_AREAS[0];
+    const focus = area.topics.includes(session.techniques[0])
+      ? session.techniques[0]
+      : area.topics[0];
+    setEditingSessionId(session.id);
+    setPracticeDate(session.date);
+    setDuration(String(session.durationMinutes));
+    setInstrument(session.instrument ?? "Electric guitar");
+    setCategory(area.name);
+    setTechnique(focus);
+    setCleanBpm(session.cleanBpm ? String(session.cleanBpm) : "");
+    setConfidence(String(session.confidence ?? 3));
+    setDifficulty(String(session.difficulty ?? 3));
+    setMaterial(session.song ?? session.exercise ?? "");
+    setNotes(session.notes ?? "");
+    setNextFocus(session.nextFocus ?? "");
+    setShowForm(true);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("guitar-practice-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function submit(event: FormEvent) {
     event.preventDefault();
     const durationMinutes = Number(duration);
@@ -303,10 +363,10 @@ function GuitarOverview() {
     ) {
       return;
     }
-    addGuitarSession({
+    const changes = {
       date: practiceDate,
       durationMinutes,
-      instrument: "Electric guitar",
+      instrument: instrument.trim() || undefined,
       category,
       techniques: [technique],
       cleanBpm: bpm,
@@ -322,14 +382,17 @@ function GuitarOverview() {
           : undefined,
       notes: notes.trim(),
       nextFocus: nextFocus.trim(),
-    });
-    setMaterial("");
-    setNotes("");
-    setNextFocus("");
-    setShowForm(false);
+    };
+    if (editingSessionId) {
+      updateGuitarSession(editingSessionId, changes);
+    } else {
+      addGuitarSession(changes);
+    }
+    resetForm();
   }
 
   function chooseLearningFocus(areaName: string, topic: string) {
+    setEditingSessionId(null);
     setCategory(areaName);
     setTechnique(topic);
     setShowForm(true);
@@ -347,7 +410,12 @@ function GuitarOverview() {
           title="Make improvement audible"
           description="Choose what you are learning, record honest practice evidence, and always leave yourself a clear next note."
           action={
-            <Button onClick={() => setShowForm((value) => !value)}>
+            <Button
+              onClick={() => {
+                if (showForm) resetForm();
+                else startNewSession();
+              }}
+            >
               {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               {showForm ? "Close" : "Log practice"}
             </Button>
@@ -384,7 +452,11 @@ function GuitarOverview() {
         {showForm && (
           <Card id="guitar-practice-form" className="border-accent/30">
             <CardHeader>
-              <CardTitle>Log this practice session</CardTitle>
+              <CardTitle>
+                {editingSessionId
+                  ? "Edit this practice session"
+                  : "Log this practice session"}
+              </CardTitle>
               <CardDescription>
                 Capture just enough detail to make the next session easier.
               </CardDescription>
@@ -419,6 +491,15 @@ function GuitarOverview() {
                     max="720"
                     value={duration}
                     onChange={(event) => setDuration(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">Instrument</span>
+                  <input
+                    className={fieldClassName}
+                    value={instrument}
+                    onChange={(event) => setInstrument(event.target.value)}
                     required
                   />
                 </label>
@@ -541,7 +622,9 @@ function GuitarOverview() {
                   type="submit"
                   className="md:col-span-2 xl:col-span-3"
                 >
-                  Save practice session
+                  {editingSessionId
+                    ? "Save session changes"
+                    : "Save practice session"}
                 </Button>
               </form>
             </CardContent>
@@ -723,7 +806,7 @@ function GuitarOverview() {
                   title="No practice mix yet"
                   description="Log a session and the balance between your practice categories will appear here."
                   action={
-                    <Button onClick={() => setShowForm(true)}>
+                    <Button onClick={startNewSession}>
                       Log practice
                     </Button>
                   }
@@ -767,6 +850,16 @@ function GuitarOverview() {
                       {session.difficulty && (
                         <Badge>Challenge {session.difficulty}/5</Badge>
                       )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startEditingSession(session)}
+                        aria-label={`Edit practice session from ${session.date}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
                       <ConfirmDeleteButton
                         itemLabel={`practice session from ${session.date}`}
                         onConfirm={() => removeGuitarSession(session.id)}

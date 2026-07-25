@@ -1,14 +1,26 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Check, Edit3, Flag, Quote, Save, Sparkles } from "lucide-react";
+import {
+  Check,
+  Edit3,
+  Flag,
+  Plus,
+  Quote,
+  Save,
+  Sparkles,
+} from "lucide-react";
 import { ProgressBar } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import { textAreaClassName } from "@/components/ui/resolve";
 import type { MotivationQuote } from "@/lib/daily-motivation";
+import type { SemesterResolution } from "@/types";
+
+type ResolutionEditor = "new" | string | null;
 
 export function MainResolutionPanel({
-  resolution,
+  resolutions,
   theme,
   semesterName,
   weekNumber,
@@ -16,9 +28,12 @@ export function MainResolutionPanel({
   daysRemaining,
   focus,
   quote,
-  onSave,
+  onAdd,
+  onUpdate,
+  onToggle,
+  onRemove,
 }: {
-  resolution?: string;
+  resolutions: SemesterResolution[];
   theme?: string;
   semesterName: string;
   weekNumber: number;
@@ -26,18 +41,50 @@ export function MainResolutionPanel({
   daysRemaining: number;
   focus?: string;
   quote: MotivationQuote;
-  onSave: (resolution: string) => void;
+  onAdd: (resolution: { title: string }) => void;
+  onUpdate: (resolutionId: string, resolution: { title: string }) => void;
+  onToggle: (resolutionId: string) => void;
+  onRemove: (resolutionId: string) => void;
 }) {
-  const [editing, setEditing] = useState(!resolution);
-  const [draft, setDraft] = useState(resolution ?? "");
+  const [editor, setEditor] = useState<ResolutionEditor>(null);
+  const [draft, setDraft] = useState("");
+  const completedCount = resolutions.filter(
+    (resolution) => resolution.completed,
+  ).length;
+  const editorOpen = editor !== null || resolutions.length === 0;
+
+  function startAdding() {
+    setEditor("new");
+    setDraft("");
+  }
+
+  function startEditing(resolution: SemesterResolution) {
+    setEditor(resolution.id);
+    setDraft(resolution.title);
+  }
+
+  function closeEditor() {
+    setEditor(null);
+    setDraft("");
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const nextResolution = draft.trim();
-    if (!nextResolution) return;
-    onSave(nextResolution);
-    setDraft(nextResolution);
-    setEditing(false);
+    const title = draft.trim();
+    if (!title) return;
+
+    if (editor && editor !== "new") {
+      onUpdate(editor, { title });
+    } else {
+      onAdd({ title });
+    }
+    closeEditor();
+  }
+
+  function removeResolution(resolutionId: string) {
+    if (editor === resolutionId) closeEditor();
+    if (resolutions.length === 1) setDraft("");
+    onRemove(resolutionId);
   }
 
   return (
@@ -47,7 +94,7 @@ export function MainResolutionPanel({
           <div>
             <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-accent">
               <Flag className="h-3.5 w-3.5" />
-              Main resolution · episode{" "}
+              Semester resolutions · episode{" "}
               {String(weekNumber).padStart(2, "0")}
             </p>
             <p className="mt-2 text-xs font-bold text-[#756879]">
@@ -55,56 +102,137 @@ export function MainResolutionPanel({
               {theme ? ` · ${theme}` : ""}
             </p>
           </div>
-          {!editing && (
+          {!editorOpen && (
             <Button
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => setEditing(true)}
+              onClick={startAdding}
             >
-              <Edit3 className="h-3.5 w-3.5" />
-              Edit
+              <Plus className="h-3.5 w-3.5" />
+              Add resolution
             </Button>
           )}
         </div>
 
-        {editing ? (
-          <form onSubmit={submit} className="mt-5">
+        <div className="mt-5 flex flex-wrap items-end justify-between gap-2">
+          <h1 className="font-display text-4xl leading-none tracking-wide text-[#18121f] sm:text-5xl">
+            Your semester promises
+          </h1>
+          {resolutions.length > 0 && (
+            <p className="rounded-full border border-[#18121f]/15 bg-white/55 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#514659]">
+              {completedCount}/{resolutions.length} complete
+            </p>
+          )}
+        </div>
+
+        {resolutions.length > 0 && (
+          <ol className="mt-5 space-y-2">
+            {resolutions.map((resolution, index) => (
+              <li
+                key={resolution.id}
+                className={`grid grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 rounded-2xl border-2 p-3 transition sm:grid-cols-[2.25rem_minmax(0,1fr)_auto] sm:items-center ${
+                  resolution.completed
+                    ? "border-success/35 bg-success/10"
+                    : "border-[#18121f]/15 bg-white/60"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => onToggle(resolution.id)}
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl border-2 transition ${
+                    resolution.completed
+                      ? "border-success bg-success text-white"
+                      : "border-[#18121f]/20 bg-white/70 text-[#756879] hover:border-accent hover:text-accent"
+                  }`}
+                  aria-label={
+                    resolution.completed
+                      ? `Reopen resolution ${resolution.title}`
+                      : `Complete resolution ${resolution.title}`
+                  }
+                >
+                  {resolution.completed ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <span className="font-mono text-xs font-black">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                  )}
+                </button>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#756879]">
+                    Resolution {String(index + 1).padStart(2, "0")}
+                  </p>
+                  <p
+                    className={`mt-0.5 break-words text-sm font-black leading-6 text-[#18121f] [overflow-wrap:anywhere] ${
+                      resolution.completed ? "opacity-60 line-through" : ""
+                    }`}
+                  >
+                    {resolution.title}
+                  </p>
+                </div>
+                <div className="col-start-2 row-start-2 flex flex-wrap items-center gap-1 sm:col-start-3 sm:row-start-1 sm:justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => startEditing(resolution)}
+                    aria-label={`Edit resolution ${resolution.title}`}
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                  <ConfirmDeleteButton
+                    itemLabel={`resolution ${resolution.title}`}
+                    onConfirm={() => removeResolution(resolution.id)}
+                  />
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {editorOpen && (
+          <form
+            onSubmit={submit}
+            className="mt-5 rounded-2xl border-2 border-[#18121f]/15 bg-white/60 p-4"
+          >
             <label className="text-xs font-black uppercase tracking-wider text-[#756879]">
-              What should this semester change?
+              {editor && editor !== "new"
+                ? "Update this resolution"
+                : "What should this semester change?"}
               <textarea
-                className={`${textAreaClassName} mt-2 min-h-28 bg-white/80 text-base font-semibold leading-7 text-[#18121f]`}
+                className={`${textAreaClassName} mt-2 min-h-24 bg-white/80 text-base font-semibold leading-7 text-[#18121f]`}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 autoFocus
                 required
-                aria-label="Main semester resolution"
+                aria-label={
+                  editor && editor !== "new"
+                    ? "Edit semester resolution"
+                    : "New semester resolution"
+                }
               />
             </label>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button type="submit" size="sm" disabled={!draft.trim()}>
                 <Save className="h-3.5 w-3.5" />
-                Save resolution
+                {editor && editor !== "new"
+                  ? "Save resolution changes"
+                  : "Add resolution"}
               </Button>
-              {resolution && (
+              {resolutions.length > 0 && (
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
-                  onClick={() => {
-                    setDraft(resolution);
-                    setEditing(false);
-                  }}
+                  onClick={closeEditor}
                 >
                   Cancel
                 </Button>
               )}
             </div>
           </form>
-        ) : (
-          <h1 className="font-display mt-6 max-w-3xl text-4xl leading-[1.02] tracking-wide text-[#18121f] sm:text-5xl">
-            {resolution}
-          </h1>
         )}
 
         <div className="mt-auto pt-6">
