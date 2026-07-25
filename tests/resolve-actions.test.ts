@@ -184,6 +184,126 @@ describe("empty data and storage normalization", () => {
       status: "active",
     });
   });
+
+  it("repairs nested collections without retaining malformed records", () => {
+    const seed = createActionFixture("old-user");
+    const normalized = normalizeStoredData(
+      {
+        ...seed,
+        semester: { ...seed.semester, id: "kept-semester" },
+        goals: [
+          { ...seed.goals[0], userId: "wrong-user" },
+          null,
+          { id: "missing-title" },
+        ],
+        milestones: [
+          {
+            id: "step-1",
+            goalId: "goal-career",
+            title: "  First step  ",
+            completed: "yes",
+            order: Number.NaN,
+          },
+          { id: "orphan", goalId: "missing-goal", title: "Orphan" },
+          null,
+        ],
+        tasks: [
+          {
+            ...seed.tasks[0],
+            userId: "wrong-user",
+            goalId: "missing-goal",
+            milestoneId: "missing-step",
+            estimatedMinutes: "many",
+          },
+          null,
+        ],
+        habits: [
+          {
+            ...seed.habits[0],
+            targetDays: [1, 1, 9, "2"],
+          },
+          null,
+        ],
+        habitLogs: [
+          {
+            id: "habit-log",
+            habitId: "habit-plan",
+            userId: "wrong-user",
+            date: "2026-07-24",
+            completed: true,
+          },
+          {
+            id: "orphan-log",
+            habitId: "missing-habit",
+            date: "2026-07-24",
+            completed: true,
+          },
+        ],
+        guitarSessions: [
+          {
+            id: "guitar-1",
+            userId: "wrong-user",
+            semesterId: "wrong-semester",
+            date: "2026-07-24",
+            durationMinutes: 30,
+            category: "Foundations",
+            techniques: "not-an-array",
+          },
+        ],
+        modules: [
+          {
+            id: "module-1",
+            userId: "wrong-user",
+            semesterId: "wrong-semester",
+            code: " cs1010 ",
+            name: " Programming ",
+            credits: 4,
+            targetGrade: "A",
+            color: "#7eb8da",
+            weeklyStudyMinutes: 0,
+            assessments: "not-an-array",
+          },
+          null,
+        ],
+        algorithmLogs: [null, {}],
+        applications: [null, {}],
+      },
+      "restored-user",
+    );
+
+    expect(normalized.semester.id).toBe("kept-semester");
+    expect(normalized.goals).toHaveLength(1);
+    expect(normalized.goals[0]).toMatchObject({
+      userId: "restored-user",
+      semesterId: "kept-semester",
+    });
+    expect(normalized.milestones).toEqual([
+      expect.objectContaining({
+        id: "step-1",
+        title: "First step",
+        completed: false,
+        order: 1,
+      }),
+    ]);
+    expect(normalized.tasks).toHaveLength(1);
+    expect(normalized.tasks[0]).toMatchObject({
+      userId: "restored-user",
+      semesterId: "kept-semester",
+      goalId: undefined,
+      milestoneId: undefined,
+      estimatedMinutes: undefined,
+    });
+    expect(normalized.habits[0].targetDays).toEqual([1]);
+    expect(normalized.habitLogs).toHaveLength(1);
+    expect(normalized.guitarSessions[0].techniques).toEqual([]);
+    expect(normalized.modules[0]).toMatchObject({
+      code: "CS1010",
+      name: "Programming",
+      assessments: [],
+    });
+    expect(normalized.algorithmLogs).toEqual([]);
+    expect(normalized.applications).toEqual([]);
+  });
 });
 
 describe("task actions", () => {

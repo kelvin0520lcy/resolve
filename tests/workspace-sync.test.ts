@@ -20,6 +20,7 @@ vi.mock("@/lib/firebase/config", () => ({
 }));
 
 import {
+  getWorkspaceSchemaCompatibility,
   saveWorkspace,
   subscribeToWorkspace,
   WORKSPACE_COLLECTION,
@@ -33,6 +34,18 @@ beforeEach(() => {
 });
 
 describe("Firestore workspace sync", () => {
+  it("distinguishes current, upgradeable, and newer workspace schemas", () => {
+    expect(
+      getWorkspaceSchemaCompatibility(WORKSPACE_SCHEMA_VERSION),
+    ).toBe("current");
+    expect(
+      getWorkspaceSchemaCompatibility(WORKSPACE_SCHEMA_VERSION - 1),
+    ).toBe("upgrade");
+    expect(
+      getWorkspaceSchemaCompatibility(WORKSPACE_SCHEMA_VERSION + 1),
+    ).toBe("unsupported");
+  });
+
   it("writes a user-owned serializable workspace envelope", async () => {
     await saveWorkspace("user-1", {
       title: "Semester",
@@ -111,7 +124,7 @@ describe("Firestore workspace sync", () => {
     expect(error).toHaveBeenCalledTimes(1);
   });
 
-  it("reports legacy snapshots so the provider can replace seeded data", () => {
+  it("reports legacy snapshots so the provider can migrate their data", () => {
     let snapshotHandler: ((snapshot: unknown) => void) | undefined;
     const value = vi.fn();
     mocks.onSnapshot.mockImplementation(

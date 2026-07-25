@@ -91,7 +91,7 @@ export default function LandingPage() {
             alt="Kessoku Band performing together in a mobile live-house scene while Bocchi buffers"
             fill
             priority
-            sizes="100vw"
+            sizes="(max-width: 639px) 100vw, 1px"
             className="object-cover object-center sm:hidden"
           />
           <Image

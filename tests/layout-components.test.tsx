@@ -6,6 +6,7 @@ import { CharacterArcBar } from "@/components/layout/character-arc-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
 import { PageIntro } from "@/components/ui/resolve";
+import { AuthPageLoading } from "@/components/auth/auth-shell";
 import { PAGE_THEMES } from "@/lib/page-themes";
 
 const mocks = vi.hoisted(() => ({
@@ -92,6 +93,15 @@ describe("character arc navigation components", () => {
       "href",
       "/goals",
     );
+  });
+});
+
+describe("authentication bootstrap", () => {
+  it("shows an accessible session check instead of a blank page", () => {
+    render(<AuthPageLoading />);
+    expect(
+      screen.getByRole("status", { name: "Checking your session" }),
+    ).toHaveTextContent("Checking your backstage pass");
   });
 });
 

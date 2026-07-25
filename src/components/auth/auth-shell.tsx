@@ -57,3 +57,20 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+export function AuthPageLoading() {
+  return (
+    <div
+      className="stage-grid flex min-h-screen items-center justify-center bg-background px-4"
+      role="status"
+      aria-label="Checking your session"
+    >
+      <div className="manga-panel rounded-[24px] px-8 py-7 text-center">
+        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[#ff4f9a]/25 border-t-[#ff4f9a]" />
+        <p className="mt-4 text-sm font-black text-[#18121f]">
+          Checking your backstage pass…
+        </p>
+      </div>
+    </div>
+  );
+}

@@ -73,11 +73,11 @@ export default function GuitarPage() {
     GUITAR_LEARNING_AREAS.find((area) => area.name === category) ??
     GUITAR_LEARNING_AREAS[0];
   const skillMinutes = guitarSessions.reduce<Record<string, number>>(
-    (totals, session) => ({
-      ...totals,
-      [session.category]:
-        (totals[session.category] ?? 0) + session.durationMinutes,
-    }),
+    (totals, session) => {
+      totals[session.category] =
+        (totals[session.category] ?? 0) + session.durationMinutes;
+      return totals;
+    },
     {},
   );
   const dominantSkill = Object.entries(skillMinutes).sort(

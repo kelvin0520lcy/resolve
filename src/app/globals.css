@@ -85,6 +85,12 @@ a {
   touch-action: manipulation;
 }
 
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--warning);
+  outline-offset: 3px;
+}
+
 input,
 select,
 textarea {

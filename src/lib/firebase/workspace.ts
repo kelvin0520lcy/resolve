@@ -10,12 +10,26 @@ import { getFirebaseDb } from "@/lib/firebase/config";
 export const WORKSPACE_COLLECTION = "workspaces";
 export const WORKSPACE_SCHEMA_VERSION = 2;
 
+export type WorkspaceSchemaCompatibility =
+  | "current"
+  | "upgrade"
+  | "unsupported";
+
 export type WorkspaceSnapshot<T> = {
   data: T;
   schemaVersion: number;
   hasPendingWrites: boolean;
   fromCache: boolean;
 };
+
+export function getWorkspaceSchemaCompatibility(
+  schemaVersion: number,
+): WorkspaceSchemaCompatibility {
+  if (schemaVersion === WORKSPACE_SCHEMA_VERSION) return "current";
+  return schemaVersion < WORKSPACE_SCHEMA_VERSION
+    ? "upgrade"
+    : "unsupported";
+}
 
 function serializable<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;

@@ -7,7 +7,10 @@ import { useAuth } from "@/contexts/auth-context";
 import { getFirebaseAuthErrorMessage } from "@/lib/firebase/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { AuthShell } from "@/components/auth/auth-shell";
+import {
+  AuthPageLoading,
+  AuthShell,
+} from "@/components/auth/auth-shell";
 import {
   Card,
   CardContent,
@@ -50,7 +53,8 @@ export default function LoginPage() {
     }
   }
 
-  if (loading || firebaseUser) return null;
+  if (loading) return <AuthPageLoading />;
+  if (firebaseUser) return null;
 
   return (
     <AuthShell>
