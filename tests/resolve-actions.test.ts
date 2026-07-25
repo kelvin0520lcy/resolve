@@ -117,6 +117,11 @@ describe("empty data and storage normalization", () => {
     expect(data.tasks).toEqual([]);
     expect(data.habits).toEqual([]);
     expect(data.modules).toEqual([]);
+    expect(data.guitarLearning.profile).toMatchObject({
+      userId: "test-user",
+      placementCompleted: false,
+    });
+    expect(data.guitarLearning.progress).toEqual([]);
     expect(data.weeklyPriorities).toEqual(["", "", ""]);
   });
 
@@ -124,6 +129,9 @@ describe("empty data and storage normalization", () => {
     const normalized = normalizeStoredData("bad-data", "restored-user");
     expect(normalized.semester.userId).toBe("restored-user");
     expect(normalized.goals).toEqual([]);
+    expect(normalized.guitarLearning.profile.userId).toBe(
+      "restored-user",
+    );
   });
 
   it("accepts valid arrays, dates, and exactly three trimmed priorities", () => {

@@ -30,6 +30,7 @@ export function PageIntro({
           src={illustration.image}
           alt={illustration.imageAlt}
           fill
+          loading="eager"
           sizes="(min-width: 640px) 58vw, 70vw"
           className="object-cover object-right"
         />
