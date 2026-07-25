@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Resolve!
 
-## Getting Started
+Anime-themed semester planning, progress tracking, and self-improvement web app.
 
-First, run the development server:
+> Your semester, one episode at a time.
+
+## Stack
+
+- **Next.js 16** (App Router, TypeScript)
+- **Tailwind CSS 4** with custom Resolve! design tokens
+- **Firebase** (Auth, Firestore, Storage)
+- **Framer Motion**, **Recharts**, **React Hook Form**, **Zod**
+
+## Getting started
 
 ```bash
+npm install
+cp .env.example .env.local
+# Add Firebase credentials to .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Without Firebase configured, the interface can be previewed with browser-only
+storage. Production accounts require Firebase Authentication and Firestore.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project structure
 
-## Learn More
+```
+src/
+├── app/
+│   ├── (auth)/          # Login, signup, password reset
+│   ├── (dashboard)/     # Protected app routes
+│   └── page.tsx         # Landing page
+├── components/
+│   ├── character/       # Anime companion
+│   ├── layout/          # Sidebar, mobile nav, shell
+│   └── ui/              # Reusable UI primitives
+├── contexts/            # Auth provider
+├── lib/
+│   ├── character/       # Dialogue rules
+│   ├── constants/       # Categories, navigation
+│   └── firebase/        # Firebase config
+└── types/               # Data model types
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Current MVP
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The main semester loop is implemented:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Firebase email/password and Google authentication
+- Account-gated dashboard routes
+- Semester setup and automatic episode/week calculations
+- Interactive goals, daily tasks, weekly scheduling, and priorities
+- Seven-day habit check-ins with forgiving consistency metrics
+- Guitar practice sessions with clean-BPM and practice-mix tracking
+- Academic module tracking
+- Career practice logs and application pipeline
+- Daily reflections, semester timeline, charts, and rule-based insights
+- Original companion artwork with contextual dialogue
+- Responsive desktop and mobile navigation
 
-## Deploy on Vercel
+Signed-in workspaces synchronize in real time through a private
+`workspaces/{userId}` Firestore document. A browser copy remains available as
+an offline fallback, and Settings shows whether changes are connecting, saving,
+synced, or offline.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Next production steps
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Add calendar drag-and-drop and recurring task rules.
+2. Add achievement unlocks and notification preferences.
+3. Deploy the app and Firestore rules.
+
+## Firebase setup
+
+1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
+2. Enable **Authentication** (Email/Password + Google)
+3. Create a **Firestore** database
+4. Copy web app config into `.env.local`
+5. Deploy security rules: `firebase deploy --only firestore:rules`
