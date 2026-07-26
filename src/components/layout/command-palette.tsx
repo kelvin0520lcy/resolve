@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useResolve } from "@/contexts/resolve-context";
 import { parseQuickCapture } from "@/features/workspace/lib/quick-capture";
 import { fieldClassName } from "@/components/ui/resolve";
+import { useDialogFocus } from "@/hooks/use-dialog-focus";
 
 type SearchRecord = {
   id: string;
@@ -23,6 +24,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [lessonRecords, setLessonRecords] = useState<SearchRecord[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, close);
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -98,12 +100,49 @@ export function CommandPalette() {
         context: "Fixed event",
         href: `/weekly?event=${encodeURIComponent(event.id)}`,
       })),
+      ...(workspace.habits ?? []).map((habit) => ({
+        id: `habit:${habit.id}`,
+        title: habit.title,
+        context: "Habit",
+        href: `/habits?habit=${encodeURIComponent(habit.id)}`,
+      })),
+      ...(workspace.reflections ?? []).map((reflection) => ({
+        id: `reflection:${reflection.id}`,
+        title:
+          reflection.wins?.trim() ||
+          `${reflection.type} reflection · ${reflection.periodStart}`,
+        context: "Reflection",
+        href: `/reflections?reflection=${encodeURIComponent(reflection.id)}`,
+      })),
+      ...(workspace.applications ?? []).map((application) => ({
+        id: `application:${application.id}`,
+        title: `${application.company} · ${application.role}`,
+        context: "Application",
+        href: `/career?application=${encodeURIComponent(application.id)}`,
+      })),
+      ...(workspace.algorithmLogs ?? []).map((log) => ({
+        id: `algorithm:${log.id}`,
+        title: log.problemName,
+        context: `${log.platform} practice`,
+        href: `/career?algorithm=${encodeURIComponent(log.id)}`,
+      })),
+      ...(workspace.guitarSessions ?? []).map((session) => ({
+        id: `guitar-session:${session.id}`,
+        title: session.song || session.exercise || `${session.category} practice`,
+        context: "Guitar practice",
+        href: `/guitar?session=${encodeURIComponent(session.id)}`,
+      })),
       ...lessonRecords,
     ],
     [
       lessonRecords,
       workspace.events,
       workspace.goals,
+      workspace.habits,
+      workspace.reflections,
+      workspace.applications,
+      workspace.algorithmLogs,
+      workspace.guitarSessions,
       workspace.modules,
       workspace.tasks,
     ],
@@ -136,7 +175,10 @@ export function CommandPalette() {
       aria-modal="true"
       aria-label="Search and quick capture"
     >
-      <div className="manga-panel w-full max-w-2xl overflow-hidden rounded-[26px]">
+      <div
+        ref={dialogRef}
+        className="manga-panel w-full max-w-2xl overflow-hidden rounded-[26px]"
+      >
         <div className="flex items-center gap-2 border-b border-border p-3">
           <Command className="h-5 w-5 text-accent" />
           <input

@@ -20,16 +20,19 @@ import {
   deleteRecoverySnapshot,
   downloadCalendarIcs,
   downloadTasksCsv,
+  downloadWorkspaceText,
   downloadWorkspaceJson,
-  listRecoverySnapshots,
+  listRecoverySnapshotsForIdentity,
   saveRecoverySnapshot,
 } from "@/features/workspace/lib/recovery";
 import {
   CURRENT_WORKSPACE_SCHEMA_VERSION,
   migrateWorkspaceData,
   validateWorkspaceData,
+  validateWorkspacePayloadShape,
 } from "@/features/workspace/lib/migrations";
 import {
+  canApplyWorkspaceMutation,
   estimateWorkspaceSize,
   WORKSPACE_SAFE_CEILING_BYTES,
   type WorkspaceSizeReport,
@@ -59,7 +62,14 @@ export type WorkspaceSyncStatus =
   | "synced"
   | "offline"
   | "conflict"
+  | "recovery_required"
   | "error";
+
+export type WorkspaceRecoveryState = {
+  message: string;
+  schemaVersion: number;
+  snapshotId?: string;
+};
 
 export type WorkspaceSyncMetrics = {
   reads: number;
@@ -103,11 +113,37 @@ function readJson<T>(key: string): T | undefined {
   }
 }
 
+function readStoredJson<T>(key: string):
+  | { kind: "missing" }
+  | { kind: "value"; value: T; raw: string }
+  | { kind: "malformed"; raw: string }
+  | { kind: "unavailable"; message: string } {
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(key);
+  } catch (caught) {
+    return {
+      kind: "unavailable",
+      message:
+        caught instanceof Error
+          ? caught.message
+          : "Browser storage is unavailable.",
+    };
+  }
+  if (raw === null) return { kind: "missing" };
+  try {
+    return { kind: "value", value: JSON.parse(raw) as T, raw };
+  } catch {
+    return { kind: "malformed", raw };
+  }
+}
+
 function writeJson(key: string, value: unknown) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch {
-    // The in-memory workspace remains usable and the size warning explains why.
+    return false;
   }
 }
 
@@ -158,6 +194,10 @@ export function useWorkspaceSync({
   const [isLeader, setIsLeader] = useState(!enabled);
   const [canUndo, setCanUndo] = useState(false);
   const [metrics, setMetrics] = useState<WorkspaceSyncMetrics>(EMPTY_METRICS);
+  const [recoveryRequired, setRecoveryRequired] =
+    useState<WorkspaceRecoveryState | null>(null);
+  const [recoveryAttempt, setRecoveryAttempt] = useState(0);
+  const [retryGeneration, setRetryGeneration] = useState(0);
   const dataRef = useRef(data);
   const baseDataRef = useRef(emptyData);
   const baseRevisionRef = useRef(0);
@@ -176,6 +216,12 @@ export function useWorkspaceSync({
   const metricsRef = useRef<WorkspaceSyncMetrics>(EMPTY_METRICS);
   const isLeaderRef = useRef(!enabled);
   const cloudWriteBlockedRef = useRef(false);
+  const recoveryRequiredRef = useRef(false);
+  const recoveryPayloadRef = useRef<unknown>(undefined);
+  const recoveryRawTextRef = useRef<string | null>(null);
+  const retryTimerRef = useRef<number | null>(null);
+  const autoRetryTimerRef = useRef<number | null>(null);
+  const retryAttemptRef = useRef(0);
 
   const workspaceSize = useMemo<WorkspaceSizeReport>(
     () => estimateWorkspaceSize(data),
@@ -250,8 +296,28 @@ export function useWorkspaceSync({
 
   const setLocalData = useCallback(
     (next: ResolveData, { broadcast = true, undo = true } = {}) => {
+      if (recoveryRequiredRef.current) return;
       const current = dataRef.current;
-      if (JSON.stringify(current) === JSON.stringify(next)) return;
+      if (current === next) return;
+      if (
+        !canApplyWorkspaceMutation(
+          estimateWorkspaceSize(current),
+          estimateWorkspaceSize(next),
+        )
+      ) {
+        setStatus("error");
+        setError(
+          "This change would exceed the active workspace safety limit. Export a backup and archive the semester before adding more large notes or records.",
+        );
+        return;
+      }
+      if (!writeJson(storageKey, next)) {
+        setStatus("error");
+        setError(
+          "This browser could not persist the change. Export a backup and free browser storage before continuing.",
+        );
+        return;
+      }
       if (undo) {
         undoRef.current = { before: clone(current), after: clone(next) };
         setCanUndo(true);
@@ -281,11 +347,12 @@ export function useWorkspaceSync({
         }
       }
     },
-    [enabled, persistMetadata],
+    [enabled, persistMetadata, storageKey],
   );
 
   const mutateData = useCallback(
     (updater: (current: ResolveData) => ResolveData) => {
+      if (recoveryRequiredRef.current) return;
       const current = dataRef.current;
       const next = updater(current);
       if (next !== current) setLocalData(next);
@@ -313,6 +380,8 @@ export function useWorkspaceSync({
           remote,
           "migration",
           schemaVersion,
+          new Date().toISOString(),
+          identity,
         );
         await saveRecoverySnapshot(snapshot);
         try {
@@ -325,6 +394,12 @@ export function useWorkspaceSync({
           schemaVersion,
           dataRef.current.preferences.timeZone,
         ).data;
+        const migratedShape = validateWorkspacePayloadShape(value, {
+          allowMissingLegacyFields: true,
+        });
+        if (!migratedShape.valid) {
+          throw new Error(migratedShape.errors.join(" "));
+        }
         const normalized = normalize(value, identity);
         const validation = validateWorkspaceData(normalized);
         if (!validation.valid) throw new Error(validation.errors.join(" "));
@@ -338,6 +413,10 @@ export function useWorkspaceSync({
         nextRevision = upgraded.revision;
         updateMetrics({ reads: 1, writes: 1 });
       }
+      const payloadShape = validateWorkspacePayloadShape(value);
+      if (!payloadShape.valid) {
+        throw new Error(payloadShape.errors.join(" "));
+      }
       const normalized = normalize(value, identity);
       const validation = validateWorkspaceData(normalized);
       if (!validation.valid) throw new Error(validation.errors.join(" "));
@@ -348,7 +427,14 @@ export function useWorkspaceSync({
 
   const refreshFromCloud = useCallback(
     async (force = false) => {
-      if (!enabled || writeInFlightRef.current || readInFlightRef.current) return;
+      if (
+        recoveryRequiredRef.current ||
+        !enabled ||
+        writeInFlightRef.current ||
+        readInFlightRef.current
+      ) {
+        return;
+      }
       if (
         !force &&
         Date.now() - lastCheckedAtRef.current < CLOUD_REFRESH_INTERVAL_MS
@@ -442,7 +528,7 @@ export function useWorkspaceSync({
   );
 
   const flushToCloud = useCallback(async () => {
-    if (!enabled) return;
+    if (!enabled || recoveryRequiredRef.current) return;
     if (cloudWriteBlockedRef.current) {
       setStatus("error");
       return;
@@ -504,6 +590,11 @@ export function useWorkspaceSync({
         );
         persistMetadata(pending.length > 0, pending, Date.now());
         const savedAt = Date.now();
+        retryAttemptRef.current = 0;
+        if (autoRetryTimerRef.current !== null) {
+          window.clearTimeout(autoRetryTimerRef.current);
+          autoRetryTimerRef.current = null;
+        }
         setLastSyncedAt(new Date(savedAt).toISOString());
         setStatus(pending.length ? "saving" : "synced");
         coordinatorRef.current?.publish({
@@ -534,6 +625,7 @@ export function useWorkspaceSync({
             : "Cloud sync failed. Changes remain saved in this browser.",
         );
         persistMetadata(true, patches);
+        setRetryGeneration((generation) => generation + 1);
       }
     })();
     writeInFlightRef.current = write;
@@ -552,8 +644,14 @@ export function useWorkspaceSync({
 
   useEffect(() => {
     activeKeyRef.current = storageKey;
+    recoveryRequiredRef.current = false;
+    recoveryPayloadRef.current = undefined;
+    recoveryRawTextRef.current = null;
     let cancelled = false;
     const hydrate = async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      setRecoveryRequired(null);
       const metadata = readMetadata(metadataKey);
       const legacyMetadata =
         window.localStorage.getItem(metadataKey) === null
@@ -568,11 +666,25 @@ export function useWorkspaceSync({
           : 0;
         metadata.schemaVersion = 3;
       }
-      const raw = readJson<unknown>(storageKey);
+      const storedWorkspace = readStoredJson<unknown>(storageKey);
+      const raw =
+        storedWorkspace.kind === "value"
+          ? storedWorkspace.value
+          : undefined;
       const storedBase = readJson<unknown>(baseKey);
       let local = clone(emptyData);
       let base = clone(emptyData);
       try {
+        if (storedWorkspace.kind === "unavailable") {
+          throw new Error(
+            `Browser storage is unavailable: ${storedWorkspace.message}`,
+          );
+        }
+        if (storedWorkspace.kind === "malformed") {
+          throw new Error(
+            "The browser workspace contains malformed JSON and must be recovered before it can be replaced.",
+          );
+        }
         if (raw !== undefined) {
           let candidate: unknown = raw;
           if (metadata.schemaVersion < CURRENT_WORKSPACE_SCHEMA_VERSION) {
@@ -580,6 +692,8 @@ export function useWorkspaceSync({
               raw,
               "migration",
               metadata.schemaVersion,
+              new Date().toISOString(),
+              identity,
             );
             await saveRecoverySnapshot(snapshot);
             candidate = migrateWorkspaceData(
@@ -587,6 +701,13 @@ export function useWorkspaceSync({
               metadata.schemaVersion,
               emptyData.preferences.timeZone,
             ).data;
+          }
+          const payloadShape = validateWorkspacePayloadShape(candidate, {
+            allowMissingLegacyFields:
+              metadata.schemaVersion < CURRENT_WORKSPACE_SCHEMA_VERSION,
+          });
+          if (!payloadShape.valid) {
+            throw new Error(payloadShape.errors.join(" "));
           }
           local = normalize(candidate, identity);
         }
@@ -599,24 +720,45 @@ export function useWorkspaceSync({
         const validation = validateWorkspaceData(local);
         if (!validation.valid) throw new Error(validation.errors.join(" "));
       } catch (caught: unknown) {
+        const recoveryPayload =
+          storedWorkspace.kind === "malformed"
+            ? storedWorkspace.raw
+            : raw;
         const snapshot = createRecoverySnapshot(
-          raw,
+          recoveryPayload,
           "migration",
           metadata.schemaVersion,
+          new Date().toISOString(),
+          identity,
         );
+        let snapshotId: string | undefined;
         try {
           await saveRecoverySnapshot(snapshot);
+          snapshotId = snapshot.id;
         } catch {
           // The raw localStorage payload is still left untouched for recovery.
         }
         if (!cancelled) {
-          setStatus("error");
-          setError(
+          const message =
             caught instanceof Error
               ? `Workspace recovery is required: ${caught.message}`
-              : "Workspace recovery is required.",
-          );
+              : "Workspace recovery is required.";
+          recoveryRequiredRef.current = true;
+          recoveryPayloadRef.current = recoveryPayload;
+          recoveryRawTextRef.current =
+            storedWorkspace.kind === "malformed"
+              ? storedWorkspace.raw
+              : null;
+          setRecoveryRequired({
+            message,
+            schemaVersion: metadata.schemaVersion,
+            snapshotId,
+          });
+          setStatus("recovery_required");
+          setError(message);
+          setHydrated(true);
         }
+        return;
       }
       if (cancelled || activeKeyRef.current !== storageKey) return;
       dataRef.current = local;
@@ -665,11 +807,12 @@ export function useWorkspaceSync({
     normalize,
     persistMetadata,
     refreshFromCloud,
+    recoveryAttempt,
     storageKey,
   ]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || recoveryRequired) return;
     const coordinator = new TabSyncCoordinator<TabPayload>(identity);
     coordinatorRef.current = coordinator;
     coordinator.start(setIsLeader, (message: WorkspaceTabMessage<TabPayload>) => {
@@ -727,14 +870,28 @@ export function useWorkspaceSync({
       coordinator.stop();
       if (coordinatorRef.current === coordinator) coordinatorRef.current = null;
     };
-  }, [acceptBase, enabled, flushToCloud, identity, persistMetadata]);
+  }, [
+    acceptBase,
+    enabled,
+    flushToCloud,
+    identity,
+    persistMetadata,
+    recoveryRequired,
+  ]);
 
   useEffect(() => {
-    if (hydrated) writeJson(storageKey, data);
+    if (hydrated && !recoveryRequiredRef.current) writeJson(storageKey, data);
   }, [data, hydrated, storageKey]);
 
   useEffect(() => {
-    if (!enabled || !hydrated || !cloudReady || !dirtyRef.current || !isLeader) {
+    if (
+      recoveryRequiredRef.current ||
+      !enabled ||
+      !hydrated ||
+      !cloudReady ||
+      !dirtyRef.current ||
+      !isLeader
+    ) {
       return;
     }
     if (conflicts.length) return;
@@ -751,7 +908,9 @@ export function useWorkspaceSync({
   ]);
 
   useEffect(() => {
-    if (!enabled || !hydrated || !cloudReady) return;
+    if (recoveryRequiredRef.current || !enabled || !hydrated || !cloudReady) {
+      return;
+    }
     const refreshIfStale = () => {
       if (
         document.visibilityState === "visible" &&
@@ -771,9 +930,93 @@ export function useWorkspaceSync({
     };
   }, [cloudReady, enabled, hydrated, refreshFromCloud]);
 
+  useEffect(() => {
+    if (!enabled || !hydrated || recoveryRequired) return;
+    const retryDelays = [5_000, 15_000, 30_000, 60_000];
+    const clearRetry = () => {
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+    const retryDirtyWorkspace = () => {
+      clearRetry();
+      if (!navigator.onLine || !dirtyRef.current) return;
+      if (!isLeaderRef.current) {
+        coordinatorRef.current?.requestSync();
+        return;
+      }
+      void flushToCloud().finally(() => {
+        if (!dirtyRef.current || !navigator.onLine) {
+          retryAttemptRef.current = 0;
+          return;
+        }
+        const delay =
+          retryDelays[
+            Math.min(retryAttemptRef.current, retryDelays.length - 1)
+          ];
+        retryAttemptRef.current += 1;
+        retryTimerRef.current = window.setTimeout(retryDirtyWorkspace, delay);
+      });
+    };
+    const handleOnline = () => {
+      retryAttemptRef.current = 0;
+      retryDirtyWorkspace();
+    };
+    const handleOffline = () => {
+      clearRetry();
+      if (dirtyRef.current) setStatus("offline");
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      clearRetry();
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [enabled, flushToCloud, hydrated, recoveryRequired]);
+
+  useEffect(() => {
+    if (
+      retryGeneration === 0 ||
+      !enabled ||
+      !hydrated ||
+      recoveryRequired ||
+      !dirtyRef.current ||
+      !navigator.onLine ||
+      !isLeader
+    ) {
+      return;
+    }
+    const retryDelays = [5_000, 15_000, 30_000, 60_000];
+    const delay =
+      retryDelays[Math.min(retryAttemptRef.current, retryDelays.length - 1)];
+    retryAttemptRef.current += 1;
+    autoRetryTimerRef.current = window.setTimeout(() => {
+      autoRetryTimerRef.current = null;
+      void flushToCloud();
+    }, delay);
+    return () => {
+      if (autoRetryTimerRef.current !== null) {
+        window.clearTimeout(autoRetryTimerRef.current);
+        autoRetryTimerRef.current = null;
+      }
+    };
+  }, [
+    enabled,
+    flushToCloud,
+    hydrated,
+    isLeader,
+    recoveryRequired,
+    retryGeneration,
+  ]);
+
   useEffect(
     () => () => {
       if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
+      if (autoRetryTimerRef.current !== null) {
+        window.clearTimeout(autoRetryTimerRef.current);
+      }
     },
     [],
   );
@@ -814,6 +1057,8 @@ export function useWorkspaceSync({
         dataRef.current,
         "import",
         CURRENT_WORKSPACE_SCHEMA_VERSION,
+        new Date().toISOString(),
+        identity,
       );
       await saveRecoverySnapshot(backup);
       const envelope =
@@ -831,6 +1076,13 @@ export function useWorkspaceSync({
         sourceVersion,
         dataRef.current.preferences.timeZone,
       );
+      const payloadShape = validateWorkspacePayloadShape(migrated.data, {
+        allowMissingLegacyFields:
+          sourceVersion < CURRENT_WORKSPACE_SCHEMA_VERSION,
+      });
+      if (!payloadShape.valid) {
+        throw new Error(payloadShape.errors.join(" "));
+      }
       const normalized = normalize(migrated.data, identity);
       const validation = validateWorkspaceData(normalized);
       if (!validation.valid) throw new Error(validation.errors.join(" "));
@@ -847,12 +1099,166 @@ export function useWorkspaceSync({
     [identity, normalize, setLocalData],
   );
 
+  const retryRecoveryMigration = useCallback(() => {
+    recoveryRequiredRef.current = false;
+    setRecoveryRequired(null);
+    setError("");
+    setHydrated(false);
+    setRecoveryAttempt((attempt) => attempt + 1);
+  }, []);
+
+  const restoreLatestRecoverySnapshot = useCallback(async () => {
+    const snapshots = await listRecoverySnapshotsForIdentity(identity);
+    for (const snapshot of snapshots) {
+      try {
+        const payload =
+          typeof snapshot.payload === "string"
+            ? (JSON.parse(snapshot.payload) as unknown)
+            : snapshot.payload;
+        const migrated = migrateWorkspaceData(
+          payload,
+          snapshot.schemaVersion,
+          emptyData.preferences.timeZone,
+        );
+        const payloadShape = validateWorkspacePayloadShape(migrated.data, {
+          allowMissingLegacyFields:
+            snapshot.schemaVersion < CURRENT_WORKSPACE_SCHEMA_VERSION,
+        });
+        if (!payloadShape.valid) continue;
+        const normalized = normalize(migrated.data, identity);
+        if (!validateWorkspaceData(normalized).valid) continue;
+        if (
+          !writeJson(storageKey, payload) ||
+          !writeJson(metadataKey, {
+            ...readMetadata(metadataKey),
+            dirty: true,
+            schemaVersion: snapshot.schemaVersion,
+            patches: [],
+          } satisfies LocalSyncMetadata)
+        ) {
+          throw new Error("Browser storage is unavailable.");
+        }
+        retryRecoveryMigration();
+        return;
+      } catch {
+        // Try the next retained snapshot instead of restoring known-bad data.
+      }
+    }
+    throw new Error(
+      "No valid recovery copy is available. Download the untouched data before starting fresh.",
+    );
+  }, [
+    emptyData.preferences.timeZone,
+    identity,
+    metadataKey,
+    normalize,
+    retryRecoveryMigration,
+    storageKey,
+  ]);
+
+  const startFreshAfterRecovery = useCallback(async () => {
+    const fresh = clone(emptyData);
+    const metadata = readMetadata(metadataKey);
+    const storedBase = readJson<unknown>(baseKey);
+    let base = clone(emptyData);
+    let baseRevision = metadata.baseRevision;
+    let hasUsableBase = false;
+
+    if (storedBase !== undefined) {
+      const payloadShape = validateWorkspacePayloadShape(storedBase, {
+        allowMissingLegacyFields:
+          metadata.schemaVersion < CURRENT_WORKSPACE_SCHEMA_VERSION,
+      });
+      if (payloadShape.valid) {
+        const normalizedBase = normalize(storedBase, identity);
+        if (validateWorkspaceData(normalizedBase).valid) {
+          base = normalizedBase;
+          hasUsableBase = true;
+        }
+      }
+    }
+
+    if (enabled && !hasUsableBase) {
+      const remote = await loadWorkspace<unknown>(identity);
+      if (remote.kind === "value") {
+        if (
+          remote.snapshot.schemaVersion >
+          CURRENT_WORKSPACE_SCHEMA_VERSION
+        ) {
+          throw new Error(
+            "The cloud workspace was created by a newer Resolve version and cannot be safely cleared here.",
+          );
+        }
+        const remotePayload =
+          remote.snapshot.schemaVersion < CURRENT_WORKSPACE_SCHEMA_VERSION
+            ? migrateWorkspaceData(
+                remote.snapshot.data,
+                remote.snapshot.schemaVersion,
+                emptyData.preferences.timeZone,
+              ).data
+            : remote.snapshot.data;
+        const payloadShape = validateWorkspacePayloadShape(remotePayload, {
+          allowMissingLegacyFields:
+            remote.snapshot.schemaVersion <
+            CURRENT_WORKSPACE_SCHEMA_VERSION,
+        });
+        if (!payloadShape.valid) {
+          throw new Error(
+            `The cloud recovery base is invalid: ${payloadShape.errors.join(" ")}`,
+          );
+        }
+        const normalizedBase = normalize(remotePayload, identity);
+        const validation = validateWorkspaceData(normalizedBase);
+        if (!validation.valid) {
+          throw new Error(
+            `The cloud recovery base is invalid: ${validation.errors.join(" ")}`,
+          );
+        }
+        base = normalizedBase;
+        baseRevision = remote.snapshot.revision;
+      }
+    }
+
+    const patches = buildWorkspacePatches(
+      base,
+      fresh,
+      coordinatorRef.current?.tabId ?? "recovery-tab",
+    );
+    if (
+      !writeJson(storageKey, fresh) ||
+      !writeJson(baseKey, base) ||
+      !writeJson(metadataKey, {
+      ...metadata,
+      dirty: patches.length > 0,
+      baseRevision,
+      schemaVersion: CURRENT_WORKSPACE_SCHEMA_VERSION,
+      patches,
+      } satisfies LocalSyncMetadata)
+    ) {
+      throw new Error(
+        "Resolve could not create a fresh browser workspace because local storage is unavailable.",
+      );
+    }
+    retryRecoveryMigration();
+  }, [
+    baseKey,
+    emptyData,
+    enabled,
+    identity,
+    metadataKey,
+    normalize,
+    retryRecoveryMigration,
+    storageKey,
+  ]);
+
   const archiveWorkspace = useCallback(
     async (next: ResolveData) => {
       const snapshot = createRecoverySnapshot(
         dataRef.current,
         "manual",
         CURRENT_WORKSPACE_SCHEMA_VERSION,
+        new Date().toISOString(),
+        identity,
       );
       await saveRecoverySnapshot(snapshot);
       if (enabled) {
@@ -876,6 +1282,7 @@ export function useWorkspaceSync({
     workspaceSize,
     syncMetrics: metrics,
     canUndo,
+    recoveryRequired,
     mutateData,
     syncWorkspaceNow: async () => {
       if (dirtyRef.current) await flushToCloud();
@@ -894,7 +1301,19 @@ export function useWorkspaceSync({
     exportCalendarIcs: () => downloadCalendarIcs(dataRef.current),
     importWorkspace,
     archiveWorkspace,
-    listRecoverySnapshots,
+    listRecoverySnapshots: () =>
+      listRecoverySnapshotsForIdentity(identity),
     deleteRecoverySnapshot,
+    downloadRecoveryPayload: () => {
+      const filename = `resolve-recovery-raw-${new Date().toISOString().slice(0, 10)}.json`;
+      if (recoveryRawTextRef.current !== null) {
+        downloadWorkspaceText(recoveryRawTextRef.current, filename);
+        return;
+      }
+      downloadWorkspaceJson(recoveryPayloadRef.current, filename);
+    },
+    retryRecoveryMigration,
+    restoreLatestRecoverySnapshot,
+    startFreshAfterRecovery,
   };
 }

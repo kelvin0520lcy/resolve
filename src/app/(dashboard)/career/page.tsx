@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   BrainCircuit,
   Briefcase,
@@ -87,6 +87,36 @@ export default function CareerPage() {
     algorithmLogs.reduce((sum, log) => sum + log.confidence, 0) /
       Math.max(algorithmLogs.length, 1),
   );
+
+  useEffect(() => {
+    let frame = 0;
+    function openDeepLink(href = window.location.href) {
+      const url = new URL(href, window.location.origin);
+      const applicationId = url.searchParams.get("application");
+      const algorithmId = url.searchParams.get("algorithm");
+      const targetId = applicationId
+        ? `application-${applicationId}`
+        : algorithmId
+          ? `algorithm-${algorithmId}`
+          : undefined;
+      if (!targetId) return;
+      frame = window.requestAnimationFrame(() => {
+        document
+          .getElementById(targetId)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
+    const handleRecord = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (href?.startsWith("/career")) openDeepLink(href);
+    };
+    openDeepLink();
+    window.addEventListener("resolve:open-record", handleRecord);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resolve:open-record", handleRecord);
+    };
+  }, [algorithmLogs.length, applications.length]);
 
   function resetPracticeForm() {
     setPlatform("LeetCode");
@@ -494,7 +524,8 @@ export default function CareerPage() {
               {algorithmLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="rounded-2xl border border-border bg-surface p-4"
+                  id={`algorithm-${log.id}`}
+                  className="scroll-mt-24 rounded-2xl border border-border bg-surface p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -564,7 +595,8 @@ export default function CareerPage() {
               {applications.map((application) => (
                 <div
                   key={application.id}
-                  className="rounded-2xl border border-border bg-surface p-4"
+                  id={`application-${application.id}`}
+                  className="scroll-mt-24 rounded-2xl border border-border bg-surface p-4"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">

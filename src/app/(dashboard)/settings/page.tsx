@@ -30,11 +30,13 @@ import {
   fieldClassName,
 } from "@/components/ui/resolve";
 import { useResolve } from "@/contexts/resolve-context";
+import { useAuth } from "@/contexts/auth-context";
 import { isDateKey, offsetDate } from "@/lib/date";
 import type { Semester } from "@/types";
 import type { RecoverySnapshot } from "@/features/workspace/lib/recovery";
 
 export default function SettingsPage() {
+  const { deleteAccount, isConfigured } = useAuth();
   const {
     semester,
     storageMode,
@@ -60,6 +62,9 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [accountConfirmation, setAccountConfirmation] = useState("");
+  const [accountDeleteError, setAccountDeleteError] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [dataError, setDataError] = useState("");
   const [pendingImport, setPendingImport] = useState<{
     value: unknown;
@@ -805,6 +810,83 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
+
+            {isConfigured && (
+              <Card className="border-danger/40">
+                <CardHeader>
+                  <CardTitle>Delete account</CardTitle>
+                  <CardDescription>
+                    Permanently remove the Firebase account, active workspace,
+                    recovery copies, and semester archives.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs leading-5 text-muted">
+                    Export a JSON backup first. Then type DELETE ACCOUNT. A
+                    recent sign-in is required.
+                  </p>
+                  {["saving", "offline", "conflict", "error"].includes(
+                    syncStatus,
+                  ) && (
+                    <p
+                      className="rounded-xl border border-warning/35 bg-warning/10 p-3 text-xs leading-5 text-foreground"
+                      role="status"
+                    >
+                      Your cloud copy is not currently confirmed as synced.
+                      Export the browser copy before deleting this account.
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    onClick={exportWorkspace}
+                  >
+                    <Download className="h-4 w-4" />
+                    Export account backup
+                  </Button>
+                  <input
+                    className={fieldClassName}
+                    value={accountConfirmation}
+                    onChange={(event) =>
+                      setAccountConfirmation(event.target.value)
+                    }
+                    placeholder="DELETE ACCOUNT"
+                    autoComplete="off"
+                    aria-label="Type DELETE ACCOUNT to confirm"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="w-full"
+                    disabled={
+                      accountConfirmation !== "DELETE ACCOUNT" ||
+                      deletingAccount
+                    }
+                    onClick={() => {
+                      setAccountDeleteError("");
+                      setDeletingAccount(true);
+                      void deleteAccount().catch((caught: unknown) => {
+                        setDeletingAccount(false);
+                        setAccountDeleteError(
+                          caught instanceof Error
+                            ? caught.message
+                            : "The account could not be deleted.",
+                        );
+                      });
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deletingAccount ? "Deleting…" : "Delete account permanently"}
+                  </Button>
+                  {accountDeleteError && (
+                    <p className="text-xs leading-5 text-danger" role="alert">
+                      {accountDeleteError}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

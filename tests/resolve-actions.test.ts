@@ -36,6 +36,7 @@ import {
   updateApplicationInData,
   updateAssessmentInData,
   updateAssessmentProgressInData,
+  markAssessmentSubmittedInData,
   updateAlgorithmLogInData,
   updateGoalInData,
   updateGuitarSessionInData,
@@ -49,6 +50,8 @@ import {
   updateTaskInData,
   updateTaskActualMinutesInData,
 } from "@/features/workspace/lib/resolve-actions";
+import type { ResolveData } from "@/features/workspace/types";
+import { validateWorkspaceData } from "@/features/workspace/lib/migrations";
 
 const META = {
   identity: "test-user",
@@ -56,7 +59,7 @@ const META = {
   timestamp: "2026-07-24T04:00:00.000Z",
 };
 
-function createActionFixture(userId = "test-user") {
+function createActionFixture(userId = "test-user"): ResolveData {
   const data = createEmptyData(userId);
   const timestamp = "2026-07-24T00:00:00.000Z";
   return {
@@ -186,7 +189,7 @@ describe("empty data and storage normalization", () => {
     expect(normalized.weeklyPriorities).toEqual(empty.weeklyPriorities);
   });
 
-  it("migrates old numeric goals to direct completion when no breakdown exists", () => {
+  it("preserves numeric goal measurements when no breakdown exists", () => {
     const seed = createActionFixture("restored-user");
     const normalized = normalizeStoredData(
       {
@@ -207,10 +210,10 @@ describe("empty data and storage normalization", () => {
     );
 
     expect(normalized.goals[0]).toMatchObject({
-      measurementType: "manual",
-      targetValue: undefined,
-      currentValue: undefined,
-      unit: undefined,
+      measurementType: "count",
+      targetValue: 60,
+      currentValue: 60,
+      unit: "sessions",
       status: "completed",
     });
   });
@@ -361,6 +364,40 @@ describe("empty data and storage normalization", () => {
     expect(normalized.algorithmLogs).toEqual([]);
     expect(normalized.applications).toEqual([]);
   });
+
+  it("derives a task goal from its valid milestone during normalization", () => {
+    const seed = createActionFixture("old-user");
+    const normalized = normalizeStoredData(
+      {
+        ...seed,
+        milestones: [
+          {
+            id: "milestone-career",
+            goalId: "goal-career",
+            title: "Complete the interview set",
+            completed: false,
+            order: 1,
+          },
+        ],
+        tasks: [
+          {
+            ...seed.tasks[0],
+            goalId: undefined,
+            milestoneId: "milestone-career",
+            requiredForMilestone: true,
+          },
+        ],
+      },
+      "restored-user",
+    );
+
+    expect(normalized.tasks[0]).toMatchObject({
+      goalId: "goal-career",
+      milestoneId: "milestone-career",
+      requiredForMilestone: true,
+    });
+    expect(validateWorkspaceData(normalized).valid).toBe(true);
+  });
 });
 
 describe("task actions", () => {
@@ -499,6 +536,108 @@ describe("task actions", () => {
         },
       ),
     ).toBe(data);
+  });
+
+  it("preserves omitted task details and only clears explicitly edited fields", () => {
+    const data = createActionFixture("test-user");
+    data.tasks[0] = {
+      ...data.tasks[0],
+      description: "Keep the examples",
+      schedule: {
+        date: "2026-07-24",
+        startTime: "09:30",
+        estimatedMinutes: 45,
+        timeZone: "Asia/Kuala_Lumpur",
+      },
+      prerequisiteTaskIds: ["task-leetcode"],
+      origin: {
+        kind: "reflection-action",
+        reflectionDate: "2026-07-23",
+      },
+    };
+
+    const renamed = updateTaskInData(
+      data,
+      "task-review",
+      { title: "Review chapter two" },
+      META.timestamp,
+    );
+    expect(renamed.tasks[0]).toMatchObject({
+      title: "Review chapter two",
+      description: "Keep the examples",
+      schedule: {
+        date: "2026-07-24",
+        startTime: "09:30",
+        estimatedMinutes: 45,
+      },
+      prerequisiteTaskIds: ["task-leetcode"],
+      origin: {
+        kind: "reflection-action",
+        reflectionDate: "2026-07-23",
+      },
+    });
+    const retimed = updateTaskInData(
+      renamed,
+      "task-review",
+      { schedule: { startTime: "10:15" } },
+      META.timestamp,
+    );
+    expect(retimed.tasks[0].schedule).toMatchObject({
+      date: "2026-07-24",
+      startTime: "10:15",
+      estimatedMinutes: 45,
+      timeZone: "Asia/Kuala_Lumpur",
+    });
+
+    const cleared = updateTaskInData(
+      retimed,
+      "task-review",
+      {
+        description: undefined,
+        prerequisiteTaskIds: [],
+        origin: undefined,
+        schedule: {
+          date: "2026-07-24",
+          startTime: undefined,
+          estimatedMinutes: 45,
+          timeZone: "Asia/Kuala_Lumpur",
+        },
+      },
+      META.timestamp,
+    );
+    expect(cleared.tasks[0].description).toBeUndefined();
+    expect(cleared.tasks[0].schedule?.startTime).toBeUndefined();
+    expect(cleared.tasks[0].prerequisiteTaskIds).toEqual([]);
+    expect(cleared.tasks[0].origin).toBeUndefined();
+  });
+
+  it("unlinks an existing milestone when its task goal is cleared", () => {
+    const data = createActionFixture("test-user");
+    data.milestones = [
+      {
+        id: "milestone-career",
+        goalId: "goal-career",
+        title: "Complete the set",
+        completed: false,
+        order: 1,
+      },
+    ];
+    data.tasks[0] = {
+      ...data.tasks[0],
+      goalId: "goal-career",
+      milestoneId: "milestone-career",
+      requiredForMilestone: true,
+    };
+
+    const next = updateTaskInData(
+      data,
+      "task-review",
+      { goalId: undefined },
+      META.timestamp,
+    );
+    expect(next.tasks[0]).toMatchObject({ requiredForMilestone: false });
+    expect(next.tasks[0].goalId).toBeUndefined();
+    expect(next.tasks[0].milestoneId).toBeUndefined();
   });
 
   it("supports explicit task workflow states for focus and cancellation", () => {
@@ -759,6 +898,7 @@ describe("goal actions", () => {
     });
     expect(removed.tasks[0]).toMatchObject({
       milestoneId: undefined,
+      requiredForMilestone: false,
       updatedAt: META.timestamp,
     });
     expect(toggleMilestoneInData(data, "missing")).toBe(data);
@@ -905,7 +1045,18 @@ describe("habit, practice, and reflection actions", () => {
     );
     expect(completed.modules[0].assessments[0]).toMatchObject({
       progress: 100,
+      status: "ready_to_submit",
+    });
+    const submitted = markAssessmentSubmittedInData(
+      completed,
+      "new-id",
+      "assessment-1",
+      true,
+      META.timestamp,
+    );
+    expect(submitted.modules[0].assessments[0]).toMatchObject({
       status: "submitted",
+      submittedAt: META.timestamp,
     });
     const reopened = updateAssessmentProgressInData(
       completed,
@@ -945,7 +1096,13 @@ describe("habit, practice, and reflection actions", () => {
       "new-id",
       12000,
     );
-    expect(studied.modules[0].weeklyStudyMinutes).toBe(10080);
+    expect(studied.modules[0].weeklyStudyMinutes).toBe(0);
+    expect(studied.moduleStudyLogs).toMatchObject([
+      {
+        moduleId: "new-id",
+        minutes: 1440,
+      },
+    ]);
     expect(
       updateModuleStudyMinutesInData(withAssessment, "missing", 20),
     ).toBe(withAssessment);
@@ -1075,8 +1232,32 @@ describe("habit, practice, and reflection actions", () => {
       "assessment-1",
       60,
     );
+    const withPreparationTask = {
+      ...progressed,
+      tasks: [
+        ...progressed.tasks,
+        {
+          id: "prep-task",
+          userId: "test-user",
+          semesterId: progressed.semester.id,
+          title: "Prepare for Midterm",
+          category: "academics",
+          priority: "high" as const,
+          status: "planned" as const,
+          origin: {
+            kind: "assessment-preparation" as const,
+            moduleId: "module-1",
+            assessmentId: "assessment-1",
+            templateId: "exam-v1",
+            templateStepId: "review",
+          },
+          createdAt: META.timestamp,
+          updatedAt: META.timestamp,
+        },
+      ],
+    };
     const movedAssessment = updateAssessmentInData(
-      progressed,
+      withPreparationTask,
       "assessment-1",
       {
         moduleId: "module-2",
@@ -1101,6 +1282,13 @@ describe("habit, practice, and reflection actions", () => {
       title: "Final project",
       progress: 60,
       status: "in_progress",
+    });
+    expect(
+      movedAssessment.tasks.find((task) => task.id === "prep-task")?.origin,
+    ).toMatchObject({
+      kind: "assessment-preparation",
+      moduleId: "module-2",
+      assessmentId: "assessment-1",
     });
 
     const withLog = addAlgorithmLogToData(
@@ -1567,7 +1755,7 @@ describe("semester and priority actions", () => {
     ).toBe(data);
   });
 
-  it("requires exactly three non-empty weekly priorities", () => {
+  it("stores up to three weekly priorities against the selected week", () => {
     const data = createActionFixture("test-user");
     expect(
       updatePrioritiesInData(data, [" One ", "Two", " Three "])
@@ -1577,5 +1765,13 @@ describe("semester and priority actions", () => {
     expect(updatePrioritiesInData(data, ["One", "Two", "Three", "Four"])).toBe(
       data,
     );
+    const dated = updatePrioritiesInData(
+      data,
+      [" First ", "", ""],
+      "2026-07-20",
+    );
+    expect(dated.weeklyPrioritiesByWeek).toEqual({
+      "2026-07-20": ["First", "", ""],
+    });
   });
 });

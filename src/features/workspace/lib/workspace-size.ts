@@ -1,4 +1,6 @@
 export const WORKSPACE_SAFE_CEILING_BYTES = 820 * 1024;
+export const WORKSPACE_HARD_CEILING_BYTES = 950 * 1024;
+export const MAX_OVERSIZE_MUTATION_GROWTH_BYTES = 4 * 1024;
 
 export type WorkspaceSizeState =
   | "healthy"
@@ -40,5 +42,20 @@ export function canAddEmbeddedData(
   return (
     report.estimatedFirestoreBytes + Math.max(0, estimatedAdditionalBytes) <=
     WORKSPACE_SAFE_CEILING_BYTES
+  );
+}
+
+export function canApplyWorkspaceMutation(
+  current: WorkspaceSizeReport,
+  next: WorkspaceSizeReport,
+) {
+  if (next.estimatedFirestoreBytes <= WORKSPACE_SAFE_CEILING_BYTES) return true;
+  if (next.estimatedFirestoreBytes <= current.estimatedFirestoreBytes) {
+    return true;
+  }
+  return (
+    next.estimatedFirestoreBytes <= WORKSPACE_HARD_CEILING_BYTES &&
+    next.estimatedFirestoreBytes - current.estimatedFirestoreBytes <=
+      MAX_OVERSIZE_MUTATION_GROWTH_BYTES
   );
 }

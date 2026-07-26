@@ -51,4 +51,20 @@ describe("mobile development origins", () => {
   it("places discovered LAN addresses in Next's development allowlist", () => {
     expect(nextConfig.allowedDevOrigins).toEqual(getLocalDevOrigins());
   });
+
+  it("sets baseline production security headers", async () => {
+    const groups = await nextConfig.headers?.();
+    const headers = Object.fromEntries(
+      (groups?.[0].headers ?? []).map((header) => [
+        header.key,
+        header.value,
+      ]),
+    );
+    expect(headers).toMatchObject({
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Permissions-Policy": "camera=(), geolocation=(), microphone=()",
+    });
+  });
 });

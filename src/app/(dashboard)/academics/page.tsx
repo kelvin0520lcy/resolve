@@ -30,7 +30,12 @@ import {
   alignedFieldLabelClassName,
   fieldClassName,
 } from "@/components/ui/resolve";
-import { offsetDate, useResolve } from "@/contexts/resolve-context";
+import {
+  getWeekDateKeys,
+  offsetDate,
+  useResolve,
+} from "@/contexts/resolve-context";
+import { getModuleStudyMinutes } from "@/features/workspace/lib/analytics";
 import { formatDate } from "@/lib/utils";
 import type { Assessment } from "@/types";
 
@@ -43,9 +48,10 @@ type PreparationDraftRow = {
 function preparationDraft(
   title = "",
   estimatedMinutes = 30,
+  id = crypto.randomUUID(),
 ): PreparationDraftRow {
   return {
-    id: crypto.randomUUID(),
+    id,
     title,
     estimatedMinutes,
   };
@@ -54,33 +60,68 @@ function preparationDraft(
 function preparationTemplate(assessment: Assessment) {
   if (assessment.type === "exam" || assessment.type === "midterm") {
     return [
-      preparationDraft(`Map the topics for ${assessment.title}`, 35),
+      preparationDraft(
+        `Map the topics for ${assessment.title}`,
+        35,
+        "topic-map",
+      ),
       preparationDraft(
         `Build an active-recall set for ${assessment.title}`,
         75,
+        "active-recall",
       ),
       preparationDraft(
         `Complete a timed practice for ${assessment.title}`,
         120,
+        "timed-practice",
       ),
-      preparationDraft(`Review mistakes from ${assessment.title}`, 60),
+      preparationDraft(
+        `Review mistakes from ${assessment.title}`,
+        60,
+        "mistake-review",
+      ),
     ];
   }
   if (assessment.type === "presentation") {
     return [
-      preparationDraft(`Outline the story for ${assessment.title}`, 45),
-      preparationDraft(`Build the slides for ${assessment.title}`, 120),
-      preparationDraft(`Rehearse ${assessment.title} aloud`, 45),
+      preparationDraft(
+        `Outline the story for ${assessment.title}`,
+        45,
+        "story-outline",
+      ),
+      preparationDraft(
+        `Build the slides for ${assessment.title}`,
+        120,
+        "slides",
+      ),
+      preparationDraft(
+        `Rehearse ${assessment.title} aloud`,
+        45,
+        "rehearsal",
+      ),
     ];
   }
   return [
-    preparationDraft(`Understand the brief for ${assessment.title}`, 30),
+    preparationDraft(
+      `Understand the brief for ${assessment.title}`,
+      30,
+      "brief",
+    ),
     preparationDraft(
       `Research and collect material for ${assessment.title}`,
       90,
+      "research",
     ),
-    preparationDraft(`Create the first draft of ${assessment.title}`, 120),
-    preparationDraft(`Review and submit ${assessment.title}`, 60),
+    preparationDraft(
+      `Create the first draft of ${assessment.title}`,
+      120,
+      "first-draft",
+    ),
+    preparationDraft(
+      `Review and submit ${assessment.title}`,
+      60,
+      "final-review",
+    ),
   ];
 }
 
@@ -94,10 +135,28 @@ export default function AcademicsPage() {
     updateAssessment,
     removeAssessment,
     updateAssessmentProgress,
+    markAssessmentSubmitted,
     updateModuleStudyMinutes,
     planAssessmentPreparation,
     tasks,
+    moduleStudyLogs = [],
   } = useResolve();
+  const weekDates = getWeekDateKeys();
+  const studyMinutesByModule = useMemo(
+    () =>
+      new Map(
+        modules.map((module) => [
+          module.id,
+          getModuleStudyMinutes(
+            module.id,
+            moduleStudyLogs,
+            tasks,
+            { startDate: weekDates[0], endDate: weekDates[6] },
+          ),
+        ]),
+      ),
+    [moduleStudyLogs, modules, tasks, weekDates],
+  );
   const [showForm, setShowForm] = useState(false);
   const [showAssessment, setShowAssessment] = useState(false);
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
@@ -281,10 +340,10 @@ export default function AcademicsPage() {
   const studyMinutes = useMemo(
     () =>
       modules.reduce(
-        (sum, module) => sum + module.weeklyStudyMinutes,
+        (sum, module) => sum + (studyMinutesByModule.get(module.id) ?? 0),
         0,
       ),
-    [modules],
+    [modules, studyMinutesByModule],
   );
   const assessments = useMemo(
     () =>
@@ -303,12 +362,14 @@ export default function AcademicsPage() {
     () =>
       modules.reduce<(typeof modules)[number] | undefined>(
         (least, module) =>
-          !least || module.weeklyStudyMinutes < least.weeklyStudyMinutes
+          !least ||
+          (studyMinutesByModule.get(module.id) ?? 0) <
+            (studyMinutesByModule.get(least.id) ?? 0)
             ? module
             : least,
         undefined,
       ),
-    [modules],
+    [modules, studyMinutesByModule],
   );
   const preparationTasksByAssessment = useMemo(() => {
     const index = new Map<string, (typeof tasks)[number][]>();
@@ -582,7 +643,7 @@ export default function AcademicsPage() {
             value={leastAttention?.code ?? "No modules"}
             detail={
               leastAttention
-                ? `${leastAttention.weeklyStudyMinutes} minutes this week`
+                ? `${studyMinutesByModule.get(leastAttention.id) ?? 0} minutes this week`
                 : "Add a module to begin tracking"
             }
             icon={<GraduationCap className="h-5 w-5" />}
@@ -663,7 +724,7 @@ export default function AcademicsPage() {
                     <div className="rounded-xl bg-surface-muted p-3">
                       <p className="text-xs text-muted">Study</p>
                       <p className="mt-1 text-xl font-black">
-                        {module.weeklyStudyMinutes}
+                        {studyMinutesByModule.get(module.id) ?? 0}
                         <span className="ml-1 text-xs font-semibold text-muted">
                           min
                         </span>
@@ -680,7 +741,7 @@ export default function AcademicsPage() {
                         onClick={() =>
                           updateModuleStudyMinutes(
                             module.id,
-                            module.weeklyStudyMinutes - 25,
+                            (studyMinutesByModule.get(module.id) ?? 0) - 25,
                           )
                         }
                         className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface-muted transition hover:border-accent"
@@ -693,7 +754,7 @@ export default function AcademicsPage() {
                         onClick={() =>
                           updateModuleStudyMinutes(
                             module.id,
-                            module.weeklyStudyMinutes + 25,
+                            (studyMinutesByModule.get(module.id) ?? 0) + 25,
                           )
                         }
                         className="flex h-8 items-center gap-1 rounded-lg border border-border bg-surface-muted px-2 text-xs font-black transition hover:border-accent"
@@ -781,14 +842,15 @@ export default function AcademicsPage() {
                         assessment.status === "submitted" ||
                         assessment.status === "graded"
                           ? "success"
-                          : assessment.status === "in_progress"
+                          : assessment.status === "in_progress" ||
+                              assessment.status === "ready_to_submit"
                             ? "accent"
                             : "default"
                       }
                     >
                       {assessment.status === "submitted"
-                        ? "complete"
-                        : assessment.status.replace("_", " ")}
+                        ? "submitted"
+                        : assessment.status.replaceAll("_", " ")}
                     </Badge>
                   </div>
                   <input
@@ -799,6 +861,10 @@ export default function AcademicsPage() {
                     max="100"
                     step="5"
                     value={assessment.progress}
+                    disabled={
+                      assessment.status === "submitted" ||
+                      assessment.status === "graded"
+                    }
                     onChange={(event) =>
                       updateAssessmentProgress(
                         assessment.moduleId,
@@ -833,9 +899,40 @@ export default function AcademicsPage() {
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       {assessment.progress === 100
-                        ? "Completed"
-                        : "Mark complete"}
+                        ? "Preparation ready"
+                        : "Finish preparation"}
                     </Button>
+                    {assessment.status === "ready_to_submit" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() =>
+                          markAssessmentSubmitted(
+                            assessment.moduleId,
+                            assessment.id,
+                          )
+                        }
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Mark submitted
+                      </Button>
+                    )}
+                    {assessment.status === "submitted" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          markAssessmentSubmitted(
+                            assessment.moduleId,
+                            assessment.id,
+                            false,
+                          )
+                        }
+                      >
+                        Undo submission
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       size="sm"

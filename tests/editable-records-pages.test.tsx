@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -244,6 +244,8 @@ beforeEach(() => {
     configurable: true,
     value: vi.fn(),
   });
+  window.localStorage.clear();
+  window.history.replaceState({}, "", "/today");
 });
 
 describe("editable user-created records", () => {
@@ -296,6 +298,56 @@ describe("editable user-created records", () => {
         description: "Review examples next.",
       }),
     );
+  });
+
+  it("opens a task from search without starting focus mode", async () => {
+    window.history.replaceState({}, "", "/today?task=task-1");
+    render(<TodayPage />);
+
+    expect(
+      await screen.findByRole("dialog", { name: "Review lecture notes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Start focus" }),
+    ).toBeInTheDocument();
+    expect(spies.updateTask).not.toHaveBeenCalledWith(
+      "task-1",
+      expect.objectContaining({ status: "in_progress" }),
+    );
+  });
+
+  it("starts focus only when the deep link explicitly requests it", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/today?task=task-1&start=true",
+    );
+    render(<TodayPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument(),
+    );
+    expect(spies.updateTask).toHaveBeenCalledWith("task-1", {
+      status: "in_progress",
+    });
+    expect(window.location.search).toBe("?task=task-1");
+  });
+
+  it("opens a task selected from search while already on Today", async () => {
+    render(<TodayPage />);
+
+    window.dispatchEvent(
+      new CustomEvent("resolve:open-record", {
+        detail: { href: "/today?task=task-1" },
+      }),
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "Review lecture notes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Start focus" }),
+    ).toBeInTheDocument();
   });
 
   it("lets the user choose a unique daily top-three task", async () => {
@@ -391,7 +443,10 @@ describe("editable user-created records", () => {
     await user.clear(screen.getByRole("textbox", { name: "Priority 3" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(spies.updatePriorities).toHaveBeenCalledWith(["One", "", ""]);
+    expect(spies.updatePriorities).toHaveBeenCalledWith(
+      ["One", "", ""],
+      "2026-07-19",
+    );
   });
 
   it("edits a flexible habit and its weekly frequency", async () => {

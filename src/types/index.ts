@@ -126,6 +126,8 @@ export type TaskOrigin =
       assessmentId: string;
       moduleId: string;
       templateId: string;
+      /** Stable template/custom row identity used to prevent duplicate prep tasks. */
+      templateStepId?: string;
     }
   | {
       kind: "guitar-lesson";
@@ -246,9 +248,18 @@ export type Assessment = {
   deadline: string;
   deadlineInfo?: DeadlineValue;
   progress: number;
-  status: "not_started" | "in_progress" | "submitted" | "graded";
+  status:
+    | "not_started"
+    | "in_progress"
+    | "ready_to_submit"
+    | "submitted"
+    | "graded";
   score?: number;
   targetScore?: number;
+  submittedAt?: string;
+  feedback?: string;
+  lessonsLearned?: string;
+  estimatedEffortMinutes?: number;
   preparation?: {
     templateId?: string;
     generatedTaskIds: string[];
@@ -269,6 +280,16 @@ export type AcademicModule = {
   color: string;
   weeklyStudyMinutes: number;
   assessments: Assessment[];
+};
+
+export type ModuleStudyLog = {
+  id: string;
+  moduleId: string;
+  userId: string;
+  date: string;
+  minutes: number;
+  sourceTaskId?: string;
+  note?: string;
 };
 
 export type AlgorithmLog = {

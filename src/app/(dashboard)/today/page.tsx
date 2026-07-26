@@ -48,6 +48,7 @@ import {
   getScheduledHabits,
 } from "@/features/workspace/lib/habits";
 import { expandEvents } from "@/features/workspace/lib/events";
+import { getDailyCapacitySummary } from "@/features/workspace/lib/analytics";
 import {
   formatDeadline,
   getTaskDeadline,
@@ -59,6 +60,17 @@ import {
 } from "@/features/workspace/lib/deadlines";
 import { formatDate } from "@/lib/utils";
 import type { GoalCategory, Task } from "@/types";
+import { useDialogFocus } from "@/hooks/use-dialog-focus";
+
+const FOCUS_SESSION_KEY = "resolve-focus-session-v1";
+
+type StoredFocusSession = {
+  taskId: string;
+  accumulatedSeconds: number;
+  startedAt: number | null;
+  running: boolean;
+  note: string;
+};
 
 export default function TodayPage() {
   const {
@@ -75,7 +87,7 @@ export default function TodayPage() {
     goals,
     milestones,
     preferences,
-    events,
+    events = [],
     setTaskDailyPriority,
   } = useResolve();
   const today = offsetDate(0);
@@ -93,8 +105,14 @@ export default function TodayPage() {
   const [requiredForMilestone, setRequiredForMilestone] = useState(false);
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
   const [focusRunning, setFocusRunning] = useState(false);
-  const [focusSeconds, setFocusSeconds] = useState(0);
+  const [focusAccumulatedSeconds, setFocusAccumulatedSeconds] = useState(0);
+  const [focusStartedAt, setFocusStartedAt] = useState<number | null>(null);
+  const [focusNow, setFocusNow] = useState(() => Date.now());
   const [focusNote, setFocusNote] = useState("");
+  const focusDialogRef = useDialogFocus<HTMLDivElement>(
+    Boolean(focusedTaskId),
+    closeFocus,
+  );
   const router = useRouter();
   const weekDates = getWeekDateKeys();
   const planningPreferences = preferences ?? {
@@ -105,28 +123,104 @@ export default function TodayPage() {
   };
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const search = new URLSearchParams(window.location.search);
+    let frame = 0;
+    const openLinkedTask = (href = window.location.href) => {
+      const url = new URL(href, window.location.origin);
+      const search = url.searchParams;
       setShowAdd(search.get("add") === "true");
       const requestedGoalId = search.get("goal");
       if (requestedGoalId) setGoalId(requestedGoalId);
       const requestedTaskId = search.get("task");
       if (requestedTaskId) {
+        const requestedTask = tasks.find(
+          (task) => task.id === requestedTaskId,
+        );
+        if (!requestedTask) return;
+        const shouldStart = search.get("start") === "true";
+        if (!shouldStart && focusedTaskId !== requestedTaskId) {
+          window.localStorage.removeItem(FOCUS_SESSION_KEY);
+          setFocusAccumulatedSeconds(0);
+          setFocusStartedAt(null);
+          setFocusRunning(false);
+          setFocusNote("");
+        }
         setFocusedTaskId(requestedTaskId);
-        setFocusRunning(true);
+        if (shouldStart) {
+          if (requestedTask.status !== "in_progress") {
+            updateTask(requestedTask.id, { status: "in_progress" });
+          }
+          const startedAt = Date.now();
+          setFocusAccumulatedSeconds(0);
+          setFocusStartedAt(startedAt);
+          setFocusNow(startedAt);
+          setFocusNote("");
+          setFocusRunning(true);
+          search.delete("start");
+          const nextSearch = search.toString();
+          window.history.replaceState(
+            window.history.state,
+            "",
+            `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`,
+          );
+        }
+      } else {
+        try {
+          const saved = JSON.parse(
+            window.localStorage.getItem(FOCUS_SESSION_KEY) ?? "null",
+          ) as StoredFocusSession | null;
+          if (saved?.taskId && tasks.some((task) => task.id === saved.taskId)) {
+            setFocusedTaskId(saved.taskId);
+            setFocusAccumulatedSeconds(
+              Math.max(0, Math.floor(saved.accumulatedSeconds || 0)),
+            );
+            setFocusStartedAt(
+              saved.running && Number.isFinite(saved.startedAt)
+                ? saved.startedAt
+                : null,
+            );
+            setFocusRunning(saved.running === true);
+            setFocusNote(saved.note ?? "");
+          }
+        } catch {
+          window.localStorage.removeItem(FOCUS_SESSION_KEY);
+        }
       }
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
+    };
+    const handleRecord = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (href?.startsWith("/today")) openLinkedTask(href);
+    };
+    frame = window.requestAnimationFrame(() => openLinkedTask());
+    window.addEventListener("resolve:open-record", handleRecord);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resolve:open-record", handleRecord);
+    };
+  }, [focusedTaskId, tasks, updateTask]);
 
   useEffect(() => {
     if (!focusedTaskId || !focusRunning) return;
-    const timer = window.setInterval(
-      () => setFocusSeconds((seconds) => seconds + 1),
-      1_000,
-    );
+    const timer = window.setInterval(() => setFocusNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, [focusRunning, focusedTaskId]);
+
+  useEffect(() => {
+    if (!focusedTaskId) return;
+    const session: StoredFocusSession = {
+      taskId: focusedTaskId,
+      accumulatedSeconds: focusAccumulatedSeconds,
+      startedAt: focusStartedAt,
+      running: focusRunning,
+      note: focusNote,
+    };
+    window.localStorage.setItem(FOCUS_SESSION_KEY, JSON.stringify(session));
+  }, [
+    focusAccumulatedSeconds,
+    focusNote,
+    focusRunning,
+    focusStartedAt,
+    focusedTaskId,
+  ]);
 
   const todayTasks = useMemo(
     () => tasks.filter((task) => getTaskScheduleDate(task) === today),
@@ -181,6 +275,12 @@ export default function TodayPage() {
     (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
     0,
   );
+  const todayCapacity = getDailyCapacitySummary({
+    date: today,
+    capacityMinutes: planningPreferences.dailyCapacityMinutes,
+    tasks,
+    events,
+  });
   const habitCount = todayHabits.filter((habit) =>
     habitLogs.some(
       (log) =>
@@ -305,19 +405,48 @@ export default function TodayPage() {
       updateTask(task.id, { ...task, status: "in_progress" });
     }
     setFocusedTaskId(task.id);
-    setFocusSeconds(0);
+    setFocusAccumulatedSeconds(0);
+    const startedAt = Date.now();
+    setFocusStartedAt(startedAt);
+    setFocusNow(startedAt);
     setFocusNote("");
     setFocusRunning(true);
   }
 
+  function pauseOrResumeFocus() {
+    if (focusRunning) {
+      const elapsedSinceStart = focusStartedAt
+        ? Math.max(0, Math.floor((Date.now() - focusStartedAt) / 1_000))
+        : 0;
+      setFocusAccumulatedSeconds(
+        (seconds) => seconds + elapsedSinceStart,
+      );
+      setFocusStartedAt(null);
+      setFocusRunning(false);
+      return;
+    }
+    const startedAt = Date.now();
+    setFocusStartedAt(startedAt);
+    setFocusNow(startedAt);
+    setFocusRunning(true);
+  }
+
   function closeFocus() {
+    window.localStorage.removeItem(FOCUS_SESSION_KEY);
     setFocusedTaskId(null);
     setFocusRunning(false);
-    setFocusSeconds(0);
+    setFocusAccumulatedSeconds(0);
+    setFocusStartedAt(null);
     setFocusNote("");
+    router.replace("/today", { scroll: false });
   }
 
   const focusedTask = tasks.find((task) => task.id === focusedTaskId);
+  const focusSeconds =
+    focusAccumulatedSeconds +
+    (focusRunning && focusStartedAt
+      ? Math.max(0, Math.floor((focusNow - focusStartedAt) / 1_000))
+      : 0);
   const focusClock = `${String(Math.floor(focusSeconds / 60)).padStart(2, "0")}:${String(
     focusSeconds % 60,
   ).padStart(2, "0")}`;
@@ -464,6 +593,7 @@ export default function TodayPage() {
                     onChange={(event) => {
                       setGoalId(event.target.value);
                       setMilestoneId("");
+                      setRequiredForMilestone(false);
                     }}
                   >
                     <option value="">No linked goal</option>
@@ -480,7 +610,12 @@ export default function TodayPage() {
                     className={fieldClassName}
                     value={milestoneId}
                     disabled={!goalId}
-                    onChange={(event) => setMilestoneId(event.target.value)}
+                    onChange={(event) => {
+                      setMilestoneId(event.target.value);
+                      if (!event.target.value) {
+                        setRequiredForMilestone(false);
+                      }
+                    }}
                   >
                     <option value="">No breakdown link</option>
                     {milestones
@@ -523,9 +658,9 @@ export default function TodayPage() {
             label="Planned time"
             value={`${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`}
             detail={
-              totalMinutes > planningPreferences.dailyCapacityMinutes
-                ? `Over your ${planningPreferences.dailyCapacityMinutes}-minute capacity`
-                : "Workload looks realistic"
+              todayCapacity.isOverloaded
+                ? `${todayCapacity.scheduledTaskMinutes + todayCapacity.fixedEventMinutes} min including fixed events exceeds capacity`
+                : `${todayCapacity.remainingTaskCapacityMinutes} minutes remain after tasks and fixed events`
             }
             icon={<Clock3 className="h-5 w-5" />}
           />
@@ -901,12 +1036,20 @@ export default function TodayPage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="focus-task-title"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) closeFocus();
+          }}
         >
-          <div className="manga-panel w-full max-w-xl rounded-[30px] p-6 sm:p-8">
+          <div
+            ref={focusDialogRef}
+            className="manga-panel w-full max-w-xl rounded-[30px] p-6 sm:p-8"
+          >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">
-                  Focus mode
+                  {focusRunning || focusSeconds > 0
+                    ? "Focus mode"
+                    : "Task details"}
                 </p>
                 <h2
                   id="focus-task-title"
@@ -952,14 +1095,18 @@ export default function TodayPage() {
             <div className="mt-5 flex flex-wrap gap-2">
               <Button
                 variant="secondary"
-                onClick={() => setFocusRunning((running) => !running)}
+                onClick={pauseOrResumeFocus}
               >
                 {focusRunning ? (
                   <Pause className="h-4 w-4" />
                 ) : (
                   <Play className="h-4 w-4" />
                 )}
-                {focusRunning ? "Pause" : "Resume"}
+                {focusRunning
+                  ? "Pause"
+                  : focusSeconds > 0
+                    ? "Resume"
+                    : "Start focus"}
               </Button>
               <Button
                 onClick={() => {
@@ -974,6 +1121,11 @@ export default function TodayPage() {
                   if (focusedTask.status !== "completed") {
                     toggleTask(focusedTask.id);
                   }
+                  updateTaskActualMinutes(
+                    focusedTask.id,
+                    (focusedTask.actualMinutes ?? 0) +
+                      Math.ceil(focusSeconds / 60),
+                  );
                   closeFocus();
                 }}
               >

@@ -11,6 +11,7 @@ export type WorkspaceEntityType =
   | "habit"
   | "habitLog"
   | "module"
+  | "moduleStudyLog"
   | "assessment"
   | "event"
   | "reflection"
@@ -25,6 +26,7 @@ export type WorkspacePatch = {
   entityId: string;
   operation: "create" | "update" | "delete";
   changedFields?: Record<string, unknown>;
+  removedFields?: string[];
   baseValues?: Record<string, unknown>;
   createdAt: string;
   clientId: string;
@@ -76,6 +78,7 @@ export function getWorkspaceEntities(
   add("workspace", {
     id: "workspace",
     weeklyPriorities: data.weeklyPriorities,
+    weeklyPrioritiesByWeek: data.weeklyPrioritiesByWeek,
     preferences: data.preferences,
     archiveSummaries: data.archiveSummaries,
   });
@@ -92,6 +95,7 @@ export function getWorkspaceEntities(
     add("module", module);
     assessments.forEach((assessment) => add("assessment", assessment));
   });
+  data.moduleStudyLogs.forEach((item) => add("moduleStudyLog", item));
   data.events.forEach((item) => add("event", item));
   data.reflections.forEach((item) => add("reflection", item));
   data.guitarSessions.forEach((item) => add("guitarSession", item));
@@ -152,11 +156,16 @@ export function buildWorkspacePatches(
       ...Object.keys(after.entity),
     ]);
     const changedFields: Record<string, unknown> = {};
+    const removedFields: string[] = [];
     const baseValues: Record<string, unknown> = {};
     for (const field of fields) {
       if (field === "id") continue;
       if (!equal(before.entity[field], after.entity[field])) {
-        changedFields[field] = clone(after.entity[field]);
+        if (after.entity[field] === undefined) {
+          removedFields.push(field);
+        } else {
+          changedFields[field] = clone(after.entity[field]);
+        }
         baseValues[field] = clone(before.entity[field]);
       }
     }
@@ -166,6 +175,7 @@ export function buildWorkspacePatches(
       entityId,
       operation: "update",
       changedFields,
+      removedFields: removedFields.length ? removedFields : undefined,
       baseValues,
       createdAt,
       clientId,
@@ -204,6 +214,9 @@ function putEntity(
   switch (entityType) {
     case "workspace":
       data.weeklyPriorities = clone(entity.weeklyPriorities) as string[];
+      data.weeklyPrioritiesByWeek = clone(
+        entity.weeklyPrioritiesByWeek,
+      ) as Record<string, string[]>;
       data.preferences = clone(entity.preferences) as ResolveData["preferences"];
       data.archiveSummaries = clone(
         entity.archiveSummaries,
@@ -245,6 +258,9 @@ function putEntity(
       });
       break;
     }
+    case "moduleStudyLog":
+      data.moduleStudyLogs = replaceInArray(data.moduleStudyLogs, entity);
+      break;
     case "assessment": {
       data.modules = data.modules.map((module) => ({
         ...module,
@@ -315,6 +331,9 @@ function deleteEntity(
       break;
     case "module":
       data.modules = removeFromArray(data.modules, entityId);
+      break;
+    case "moduleStudyLog":
+      data.moduleStudyLogs = removeFromArray(data.moduleStudyLogs, entityId);
       break;
     case "assessment":
       data.modules = data.modules.map((module) => ({
@@ -400,9 +419,13 @@ export function mergeWorkspacePatches(
       continue;
     }
     const merged = clone(remoteEntity);
-    for (const [field, localValue] of Object.entries(
-      patch.changedFields ?? {},
-    )) {
+    const localFields = new Map<string, unknown>([
+      ...Object.entries(patch.changedFields ?? {}),
+      ...(patch.removedFields ?? []).map(
+        (field) => [field, undefined] as [string, unknown],
+      ),
+    ]);
+    for (const [field, localValue] of localFields) {
       const baseValue = patch.baseValues?.[field];
       const remoteValue = remoteEntity[field];
       if (!equal(remoteValue, baseValue) && !equal(remoteValue, localValue)) {
@@ -417,7 +440,11 @@ export function mergeWorkspacePatches(
           remoteValue,
         });
       }
-      merged[field] = clone(localValue);
+      if (localValue === undefined) {
+        delete merged[field];
+      } else {
+        merged[field] = clone(localValue);
+      }
     }
     putEntity(data, patch.entityType, merged);
   }
@@ -446,10 +473,11 @@ export function applyConflictChoice(
     return next;
   }
   if (!current) return next;
-  putEntity(next, conflict.entityType, {
-    ...current,
-    [conflict.field]:
-      choice === "local" ? conflict.localValue : conflict.remoteValue,
-  });
+  const selected =
+    choice === "local" ? conflict.localValue : conflict.remoteValue;
+  const updated = { ...current };
+  if (selected === undefined) delete updated[conflict.field];
+  else updated[conflict.field] = selected;
+  putEntity(next, conflict.entityType, updated);
   return next;
 }

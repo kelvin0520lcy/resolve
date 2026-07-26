@@ -8,6 +8,7 @@ import type {
   HabitLog,
   JobApplication,
   Milestone,
+  ModuleStudyLog,
   Reflection,
   SemesterArchiveSummary,
   Semester,
@@ -27,10 +28,12 @@ export type ResolveData = {
   guitarLearning: GuitarLearningState;
   reflections: Reflection[];
   modules: AcademicModule[];
+  moduleStudyLogs: ModuleStudyLog[];
   algorithmLogs: AlgorithmLog[];
   applications: JobApplication[];
   events: WorkspaceEvent[];
   weeklyPriorities: string[];
+  weeklyPrioritiesByWeek: Record<string, string[]>;
   preferences: WorkspacePreferences;
   archiveSummaries: SemesterArchiveSummary[];
 };

@@ -1,4 +1,10 @@
-import { act, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AUTH_BOOT_TIMEOUT_MS,
@@ -12,6 +18,10 @@ const authMocks = vi.hoisted(() => ({
   next: null as ((user: Record<string, unknown> | null) => void) | null,
   error: null as ((error: Error) => void) | null,
   unsubscribe: vi.fn(),
+  deleteUser: vi.fn(),
+  deleteCloudAccountData: vi.fn(),
+  restoreCloudAccountData: vi.fn(),
+  deleteLocalAccountData: vi.fn(),
 }));
 
 vi.mock("firebase/auth", () => ({
@@ -33,6 +43,16 @@ vi.mock("firebase/auth", () => ({
   GoogleAuthProvider: class GoogleAuthProvider {},
   sendPasswordResetEmail: vi.fn(),
   updateProfile: vi.fn(),
+  deleteUser: authMocks.deleteUser,
+}));
+
+vi.mock("@/lib/firebase/workspace", () => ({
+  deleteCloudAccountData: authMocks.deleteCloudAccountData,
+  restoreCloudAccountData: authMocks.restoreCloudAccountData,
+}));
+
+vi.mock("@/features/workspace/lib/recovery", () => ({
+  deleteLocalAccountData: authMocks.deleteLocalAccountData,
 }));
 
 vi.mock("@/lib/firebase/config", () => ({
@@ -49,6 +69,27 @@ function AuthStatus() {
   );
 }
 
+function DeleteAccountHarness() {
+  const { deleteAccount } = useAuth();
+  const [status, setStatus] = useState("ready");
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          void deleteAccount().then(
+            () => setStatus("deleted"),
+            () => setStatus("failed"),
+          );
+        }}
+      >
+        Delete account
+      </button>
+      <output>{status}</output>
+    </>
+  );
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   authMocks.configured = true;
@@ -56,6 +97,16 @@ beforeEach(() => {
   authMocks.next = null;
   authMocks.error = null;
   authMocks.unsubscribe.mockClear();
+  authMocks.deleteUser.mockReset();
+  authMocks.deleteCloudAccountData.mockReset();
+  authMocks.restoreCloudAccountData.mockReset();
+  authMocks.deleteLocalAccountData.mockReset();
+  authMocks.deleteCloudAccountData.mockResolvedValue({
+    recovery: [],
+    archives: [],
+  });
+  authMocks.restoreCloudAccountData.mockResolvedValue(undefined);
+  authMocks.deleteLocalAccountData.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -124,5 +175,70 @@ describe("AuthProvider mobile bootstrap recovery", () => {
       </AuthProvider>,
     );
     expect(screen.getByText("guest")).toBeInTheDocument();
+  });
+
+  it("clears local account data only after cloud and authentication deletion succeed", async () => {
+    authMocks.currentUser = {
+      uid: "delete-user",
+      displayName: "Delete User",
+      email: "delete@example.com",
+      photoURL: null,
+      metadata: { lastSignInTime: new Date().toISOString() },
+    };
+    authMocks.deleteUser.mockResolvedValue(undefined);
+    render(
+      <AuthProvider>
+        <DeleteAccountHarness />
+      </AuthProvider>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByText("deleted")).toBeInTheDocument();
+
+    expect(authMocks.deleteCloudAccountData).toHaveBeenCalledWith("delete-user");
+    expect(authMocks.deleteUser).toHaveBeenCalledWith(authMocks.currentUser);
+    expect(authMocks.deleteLocalAccountData).toHaveBeenCalledWith("delete-user");
+    expect(authMocks.restoreCloudAccountData).not.toHaveBeenCalled();
+  });
+
+  it("restores cloud records when authentication deletion fails", async () => {
+    const backup = {
+      workspace: { data: { tasks: [] } },
+      recovery: [],
+      archives: [],
+    };
+    authMocks.currentUser = {
+      uid: "restore-user",
+      displayName: "Restore User",
+      email: "restore@example.com",
+      photoURL: null,
+      metadata: { lastSignInTime: new Date().toISOString() },
+    };
+    authMocks.deleteCloudAccountData.mockResolvedValue(backup);
+    authMocks.deleteUser.mockRejectedValue(new Error("requires recent login"));
+    render(
+      <AuthProvider>
+        <DeleteAccountHarness />
+      </AuthProvider>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByText("failed")).toBeInTheDocument();
+
+    expect(authMocks.restoreCloudAccountData).toHaveBeenCalledWith(
+      "restore-user",
+      backup,
+    );
+    expect(authMocks.deleteLocalAccountData).not.toHaveBeenCalled();
   });
 });

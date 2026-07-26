@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { BarChart3, Lightbulb, Target, Timer } from "lucide-react";
 import {
   Bar,
@@ -28,10 +29,19 @@ import {
   PageIntro,
 } from "@/components/ui/resolve";
 import { GOAL_CATEGORIES } from "@/lib/constants/categories";
-import { offsetDate, useResolve } from "@/contexts/resolve-context";
-import { getTrackedMinutesByCategory } from "@/features/workspace/lib/analytics";
 import {
-  getHabitCompletionCount,
+  getWeekDateKeys,
+  offsetDate,
+  useResolve,
+} from "@/contexts/resolve-context";
+import {
+  getTasksInRange,
+  getTrackedMinutesByCategory,
+  type DateRange,
+} from "@/features/workspace/lib/analytics";
+import { parseLocalDate, toDateKey } from "@/lib/date";
+import {
+  getHabitAchievedCount,
   getHabitTargetCount,
 } from "@/features/workspace/lib/habits";
 import {
@@ -40,8 +50,48 @@ import {
 } from "@/features/workspace/lib/deadlines";
 
 export default function AnalyticsPage() {
-  const { tasks, goals, milestones, habits, habitLogs, guitarSessions } =
-    useResolve();
+  const {
+    tasks,
+    goals,
+    milestones,
+    habits,
+    habitLogs,
+    guitarSessions,
+    semester,
+  } = useResolve();
+  const [windowId, setWindowId] = useState<
+    "this_week" | "previous_week" | "four_weeks" | "semester"
+  >("this_week");
+  const currentWeek = getWeekDateKeys();
+  const previousWeek = getWeekDateKeys(parseLocalDate(offsetDate(-7)));
+  const ranges: Record<typeof windowId, DateRange> = {
+    this_week: { startDate: currentWeek[0], endDate: currentWeek[6] },
+    previous_week: { startDate: previousWeek[0], endDate: previousWeek[6] },
+    four_weeks: { startDate: offsetDate(-27), endDate: offsetDate(0) },
+    semester: {
+      startDate: semester.startDate,
+      endDate: semester.endDate,
+    },
+  };
+  const range = ranges[windowId];
+  const rangeDates: string[] = [];
+  for (
+    let cursor = parseLocalDate(range.startDate);
+    toDateKey(cursor) <= range.endDate;
+    cursor = new Date(
+      cursor.getFullYear(),
+      cursor.getMonth(),
+      cursor.getDate() + 1,
+      12,
+    )
+  ) {
+    rangeDates.push(toDateKey(cursor));
+  }
+  const periodTasks = getTasksInRange(tasks, range);
+  const periodGuitarSessions = guitarSessions.filter(
+    (session) =>
+      session.date >= range.startDate && session.date <= range.endDate,
+  );
   const lastSevenDates = [-6, -5, -4, -3, -2, -1, 0].map((day) =>
     offsetDate(day),
   );
@@ -61,17 +111,24 @@ export default function AnalyticsPage() {
         : 0,
     };
   });
-  const trackedMinutes = getTrackedMinutesByCategory(tasks, guitarSessions);
+  const trackedMinutes = getTrackedMinutesByCategory(
+    tasks,
+    guitarSessions,
+    range,
+  );
   const categoryTime = GOAL_CATEGORIES.map((category) => ({
     name: category.label,
     value: trackedMinutes[category.id] ?? 0,
     color: category.color,
   })).filter((item) => item.value > 0);
-  const plannedMinutes = tasks.reduce(
+  const plannedMinutes = periodTasks.reduce(
     (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
     0,
   );
-  const actualMinutes = tasks.reduce(
+  const completedTasks = periodTasks.filter(
+    (task) => task.status === "completed",
+  );
+  const actualMinutes = completedTasks.reduce(
     (sum, task) => sum + (task.actualMinutes ?? 0),
     0,
   );
@@ -85,45 +142,56 @@ export default function AnalyticsPage() {
         const completed = breakdown.filter(
           (milestone) => milestone.completed,
         ).length;
-        return (
-          sum +
-          (breakdown.length ? (completed / breakdown.length) * 100 : 0)
-        );
+        if (breakdown.length) {
+          return sum + (completed / breakdown.length) * 100;
+        }
+        if (
+          goal.measurementType !== "manual" &&
+          goal.measurementType !== "milestone" &&
+          goal.targetValue !== undefined &&
+          goal.targetValue > 0
+        ) {
+          return (
+            sum +
+            Math.min(100, ((goal.currentValue ?? 0) / goal.targetValue) * 100)
+          );
+        }
+        return sum;
       },
       0,
     ) / Math.max(goals.length, 1),
   );
   const habitTarget = habits.reduce(
-    (sum, habit) => sum + getHabitTargetCount(habit, lastSevenDates),
+    (sum, habit) => sum + getHabitTargetCount(habit, rangeDates),
     0,
   );
   const habitCompleted = habits.reduce(
     (sum, habit) =>
-      sum + getHabitCompletionCount(habit, habitLogs, lastSevenDates),
+      sum + getHabitAchievedCount(habit, habitLogs, rangeDates),
     0,
   );
   const habitRate = Math.round(
-    (Math.min(habitCompleted, habitTarget) / Math.max(habitTarget, 1)) * 100,
+    (habitCompleted / Math.max(habitTarget, 1)) * 100,
   );
-  const guitarTechniqueMinutes = guitarSessions
+  const guitarTechniqueMinutes = periodGuitarSessions
     .filter((session) => session.category !== "Repertoire")
     .reduce((sum, session) => sum + session.durationMinutes, 0);
-  const guitarTotal = guitarSessions.reduce(
+  const guitarTotal = periodGuitarSessions.reduce(
     (sum, session) => sum + session.durationMinutes,
     0,
   );
   const hasActivity =
-    tasks.length > 0 ||
+    periodTasks.length > 0 ||
     goals.length > 0 ||
     habits.length > 0 ||
-    guitarSessions.length > 0;
-  const frequentlyDeferred = tasks.filter(
+    periodGuitarSessions.length > 0;
+  const frequentlyDeferred = periodTasks.filter(
     (task) =>
       (task.deferral?.deferCount ?? 0) >= 2 &&
       !["completed", "cancelled", "skipped"].includes(task.status),
   );
   const activeGoalIdsWithTasks = new Set(
-    tasks
+    periodTasks
       .filter(
         (task) =>
           task.goalId &&
@@ -140,11 +208,13 @@ export default function AnalyticsPage() {
     ? [
         {
           text:
-            plannedMinutes > 0 && actualMinutes < plannedMinutes * 0.75
+            completedTasks.length >= 3 &&
+            plannedMinutes > 0 &&
+            actualMinutes < plannedMinutes * 0.75
               ? `Actual logged time is ${Math.round((actualMinutes / Math.max(plannedMinutes, 1)) * 100)}% of planned time. Reduce tomorrow’s load or correct the estimates.`
-              : plannedMinutes > 0
+              : completedTasks.length >= 3 && plannedMinutes > 0
                 ? "Planned and actual time are tracking within a realistic range."
-                : "Add estimated time to tasks to compare planning with reality.",
+                : "Complete and time at least three tasks in this period before judging estimate accuracy.",
           href: "/today",
           action: "Adjust tomorrow",
         },
@@ -174,7 +244,9 @@ export default function AnalyticsPage() {
             },
         {
           text:
-            guitarTotal && guitarTechniqueMinutes / guitarTotal < 0.4
+            guitarTotal === 0
+              ? "No guitar activity has been recorded in this period."
+              : guitarTechniqueMinutes / guitarTotal < 0.4
               ? "Repertoire dominates guitar practice. Protect one technique-only session next week."
               : "Guitar practice includes a healthy amount of technique work.",
           href: "/guitar",
@@ -198,6 +270,32 @@ export default function AnalyticsPage() {
           description="The charts explain what is happening; the rules below suggest one useful adjustment."
         />
 
+        <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wider text-accent">
+              Analysis period
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              {range.startDate} to {range.endDate}
+            </p>
+          </div>
+          <label className="text-xs font-bold">
+            Time window
+            <select
+              className="mt-1 block min-h-10 rounded-xl border-2 border-border bg-surface-elevated px-3 text-sm"
+              value={windowId}
+              onChange={(event) =>
+                setWindowId(event.target.value as typeof windowId)
+              }
+            >
+              <option value="this_week">This week</option>
+              <option value="previous_week">Previous week</option>
+              <option value="four_weeks">Last four weeks</option>
+              <option value="semester">Semester</option>
+            </select>
+          </label>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-3">
           <MetricCard
             label="Goal progress"
@@ -208,13 +306,13 @@ export default function AnalyticsPage() {
           <MetricCard
             label="Habit consistency"
             value={`${habitRate}%`}
-            detail="seven-day completion signal"
+            detail={`${habitCompleted} of ${habitTarget} planned in this period`}
             icon={<BarChart3 className="h-5 w-5" />}
           />
           <MetricCard
             label="Planned vs logged"
             value={`${Math.round(actualMinutes / 60)}h / ${Math.round(plannedMinutes / 60)}h`}
-            detail="actual and estimated time"
+            detail="completed actual and scheduled planned time in this period"
             icon={<Timer className="h-5 w-5" />}
           />
         </div>
@@ -222,12 +320,29 @@ export default function AnalyticsPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Daily completion rate</CardTitle>
+              <CardTitle>Recent seven-day completion rate</CardTitle>
               <CardDescription>
                 Zero can mean a rest day, not a failed day.
               </CardDescription>
             </CardHeader>
             <CardContent className="h-72">
+              <table className="sr-only">
+                <caption>Recent daily task completion percentages</caption>
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Completion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lastSeven.map((item) => (
+                    <tr key={item.day}>
+                      <td>{item.day}</td>
+                      <td>{item.completion}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={lastSeven}>
                   <CartesianGrid
@@ -268,6 +383,23 @@ export default function AnalyticsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="h-72">
+              <table className="sr-only">
+                <caption>Tracked minutes by category</caption>
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Minutes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categoryTime.map((item) => (
+                    <tr key={item.name}>
+                      <td>{item.name}</td>
+                      <td>{item.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               {categoryTime.length ? <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -337,7 +469,7 @@ export default function AnalyticsPage() {
             ))}
           </CardContent>
         </Card>
-        {tasks.length > 0 && tasks.length < 5 && (
+        {periodTasks.length > 0 && periodTasks.length < 5 && (
           <p className="rounded-2xl border border-border bg-surface p-4 text-xs leading-5 text-muted">
             Early signal: complete at least five tasks before treating these
             patterns as reliable trends.

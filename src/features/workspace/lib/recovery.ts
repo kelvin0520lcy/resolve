@@ -10,6 +10,7 @@ export type RecoverySnapshotReason = "migration" | "import" | "manual";
 
 export type RecoverySnapshot = {
   id: string;
+  ownerId?: string;
   schemaVersion: number;
   createdAt: string;
   reason: RecoverySnapshotReason;
@@ -37,10 +38,12 @@ export function createRecoverySnapshot(
   reason: RecoverySnapshotReason,
   schemaVersion = CURRENT_WORKSPACE_SCHEMA_VERSION,
   now = new Date().toISOString(),
+  ownerId?: string,
 ): RecoverySnapshot {
   const workspaceHash = hashWorkspace(payload);
   return {
     id: `${reason}-${schemaVersion}-${now}-${workspaceHash}`,
+    ownerId,
     schemaVersion,
     createdAt: now,
     reason,
@@ -109,8 +112,78 @@ export async function saveRecoverySnapshot(snapshot: RecoverySnapshot) {
     request.onerror = () => reject(request.error);
   });
   const snapshots = await listRecoverySnapshots();
-  const removable = snapshots.slice(MAX_RECOVERY_SNAPSHOTS);
+  const sameOwner = snapshots.filter(
+    (item) => item.ownerId === snapshot.ownerId,
+  );
+  const removable = sameOwner.slice(MAX_RECOVERY_SNAPSHOTS);
   await Promise.all(removable.map((item) => deleteRecoverySnapshot(item.id)));
+}
+
+export function snapshotBelongsToIdentity(
+  snapshot: RecoverySnapshot,
+  identity: string,
+) {
+  if (snapshot.ownerId) return snapshot.ownerId === identity;
+  if (
+    snapshot.payload &&
+    typeof snapshot.payload === "object" &&
+    !Array.isArray(snapshot.payload)
+  ) {
+    const payload = snapshot.payload as {
+      semester?: { userId?: unknown };
+      data?: { semester?: { userId?: unknown } };
+    };
+    return (
+      payload.semester?.userId === identity ||
+      payload.data?.semester?.userId === identity
+    );
+  }
+  return false;
+}
+
+export async function listRecoverySnapshotsForIdentity(identity: string) {
+  const snapshots = await listRecoverySnapshots();
+  return snapshots.filter((snapshot) =>
+    snapshotBelongsToIdentity(snapshot, identity),
+  );
+}
+
+export async function deleteLocalAccountData(identity: string) {
+  if (typeof window !== "undefined") {
+    try {
+      const exactKeys = [
+        `resolve-data-v2:${identity}`,
+        `resolve-sync-base-v1:${identity}`,
+        `resolve-sync-v2:${identity}`,
+        `resolve-sync-leader:${identity}`,
+        "resolve-focus-session-v1",
+      ];
+      exactKeys.forEach((key) => window.localStorage.removeItem(key));
+      for (
+        let index = window.localStorage.length - 1;
+        index >= 0;
+        index -= 1
+      ) {
+        const key = window.localStorage.key(index);
+        if (key?.startsWith("resolve-reflection-draft:")) {
+          window.localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      // Authentication deletion has already succeeded. Treat browser storage
+      // cleanup as best effort when a browser blocks localStorage access.
+    }
+  }
+  try {
+    const snapshots = await listRecoverySnapshotsForIdentity(identity);
+    await Promise.all(
+      snapshots
+        .map((snapshot) => deleteRecoverySnapshot(snapshot.id)),
+    );
+  } catch {
+    // Account deletion must still complete when browser recovery storage is
+    // unavailable. Browser storage can be cleared manually by the user.
+  }
 }
 
 export function downloadWorkspaceJson(
@@ -119,6 +192,18 @@ export function downloadWorkspaceJson(
 ) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadWorkspaceText(payload: string, filename: string) {
+  const blob = new Blob([payload], {
+    type: "application/json;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

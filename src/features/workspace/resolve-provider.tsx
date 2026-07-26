@@ -11,6 +11,7 @@ import {
   getWeekDateKeys,
   isDateKey,
   offsetDate,
+  parseLocalDate,
   toDateKey,
 } from "@/lib/date";
 import {
@@ -52,6 +53,7 @@ import {
   updateApplicationInData,
   updateAssessmentInData,
   updateAssessmentProgressInData,
+  markAssessmentSubmittedInData,
   updateAlgorithmLogInData,
   updateGoalInData,
   updateGuitarSessionInData,
@@ -101,6 +103,7 @@ export {
 import type { WorkspaceSizeReport } from "@/features/workspace/lib/workspace-size";
 import type { WorkspaceConflict } from "@/features/workspace/lib/patches";
 import type { RecoverySnapshot } from "@/features/workspace/lib/recovery";
+import { WorkspaceRecovery } from "@/components/workspace/workspace-recovery";
 import {
   createEmptyGuitarLearningState,
   normalizeGuitarLearningState,
@@ -116,6 +119,7 @@ import type {
   HabitLog,
   JobApplication,
   Milestone,
+  ModuleStudyLog,
   Reflection,
   Semester,
   SemesterResolution,
@@ -133,6 +137,7 @@ type ResolveContextValue = ResolveData & {
     | "synced"
     | "offline"
     | "conflict"
+    | "recovery_required"
     | "error";
   syncError: string;
   lastSyncedAt: string | null;
@@ -216,6 +221,11 @@ type ResolveContextValue = ResolveData & {
     assessmentId: string,
     progress: number,
   ) => void;
+  markAssessmentSubmitted: (
+    moduleId: string,
+    assessmentId: string,
+    submitted?: boolean,
+  ) => void;
   planAssessmentPreparation: (
     assessmentId: string,
     templateId: string,
@@ -248,7 +258,7 @@ type ResolveContextValue = ResolveData & {
   toggleSemesterResolution: (resolutionId: string) => void;
   removeSemesterResolution: (resolutionId: string) => void;
   updateSemester: (semester: Semester) => void;
-  updatePriorities: (priorities: string[]) => void;
+  updatePriorities: (priorities: string[], weekStart?: string) => void;
   addEvent: (event: NewEventInput) => void;
   updateEvent: (eventId: string, event: UpdateEventInput) => void;
   removeEvent: (eventId: string) => void;
@@ -291,10 +301,12 @@ export function createEmptyData(userId: string): ResolveData {
     guitarLearning: createEmptyGuitarLearningState(userId),
     reflections: [],
     modules: [],
+    moduleStudyLogs: [],
     algorithmLogs: [],
     applications: [],
     events: [],
     weeklyPriorities: ["", "", ""],
+    weeklyPrioritiesByWeek: {},
     preferences: {
       timeZone,
       dailyCapacityMinutes: 480,
@@ -458,6 +470,23 @@ export function normalizeStoredData(
     )
       ? stored.weeklyPriorities.map((priority) => priority.trim())
       : seed.weeklyPriorities;
+  const weeklyPrioritiesByWeek =
+    stored.weeklyPrioritiesByWeek &&
+    typeof stored.weeklyPrioritiesByWeek === "object" &&
+    !Array.isArray(stored.weeklyPrioritiesByWeek)
+      ? Object.fromEntries(
+          Object.entries(stored.weeklyPrioritiesByWeek).flatMap(
+            ([weekStart, value]) =>
+              isDateKey(weekStart) &&
+              getWeekDateKeys(parseLocalDate(weekStart))[0] === weekStart &&
+              Array.isArray(value) &&
+              value.length === 3 &&
+              value.every((priority) => typeof priority === "string")
+                ? [[weekStart, value.map((priority) => priority.trim())]]
+                : [],
+          ),
+        )
+      : {};
   const rawMilestones = recordArray<Milestone>(stored.milestones)
     .filter(
       (milestone) =>
@@ -501,6 +530,13 @@ export function normalizeStoredData(
     "abandoned",
   ];
   const validPriorities: Goal["priority"][] = ["low", "medium", "high"];
+  const validGoalMeasurements: Goal["measurementType"][] = [
+    "percentage",
+    "count",
+    "duration",
+    "milestone",
+    "manual",
+  ];
   const goals = recordArray<Goal>(stored.goals)
     .filter(
       (goal) =>
@@ -530,10 +566,20 @@ export function normalizeStoredData(
           : "medium",
         measurementType: goalMilestones.length
           ? ("milestone" as const)
-          : ("manual" as const),
-        targetValue: undefined,
-        currentValue: undefined,
-        unit: undefined,
+          : validGoalMeasurements.includes(goal.measurementType)
+            ? goal.measurementType
+            : ("manual" as const),
+        targetValue:
+          Number.isFinite(goal.targetValue) && goal.targetValue! > 0
+            ? goal.targetValue
+            : undefined,
+        currentValue: Number.isFinite(goal.currentValue)
+          ? Math.max(0, goal.currentValue!)
+          : undefined,
+        unit:
+          typeof goal.unit === "string"
+            ? goal.unit.trim() || undefined
+            : undefined,
         startDate: optionalDate(goal.startDate) ?? semester.startDate,
         deadline: optionalDate(goal.deadline),
         deadlineInfo: deadlineValue(goal.deadlineInfo, goal.deadline),
@@ -556,6 +602,9 @@ export function normalizeStoredData(
   );
   const milestoneIds = new Set(
     milestones.map((milestone) => milestone.id),
+  );
+  const milestoneGoalById = new Map(
+    milestones.map((milestone) => [milestone.id, milestone.goalId]),
   );
   const validTaskStatuses: Task["status"][] = [
     "planned",
@@ -636,9 +685,12 @@ export function normalizeStoredData(
         ? task.status
         : "planned",
       goalId:
-        typeof task.goalId === "string" && goalIds.has(task.goalId)
-          ? task.goalId
-          : undefined,
+        typeof task.milestoneId === "string" &&
+        milestoneGoalById.has(task.milestoneId)
+          ? milestoneGoalById.get(task.milestoneId)
+          : typeof task.goalId === "string" && goalIds.has(task.goalId)
+            ? task.goalId
+            : undefined,
       milestoneId:
         typeof task.milestoneId === "string" &&
         milestoneIds.has(task.milestoneId)
@@ -649,7 +701,10 @@ export function normalizeStoredData(
       updatedAt:
         typeof task.updatedAt === "string" ? task.updatedAt : "",
       prerequisiteTaskIds: stringArray(task.prerequisiteTaskIds),
-      requiredForMilestone: task.requiredForMilestone === true,
+      requiredForMilestone:
+        typeof task.milestoneId === "string" &&
+        milestoneIds.has(task.milestoneId) &&
+        task.requiredForMilestone === true,
       dailyPriorityRank: [1, 2, 3].includes(task.dailyPriorityRank ?? 0)
         ? task.dailyPriorityRank
         : undefined,
@@ -805,7 +860,13 @@ export function normalizeStoredData(
   const validAssessmentTypes: AcademicModule["assessments"][number]["type"][] =
     ["assignment", "project", "quiz", "midterm", "presentation", "exam"];
   const validAssessmentStatuses: AcademicModule["assessments"][number]["status"][] =
-    ["not_started", "in_progress", "submitted", "graded"];
+    [
+      "not_started",
+      "in_progress",
+      "ready_to_submit",
+      "submitted",
+      "graded",
+    ];
   const modules = recordArray<AcademicModule>(stored.modules)
     .filter(
       (module) =>
@@ -852,7 +913,27 @@ export function normalizeStoredData(
             : 0,
           status: validAssessmentStatuses.includes(assessment.status)
             ? assessment.status
-              : ("not_started" as const),
+            : ("not_started" as const),
+          submittedAt:
+            typeof assessment.submittedAt === "string"
+              ? assessment.submittedAt
+              : undefined,
+          feedback:
+            typeof assessment.feedback === "string"
+              ? assessment.feedback.trim() || undefined
+              : undefined,
+          lessonsLearned:
+            typeof assessment.lessonsLearned === "string"
+              ? assessment.lessonsLearned.trim() || undefined
+              : undefined,
+          estimatedEffortMinutes: Number.isFinite(
+            assessment.estimatedEffortMinutes,
+          )
+            ? Math.min(
+                10080,
+                Math.max(5, Math.round(assessment.estimatedEffortMinutes!)),
+              )
+            : undefined,
           deadlineInfo: deadlineValue(
             assessment.deadlineInfo,
             assessment.deadline,
@@ -873,6 +954,29 @@ export function normalizeStoredData(
         })),
     }))
     .filter((module) => Boolean(module.code) && Boolean(module.name));
+  const moduleIds = new Set(modules.map((module) => module.id));
+  const moduleStudyLogs = recordArray<ModuleStudyLog>(stored.moduleStudyLogs)
+    .filter(
+      (log) =>
+        typeof log.id === "string" &&
+        typeof log.moduleId === "string" &&
+        moduleIds.has(log.moduleId) &&
+        isDateKey(log.date) &&
+        Number.isFinite(log.minutes) &&
+        log.minutes > 0,
+    )
+    .map((log) => ({
+      ...log,
+      userId,
+      minutes: Math.min(1440, Math.max(1, Math.round(log.minutes))),
+      sourceTaskId:
+        typeof log.sourceTaskId === "string" &&
+        tasks.some((task) => task.id === log.sourceTaskId)
+          ? log.sourceTaskId
+          : undefined,
+      note:
+        typeof log.note === "string" ? log.note.trim() || undefined : undefined,
+    }));
   const validDifficulties: AlgorithmLog["difficulty"][] = [
     "Easy",
     "Medium",
@@ -1077,10 +1181,12 @@ export function normalizeStoredData(
     guitarLearning,
     reflections,
     modules,
+    moduleStudyLogs,
     algorithmLogs,
     applications,
     events,
     weeklyPriorities: priorities,
+    weeklyPrioritiesByWeek,
     preferences,
     archiveSummaries: recordArray(stored.archiveSummaries),
   };
@@ -1103,6 +1209,7 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
     workspaceSize,
     syncMetrics,
     canUndo,
+    recoveryRequired,
     mutateData,
     syncWorkspaceNow,
     resolveConflict,
@@ -1114,6 +1221,10 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
     archiveWorkspace,
     listRecoverySnapshots,
     deleteRecoverySnapshot,
+    downloadRecoveryPayload,
+    retryRecoveryMigration,
+    restoreLatestRecoverySnapshot,
+    startFreshAfterRecovery,
   } = useWorkspaceSync({
     identity,
     enabled: accountSyncEnabled,
@@ -1124,6 +1235,9 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ResolveContextValue>(
     () => ({
       ...data,
+      weeklyPriorities:
+        data.weeklyPrioritiesByWeek[getWeekDateKeys()[0]] ??
+        data.weeklyPriorities,
       storageMode,
       syncStatus,
       syncError,
@@ -1306,6 +1420,16 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           ),
         );
       },
+      markAssessmentSubmitted(moduleId, assessmentId, submitted = true) {
+        mutateData((current) =>
+          markAssessmentSubmittedInData(
+            current,
+            moduleId,
+            assessmentId,
+            submitted,
+          ),
+        );
+      },
       planAssessmentPreparation(assessmentId, templateId, drafts) {
         mutateData((current) =>
           planAssessmentPreparationToData(
@@ -1395,9 +1519,9 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           updateSemesterInData(current, semester, identity),
         );
       },
-      updatePriorities(priorities) {
+      updatePriorities(priorities, weekStart) {
         mutateData((current) =>
-          updatePrioritiesInData(current, priorities),
+          updatePrioritiesInData(current, priorities, weekStart),
         );
       },
       addEvent(event) {
@@ -1465,6 +1589,18 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       >
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-accent/30 border-t-accent" />
       </div>
+    );
+  }
+
+  if (recoveryRequired) {
+    return (
+      <WorkspaceRecovery
+        recovery={recoveryRequired}
+        downloadRaw={downloadRecoveryPayload}
+        retry={retryRecoveryMigration}
+        restoreLatest={restoreLatestRecoverySnapshot}
+        startFresh={startFreshAfterRecovery}
+      />
     );
   }
 

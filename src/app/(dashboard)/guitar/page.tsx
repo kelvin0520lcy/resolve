@@ -133,6 +133,7 @@ export default function GuitarPage() {
   const [selectedToolId, setSelectedToolId] =
     useState<GuitarToolId>("fretboard");
   const [lessonToOpen, setLessonToOpen] = useState<string>();
+  const [sessionToOpen, setSessionToOpen] = useState<string>();
   const [lessonStageById, setLessonStageById] = useState<
     Record<string, number>
   >({});
@@ -142,6 +143,7 @@ export default function GuitarPage() {
       const url = new URL(href, window.location.origin);
       const requestedMode = url.searchParams.get("mode");
       const requestedLesson = url.searchParams.get("lesson");
+      const requestedSession = url.searchParams.get("session");
       if (
         requestedMode &&
         ["overview", "learn", "explore", "learning-map"].includes(
@@ -153,6 +155,10 @@ export default function GuitarPage() {
       if (requestedLesson) {
         setLessonToOpen(requestedLesson);
         setMode("learn");
+      }
+      if (requestedSession) {
+        setSessionToOpen(requestedSession);
+        setMode("overview");
       }
     }
     const handleRecord = (event: Event) => {
@@ -221,7 +227,7 @@ export default function GuitarPage() {
           className="min-w-0"
         >
           {mode === "overview" ? (
-            <GuitarOverview />
+            <GuitarOverview deepLinkedSessionId={sessionToOpen} />
           ) : (
             <>
               <PageIntro
@@ -322,7 +328,11 @@ export default function GuitarPage() {
   );
 }
 
-function GuitarOverview() {
+function GuitarOverview({
+  deepLinkedSessionId,
+}: {
+  deepLinkedSessionId?: string;
+}) {
   const {
     guitarSessions,
     addGuitarSession,
@@ -377,9 +387,26 @@ function GuitarOverview() {
   const dominantSkill = Object.entries(skillMinutes).sort(
     (a, b) => b[1] - a[1],
   )[0];
-  const visibleSessions = showAllSessions
+  const visibleSessions =
+    showAllSessions ||
+    Boolean(
+      deepLinkedSessionId &&
+        !guitarSessions.slice(0, 6).some(
+          (session) => session.id === deepLinkedSessionId,
+        ),
+    )
     ? guitarSessions
     : guitarSessions.slice(0, 6);
+
+  useEffect(() => {
+    if (!deepLinkedSessionId) return;
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(`guitar-session-${deepLinkedSessionId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [deepLinkedSessionId, guitarSessions.length]);
 
   function resetForm() {
     setPracticeDate(offsetDate(0));
@@ -907,7 +934,8 @@ function GuitarOverview() {
               {visibleSessions.map((session) => (
                 <div
                   key={session.id}
-                  className="rounded-2xl border border-border bg-surface p-4"
+                  id={`guitar-session-${session.id}`}
+                  className="scroll-mt-24 rounded-2xl border border-border bg-surface p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>

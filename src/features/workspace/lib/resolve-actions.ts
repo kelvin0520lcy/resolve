@@ -1,5 +1,10 @@
-import { isDateKey, offsetDate } from "@/lib/date";
+import { getWeekDateKeys, isDateKey, offsetDate, parseLocalDate } from "@/lib/date";
 import type { ResolveData } from "@/features/workspace/types";
+import {
+  getTaskDeadline,
+  getTaskEstimatedMinutes,
+  getTaskScheduleDate,
+} from "@/features/workspace/lib/deadlines";
 import type {
   AcademicModule,
   AlgorithmLog,
@@ -34,14 +39,28 @@ export type NewTaskInput = Pick<Task, "title" | "category" | "priority"> &
       | "origin"
     >
   >;
-export type UpdateTaskInput = NewTaskInput &
-  Partial<Pick<Task, "status">>;
+export type UpdateTaskInput = Partial<
+  Omit<NewTaskInput, "schedule"> & Pick<Task, "status">
+> & {
+  schedule?: Partial<NonNullable<Task["schedule"]>>;
+};
 
 export type NewGoalInput = Pick<
   Goal,
   "title" | "description" | "category" | "priority"
 > &
-  Partial<Pick<Goal, "deadline" | "deadlineInfo" | "motivation">>;
+  Partial<
+    Pick<
+      Goal,
+      | "deadline"
+      | "deadlineInfo"
+      | "motivation"
+      | "measurementType"
+      | "targetValue"
+      | "currentValue"
+      | "unit"
+    >
+  >;
 export type UpdateGoalInput = NewGoalInput;
 
 export type NewMilestoneInput = Pick<Milestone, "title"> &
@@ -80,7 +99,12 @@ export type NewAssessmentInput = Pick<
   Assessment,
   "moduleId" | "title" | "type" | "weight" | "deadline"
 > &
-  Partial<Pick<Assessment, "targetScore" | "deadlineInfo">>;
+  Partial<
+    Pick<
+      Assessment,
+      "targetScore" | "deadlineInfo" | "estimatedEffortMinutes"
+    >
+  >;
 export type UpdateAssessmentInput = NewAssessmentInput;
 
 export type NewAlgorithmLogInput = Omit<
@@ -107,6 +131,7 @@ export type NewEventInput = Omit<
 export type UpdateEventInput = NewEventInput;
 
 export type PreparationTaskDraft = {
+  id?: string;
   title: string;
   estimatedMinutes?: number;
   category?: string;
@@ -120,8 +145,9 @@ export type MutationMeta = {
   timestamp?: string;
 };
 
-function mutationId(meta: MutationMeta) {
-  return meta.id ?? crypto.randomUUID();
+function mutationId(meta: MutationMeta, suffix?: string) {
+  const id = meta.id ?? crypto.randomUUID();
+  return suffix ? `${id}:${suffix}` : id;
 }
 
 function mutationTime(meta: MutationMeta) {
@@ -160,13 +186,19 @@ function normalizeTaskMinutes(minutes: unknown) {
     : undefined;
 }
 
-function taskDeadline(task: NewTaskInput) {
+function taskDeadline(
+  task: Partial<Pick<Task, "deadline" | "deadlineInfo">>,
+) {
   return (
     task.deadlineInfo ??
     (isDateKey(task.deadline)
       ? ({ kind: "date", date: task.deadline } as const)
       : undefined)
   );
+}
+
+function hasOwn(value: object, key: PropertyKey) {
+  return Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function recalculateAutomaticMilestones(
@@ -180,8 +212,9 @@ function recalculateAutomaticMilestones(
       (task) =>
         task.milestoneId === milestone.id && task.requiredForMilestone === true,
     );
-    if (!requiredTasks.length) return milestone;
-    const completed = requiredTasks.every((task) => task.status === "completed");
+    const completed =
+      requiredTasks.length > 0 &&
+      requiredTasks.every((task) => task.status === "completed");
     if (completed === milestone.completed) return milestone;
     changed = true;
     return {
@@ -224,6 +257,15 @@ export function addTaskToData(
   const estimatedMinutes = normalizeTaskMinutes(
     task.schedule?.estimatedMinutes ?? task.estimatedMinutes,
   );
+  const requestedMilestone = current.milestones.find(
+    (milestone) => milestone.id === task.milestoneId,
+  );
+  const requestedGoal = current.goals.find((goal) => goal.id === task.goalId);
+  const goalId = requestedMilestone?.goalId ?? requestedGoal?.id;
+  const milestoneId =
+    requestedMilestone && requestedMilestone.goalId === goalId
+      ? requestedMilestone.id
+      : undefined;
   const schedule = scheduleDate
     ? {
         date: scheduleDate,
@@ -252,18 +294,13 @@ export function addTaskToData(
           deadlineInfo?.kind === "date" ? deadlineInfo.date : undefined,
         deadlineInfo,
         estimatedMinutes,
-        goalId: current.goals.some((goal) => goal.id === task.goalId)
-          ? task.goalId
-          : undefined,
-        milestoneId: current.milestones.some(
-          (milestone) => milestone.id === task.milestoneId,
-        )
-          ? task.milestoneId
-          : undefined,
+        goalId,
+        milestoneId,
         prerequisiteTaskIds: (task.prerequisiteTaskIds ?? []).filter((id) =>
           current.tasks.some((candidate) => candidate.id === id),
         ),
-        requiredForMilestone: task.requiredForMilestone === true,
+        requiredForMilestone:
+          Boolean(milestoneId) && task.requiredForMilestone === true,
         deferral: { deferCount: 0 },
         status: "planned",
         createdAt: timestamp,
@@ -280,18 +317,65 @@ export function updateTaskInData(
   changes: UpdateTaskInput,
   timestamp = new Date().toISOString(),
 ): ResolveData {
-  const cleanTitle = changes.title.trim();
   const existing = current.tasks.find((task) => task.id === taskId);
+  const cleanTitle = hasOwn(changes, "title")
+    ? changes.title?.trim() ?? ""
+    : existing?.title ?? "";
   if (!existing || !cleanTitle) return current;
-  const estimatedMinutes = normalizeTaskMinutes(
-    changes.schedule?.estimatedMinutes ?? changes.estimatedMinutes,
+  const changesSchedule = hasOwn(changes, "schedule");
+  const changesScheduledDate = hasOwn(changes, "scheduledDate");
+  const changesEstimate =
+    hasOwn(changes, "estimatedMinutes") ||
+    (changes.schedule !== undefined &&
+      hasOwn(changes.schedule, "estimatedMinutes"));
+  const scheduleDate = changesSchedule
+    ? changes.schedule === undefined
+      ? undefined
+      : hasOwn(changes.schedule, "date")
+        ? isDateKey(changes.schedule.date)
+          ? changes.schedule.date
+          : isDateKey(changes.scheduledDate)
+            ? changes.scheduledDate
+            : undefined
+        : changesScheduledDate
+          ? isDateKey(changes.scheduledDate)
+            ? changes.scheduledDate
+            : undefined
+          : getTaskScheduleDate(existing)
+    : changesScheduledDate
+      ? isDateKey(changes.scheduledDate)
+        ? changes.scheduledDate
+        : undefined
+      : getTaskScheduleDate(existing);
+  const estimatedMinutes = changesEstimate
+    ? normalizeTaskMinutes(
+        changes.schedule?.estimatedMinutes ?? changes.estimatedMinutes,
+      )
+    : getTaskEstimatedMinutes(existing);
+  const changesDeadline =
+    hasOwn(changes, "deadline") || hasOwn(changes, "deadlineInfo");
+  const deadlineInfo = changesDeadline
+    ? taskDeadline(changes)
+    : getTaskDeadline(existing);
+  const requestedGoalId = hasOwn(changes, "goalId")
+    ? changes.goalId
+    : existing.goalId;
+  const requestedMilestoneId = hasOwn(changes, "milestoneId")
+    ? changes.milestoneId
+    : hasOwn(changes, "goalId")
+      ? undefined
+      : existing.milestoneId;
+  const requestedMilestone = current.milestones.find(
+    (milestone) => milestone.id === requestedMilestoneId,
   );
-  const scheduleDate = isDateKey(changes.schedule?.date)
-    ? changes.schedule.date
-    : isDateKey(changes.scheduledDate)
-      ? changes.scheduledDate
+  const requestedGoal = current.goals.find(
+    (goal) => goal.id === requestedGoalId,
+  );
+  const goalId = requestedMilestone?.goalId ?? requestedGoal?.id;
+  const milestoneId =
+    requestedMilestone && requestedMilestone.goalId === goalId
+      ? requestedMilestone.id
       : undefined;
-  const deadlineInfo = taskDeadline(changes);
 
   const next: ResolveData = {
     ...current,
@@ -300,14 +384,21 @@ export function updateTaskInData(
         ? {
             ...task,
             title: cleanTitle,
-            description: changes.description?.trim() || undefined,
-            category: changes.category.trim() || "custom",
-            priority: changes.priority,
+            description: hasOwn(changes, "description")
+              ? changes.description?.trim() || undefined
+              : task.description,
+            category: hasOwn(changes, "category")
+              ? changes.category?.trim() || "custom"
+              : task.category,
+            priority: changes.priority ?? task.priority,
             scheduledDate: scheduleDate,
             schedule: scheduleDate
               ? {
                   date: scheduleDate,
-                  startTime: changes.schedule?.startTime,
+                  startTime:
+                    changes.schedule && hasOwn(changes.schedule, "startTime")
+                      ? changes.schedule.startTime
+                      : task.schedule?.startTime,
                   estimatedMinutes,
                   timeZone:
                     changes.schedule?.timeZone ||
@@ -319,25 +410,21 @@ export function updateTaskInData(
               deadlineInfo?.kind === "date" ? deadlineInfo.date : undefined,
             deadlineInfo,
             estimatedMinutes,
-            goalId:
-              changes.goalId === undefined
-                ? task.goalId
-                : current.goals.some((goal) => goal.id === changes.goalId)
-                  ? changes.goalId
-                  : task.goalId,
-            milestoneId:
-              changes.milestoneId === undefined
-                ? task.milestoneId
-                : current.milestones.some(
-                      (milestone) => milestone.id === changes.milestoneId,
-                    )
-                  ? changes.milestoneId
-                  : undefined,
-            prerequisiteTaskIds: (changes.prerequisiteTaskIds ?? []).filter(
-              (id) => id !== taskId && current.tasks.some((item) => item.id === id),
-            ),
-            requiredForMilestone: changes.requiredForMilestone === true,
-            origin: changes.origin ?? task.origin,
+            goalId,
+            milestoneId,
+            prerequisiteTaskIds: hasOwn(changes, "prerequisiteTaskIds")
+              ? (changes.prerequisiteTaskIds ?? []).filter(
+                  (id) =>
+                    id !== taskId &&
+                    current.tasks.some((item) => item.id === id),
+                )
+              : task.prerequisiteTaskIds,
+            requiredForMilestone:
+              Boolean(milestoneId) &&
+              (hasOwn(changes, "requiredForMilestone")
+                ? changes.requiredForMilestone === true
+                : task.requiredForMilestone === true),
+            origin: hasOwn(changes, "origin") ? changes.origin : task.origin,
             dailyPriorityRank:
               scheduleDate === (task.schedule?.date ?? task.scheduledDate)
                 ? task.dailyPriorityRank
@@ -515,6 +602,14 @@ export function addGoalToData(
   const cleanDescription = goal.description.trim();
   if (!cleanTitle || !cleanDescription) return current;
   const timestamp = mutationTime(meta);
+  const targetValue =
+    Number.isFinite(goal.targetValue) && goal.targetValue! > 0
+      ? goal.targetValue
+      : undefined;
+  const currentValue = Number.isFinite(goal.currentValue)
+    ? Math.max(0, goal.currentValue!)
+    : undefined;
+  const unit = goal.unit?.trim() || undefined;
 
   return {
     ...current,
@@ -533,7 +628,14 @@ export function addGoalToData(
         id: mutationId(meta),
         userId: meta.identity,
         semesterId: current.semester.id,
-        measurementType: "manual",
+        measurementType: ["percentage", "count", "duration"].includes(
+          goal.measurementType ?? "",
+        )
+          ? goal.measurementType!
+          : "manual",
+        ...(targetValue !== undefined ? { targetValue } : {}),
+        ...(currentValue !== undefined ? { currentValue } : {}),
+        ...(unit ? { unit } : {}),
         startDate: offsetDate(0),
         status: "active",
         createdAt: timestamp,
@@ -570,6 +672,25 @@ export function updateGoalInData(
             category: changes.category,
             priority: changes.priority,
             motivation: changes.motivation?.trim() || undefined,
+            measurementType:
+              current.milestones.some(
+                (milestone) => milestone.goalId === goalId,
+              )
+                ? ("milestone" as const)
+                : ["percentage", "count", "duration"].includes(
+                      changes.measurementType ?? "",
+                    )
+                  ? changes.measurementType!
+                  : ("manual" as const),
+            targetValue:
+              Number.isFinite(changes.targetValue) &&
+              changes.targetValue! > 0
+                ? changes.targetValue
+                : undefined,
+            currentValue: Number.isFinite(changes.currentValue)
+              ? Math.max(0, changes.currentValue!)
+              : undefined,
+            unit: changes.unit?.trim() || undefined,
             deadline: isDateKey(changes.deadline)
               ? changes.deadline
               : undefined,
@@ -649,10 +770,18 @@ export function setGoalCompletedInData(
       item.id === goalId
         ? {
             ...item,
-            measurementType: goalMilestones.length ? "milestone" : "manual",
-            targetValue: undefined,
-            currentValue: undefined,
-            unit: undefined,
+            measurementType: goalMilestones.length
+              ? "milestone"
+              : item.measurementType === "milestone"
+                ? "manual"
+                : item.measurementType,
+            targetValue: goalMilestones.length
+              ? undefined
+              : item.targetValue,
+            currentValue: goalMilestones.length
+              ? undefined
+              : item.currentValue,
+            unit: goalMilestones.length ? undefined : item.unit,
             status: completed ? "completed" : "active",
             updatedAt: timestamp,
           }
@@ -835,7 +964,12 @@ export function removeMilestoneFromData(
     ),
     tasks: current.tasks.map((task) =>
       task.milestoneId === milestoneId
-        ? { ...task, milestoneId: undefined, updatedAt: timestamp }
+        ? {
+            ...task,
+            milestoneId: undefined,
+            requiredForMilestone: false,
+            updatedAt: timestamp,
+          }
         : task,
     ),
   };
@@ -1055,6 +1189,9 @@ export function removeModuleFromData(
   return {
     ...current,
     modules: current.modules.filter((module) => module.id !== moduleId),
+    moduleStudyLogs: current.moduleStudyLogs.filter(
+      (log) => log.moduleId !== moduleId,
+    ),
     tasks:
       linkedTaskPolicy === "delete"
         ? current.tasks.filter((task) => !isLinked(task))
@@ -1102,6 +1239,9 @@ export function addAssessmentToData(
                   !Number.isFinite(assessment.targetScore)
                     ? undefined
                     : Math.min(100, Math.max(0, assessment.targetScore)),
+                estimatedEffortMinutes: normalizeTaskMinutes(
+                  assessment.estimatedEffortMinutes,
+                ),
                 progress: 0,
                 status: "not_started",
                 deadlineInfo:
@@ -1160,6 +1300,10 @@ export function updateAssessmentInData(
         : !Number.isFinite(changes.targetScore)
           ? existing.targetScore
           : Math.min(100, Math.max(0, changes.targetScore)),
+    estimatedEffortMinutes:
+      changes.estimatedEffortMinutes === undefined
+        ? existing.estimatedEffortMinutes
+        : normalizeTaskMinutes(changes.estimatedEffortMinutes),
   };
 
   return {
@@ -1172,6 +1316,21 @@ export function updateAssessmentInData(
         ? { ...module, assessments: [...withoutTarget, updated] }
         : { ...module, assessments: withoutTarget };
     }),
+    tasks:
+      sourceModule.id === changes.moduleId
+        ? current.tasks
+        : current.tasks.map((task) =>
+            task.origin?.kind === "assessment-preparation" &&
+            task.origin.assessmentId === assessmentId
+              ? {
+                  ...task,
+                  origin: {
+                    ...task.origin,
+                    moduleId: changes.moduleId,
+                  },
+                }
+              : task,
+          ),
   };
 }
 
@@ -1192,19 +1351,25 @@ export function planAssessmentPreparationToData(
   const existing = current.tasks.filter(
     (task) =>
       task.origin?.kind === "assessment-preparation" &&
-      task.origin.assessmentId === assessmentId,
+      task.origin.assessmentId === assessmentId &&
+      task.status !== "cancelled",
   );
-  const existingTitles = new Set(
-    existing.map((task) => task.title.trim().toLocaleLowerCase()),
+  const existingStepIds = new Set(
+    existing
+      .map((task) => task.origin?.kind === "assessment-preparation"
+        ? task.origin.templateStepId
+        : undefined)
+      .filter((id): id is string => Boolean(id)),
   );
   const timestamp = mutationTime(meta);
   const newTasks: Task[] = [];
-  for (const draft of drafts) {
+  for (const [index, draft] of drafts.entries()) {
     const title = draft.title.trim();
-    if (!title || existingTitles.has(title.toLocaleLowerCase())) continue;
-    existingTitles.add(title.toLocaleLowerCase());
+    const templateStepId = draft.id?.trim() || `${templateId}:step-${index + 1}`;
+    if (!title || existingStepIds.has(templateStepId)) continue;
+    existingStepIds.add(templateStepId);
     newTasks.push({
-      id: crypto.randomUUID(),
+      id: mutationId(meta, templateStepId),
       userId: meta.identity,
       semesterId: current.semester.id,
       title,
@@ -1218,6 +1383,7 @@ export function planAssessmentPreparationToData(
         assessmentId,
         moduleId: moduleRecord.id,
         templateId,
+        templateStepId,
       },
       prerequisiteTaskIds: [],
       requiredForMilestone: false,
@@ -1229,7 +1395,9 @@ export function planAssessmentPreparationToData(
   if (!newTasks.length) return current;
   const generatedTaskIds = [
     ...(assessment.preparation?.generatedTaskIds ?? []).filter((id) =>
-      current.tasks.some((task) => task.id === id),
+      current.tasks.some(
+        (task) => task.id === id && task.status !== "cancelled",
+      ),
     ),
     ...newTasks.map((task) => task.id),
   ];
@@ -1290,13 +1458,56 @@ export function updateAssessmentProgressInData(
                 status:
                   assessment.status === "graded"
                     ? "graded"
-                    : normalizedProgress === 100
+                    : assessment.status === "submitted"
                       ? "submitted"
+                    : normalizedProgress === 100
+                      ? "ready_to_submit"
                       : normalizedProgress > 0
                         ? "in_progress"
                         : "not_started",
               };
             }),
+          }
+        : module,
+    ),
+  };
+}
+
+export function markAssessmentSubmittedInData(
+  current: ResolveData,
+  moduleId: string,
+  assessmentId: string,
+  submitted = true,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  const moduleRecord = current.modules.find((module) => module.id === moduleId);
+  const assessment = moduleRecord?.assessments.find(
+    (candidate) => candidate.id === assessmentId,
+  );
+  if (!assessment || assessment.status === "graded") return current;
+  if (submitted && assessment.progress < 100) return current;
+
+  return {
+    ...current,
+    modules: current.modules.map((module) =>
+      module.id === moduleId
+        ? {
+            ...module,
+            assessments: module.assessments.map((candidate) =>
+              candidate.id === assessmentId
+                ? {
+                    ...candidate,
+                    status: submitted
+                      ? ("submitted" as const)
+                      : candidate.progress === 100
+                        ? ("ready_to_submit" as const)
+                        : candidate.progress > 0
+                          ? ("in_progress" as const)
+                          : ("not_started" as const),
+                    submittedAt: submitted ? timestamp : undefined,
+                  }
+                : candidate,
+            ),
           }
         : module,
     ),
@@ -1354,27 +1565,49 @@ export function updateModuleStudyMinutesInData(
   current: ResolveData,
   moduleId: string,
   minutes: number,
+  date = offsetDate(0),
 ): ResolveData {
   if (
     !Number.isFinite(minutes) ||
+    !isDateKey(date) ||
     !current.modules.some((module) => module.id === moduleId)
   ) {
     return current;
   }
 
+  const weekDates = getWeekDateKeys(parseLocalDate(date));
+  const desiredTotal = Math.min(10080, Math.max(0, Math.round(minutes)));
+  const manualLogId = `manual:${moduleId}:${date}`;
+  const otherMinutes = current.moduleStudyLogs
+    .filter(
+      (log) =>
+        log.moduleId === moduleId &&
+        weekDates.includes(log.date) &&
+        log.id !== manualLogId,
+    )
+    .reduce((sum, log) => sum + log.minutes, 0);
+  const todayMinutes = Math.min(
+    1440,
+    Math.max(0, desiredTotal - otherMinutes),
+  );
+  const withoutManual = current.moduleStudyLogs.filter(
+    (log) => log.id !== manualLogId,
+  );
   return {
     ...current,
-    modules: current.modules.map((module) =>
-      module.id === moduleId
-        ? {
-            ...module,
-            weeklyStudyMinutes: Math.min(
-              10080,
-              Math.max(0, Math.round(minutes)),
-            ),
-          }
-        : module,
-    ),
+    moduleStudyLogs: todayMinutes
+      ? [
+          ...withoutManual,
+          {
+            id: manualLogId,
+            moduleId,
+            userId: current.semester.userId,
+            date,
+            minutes: todayMinutes,
+            note: "Manual study log",
+          },
+        ]
+      : withoutManual,
   };
 }
 
@@ -1938,12 +2171,24 @@ export function updateSemesterInData(
 export function updatePrioritiesInData(
   current: ResolveData,
   priorities: string[],
+  weekStart = getWeekDateKeys()[0],
 ): ResolveData {
   const cleaned = priorities.map((priority) => priority.trim());
-  if (cleaned.length !== 3 || cleaned.some((priority) => !priority)) {
+  if (
+    cleaned.length !== 3 ||
+    !cleaned.some(Boolean) ||
+    !isDateKey(weekStart) ||
+    getWeekDateKeys(parseLocalDate(weekStart))[0] !== weekStart
+  ) {
     return current;
   }
-  return { ...current, weeklyPriorities: cleaned };
+  return {
+    ...current,
+    weeklyPrioritiesByWeek: {
+      ...current.weeklyPrioritiesByWeek,
+      [weekStart]: cleaned,
+    },
+  };
 }
 
 function validEventInput(event: NewEventInput) {
@@ -2149,6 +2394,7 @@ export function startNewSemesterInData(
     applications: [],
     events: [],
     weeklyPriorities: ["", "", ""],
+    weeklyPrioritiesByWeek: {},
     archiveSummaries: [...current.archiveSummaries, summary],
   };
 }

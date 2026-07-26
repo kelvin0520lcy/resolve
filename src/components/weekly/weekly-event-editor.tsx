@@ -258,16 +258,23 @@ export function WeeklyEventEditor({ weekStart }: { weekStart: string }) {
                 event.recurrence.kind === "none"
                   ? event.recurrence
                   : { ...event.recurrence, excludedDates: [] };
-              const occurrence = expandEvents(
+              const occurrences = expandEvents(
                 [{ ...event, recurrence: recurrenceWithoutExceptions }],
                 weekStart,
                 weekEnd,
-              )[0];
-              const occurrenceIsSkipped =
-                occurrence &&
+              );
+              const occurrenceDates = [
+                ...new Set(occurrences.map((occurrence) => occurrence.sourceDate)),
+              ];
+              const excludedDates =
+                event.recurrence.kind === "none"
+                  ? []
+                  : event.recurrence.excludedDates ?? [];
+              const allOccurrencesAreSkipped =
+                occurrenceDates.length > 0 &&
                 event.recurrence.kind !== "none" &&
-                (event.recurrence.excludedDates ?? []).includes(
-                  occurrence.date,
+                occurrenceDates.every((occurrenceDate) =>
+                  excludedDates.includes(occurrenceDate),
                 );
               return (
                 <div
@@ -294,7 +301,8 @@ export function WeeklyEventEditor({ weekStart }: { weekStart: string }) {
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  {occurrence && event.recurrence.kind !== "none" && (
+                  {occurrenceDates.length > 0 &&
+                    event.recurrence.kind !== "none" && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -304,10 +312,14 @@ export function WeeklyEventEditor({ weekStart }: { weekStart: string }) {
                         const excluded = new Set(
                           recurring.excludedDates ?? [],
                         );
-                        if (excluded.has(occurrence.date)) {
-                          excluded.delete(occurrence.date);
+                        if (allOccurrencesAreSkipped) {
+                          occurrenceDates.forEach((occurrenceDate) =>
+                            excluded.delete(occurrenceDate),
+                          );
                         } else {
-                          excluded.add(occurrence.date);
+                          occurrenceDates.forEach((occurrenceDate) =>
+                            excluded.add(occurrenceDate),
+                          );
                         }
                         updateEvent?.(event.id, {
                           ...event,
@@ -317,9 +329,9 @@ export function WeeklyEventEditor({ weekStart }: { weekStart: string }) {
                           },
                         });
                       }}
-                      aria-label={`${occurrenceIsSkipped ? "Restore" : "Skip"} ${event.title} on ${occurrence.date}`}
+                      aria-label={`${allOccurrencesAreSkipped ? "Restore" : "Skip"} ${event.title} during this week`}
                     >
-                      {occurrenceIsSkipped
+                      {allOccurrencesAreSkipped
                         ? "Restore this week"
                         : "Skip this week"}
                     </Button>

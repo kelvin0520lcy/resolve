@@ -29,7 +29,12 @@ import {
   MetricCard,
 } from "@/components/ui/resolve";
 import { resolveCharacterState } from "@/lib/character/dialogue";
-import { getScheduledHabits } from "@/features/workspace/lib/habits";
+import {
+  getHabitCompletionCount,
+  getHabitTargetCount,
+  getScheduledHabits,
+} from "@/features/workspace/lib/habits";
+import { getDailyCapacitySummary } from "@/features/workspace/lib/analytics";
 import {
   formatDeadline,
   getDeadlineDateKey,
@@ -101,15 +106,15 @@ export default function DashboardPage() {
         log.habitId === habit.id && log.date === today && log.completed,
     ),
   ).length;
-  let habitStreak = 0;
-  for (let day = 0; day < 365; day += 1) {
-    const date = offsetDate(-day);
-    if (habitLogs.some((log) => log.date === date && log.completed)) {
-      habitStreak += 1;
-    } else {
-      break;
-    }
-  }
+  const weeklyHabitTarget = habits.reduce(
+    (sum, habit) => sum + getHabitTargetCount(habit, weekDates),
+    0,
+  );
+  const weeklyHabitCompleted = habits.reduce(
+    (sum, habit) =>
+      sum + getHabitCompletionCount(habit, habitLogs, weekDates),
+    0,
+  );
   const semesterStats = getSemesterWeek(
     semester.startDate,
     semester.endDate,
@@ -119,7 +124,7 @@ export default function DashboardPage() {
     tasksTotalToday: todayTasks.length,
     overdueTasks: overdue,
     upcomingDeadlines: deadlines.length,
-    habitStreak,
+    habitStreak: weeklyHabitCompleted,
     weeklyWorkloadHours: Math.round(weekMinutes / 60),
     hourOfDay: new Date().getHours(),
   });
@@ -142,10 +147,16 @@ export default function DashboardPage() {
     todayTasks.find((task) => task.status !== "completed")?.title ??
     weeklyPriorities.find(Boolean);
   const dailyQuote = getDailyMotivation(today, semester.userId);
+  const todayCapacity = getDailyCapacitySummary({
+    date: today,
+    capacityMinutes: preferences.dailyCapacityMinutes,
+    tasks,
+    events: workspace.events ?? [],
+  });
   const recommendation = rankNextActions(
     workspace,
     today,
-    preferences.dailyCapacityMinutes,
+    todayCapacity.remainingTaskCapacityMinutes,
   )[0];
   const activeTaskGoalIds = new Set(
     tasks
@@ -165,10 +176,6 @@ export default function DashboardPage() {
     (task) =>
       (task.deferral?.deferCount ?? 0) >= 3 &&
       !["completed", "cancelled", "skipped"].includes(task.status),
-  );
-  const todayMinutes = todayTasks.reduce(
-    (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
-    0,
   );
   const assessmentsNeedingPreparation = workspace.modules
     .flatMap((module) => module.assessments)
@@ -196,12 +203,12 @@ export default function DashboardPage() {
           },
         ]
       : []),
-    ...(todayMinutes > preferences.dailyCapacityMinutes
+    ...(todayCapacity.isOverloaded
       ? [
           {
             id: "capacity",
             title: "Today exceeds your planning capacity",
-            detail: `${todayMinutes} minutes planned against ${preferences.dailyCapacityMinutes} available.`,
+            detail: `${todayCapacity.scheduledTaskMinutes} task minutes and ${todayCapacity.fixedEventMinutes} fixed minutes against ${preferences.dailyCapacityMinutes} available.`,
             href: "/today",
             action: "Rebalance today",
           },
@@ -259,9 +266,9 @@ export default function DashboardPage() {
             icon={<Check className="h-5 w-5" />}
           />
           <MetricCard
-            label="Habit check-in"
-            value={`${completedHabits}/${todayHabits.length}`}
-            detail="gentle consistency, not perfection"
+            label="Habits this week"
+            value={`${weeklyHabitCompleted}/${weeklyHabitTarget}`}
+            detail={`${completedHabits} of ${todayHabits.length} scheduled today`}
             icon={<Flame className="h-5 w-5" />}
           />
           <MetricCard
@@ -296,7 +303,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex max-w-full flex-wrap gap-2 lg:shrink-0">
                   <Link
-                    href={`/today?task=${encodeURIComponent(recommendation.task.id)}`}
+                    href={`/today?task=${encodeURIComponent(recommendation.task.id)}&start=true`}
                     className="inline-flex min-h-10 max-w-full items-center rounded-xl bg-accent px-4 py-2 text-center text-sm font-black leading-tight text-white"
                   >
                     Start this

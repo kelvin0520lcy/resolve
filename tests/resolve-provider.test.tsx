@@ -13,6 +13,7 @@ import {
   createEmptyData,
   useResolve,
 } from "@/contexts/resolve-context";
+import { CURRENT_WORKSPACE_SCHEMA_VERSION } from "@/features/workspace/lib/migrations";
 
 type ReadResult =
   | { kind: "missing" }
@@ -188,6 +189,32 @@ afterEach(() => {
 });
 
 describe("ResolveProvider quota-conscious cloud sync", () => {
+  it("enters recovery mode without replacing or syncing malformed local data", async () => {
+    const raw = JSON.stringify({ malformed: true, irreplaceable: "keep me" });
+    window.localStorage.setItem("resolve-data-v2:cloud-user", raw);
+    window.localStorage.setItem(
+      "resolve-sync-v2:cloud-user",
+      JSON.stringify({
+        dirty: true,
+        lastCheckedAt: 0,
+        baseRevision: 2,
+        schemaVersion: CURRENT_WORKSPACE_SCHEMA_VERSION,
+        patches: [],
+      }),
+    );
+
+    renderProvider();
+    await flushStartup();
+
+    expect(
+      screen.getByRole("heading", { name: "Your workspace was not replaced" }),
+    ).toBeInTheDocument();
+    expect(window.localStorage.getItem("resolve-data-v2:cloud-user")).toBe(raw);
+    expect(syncMocks.loadWorkspace).not.toHaveBeenCalled();
+    expect(syncMocks.syncWorkspaceTransaction).not.toHaveBeenCalled();
+    expect(syncMocks.saveRecoverySnapshot).toHaveBeenCalledTimes(1);
+  });
+
   it("backs up and transactionally upgrades an older workspace", async () => {
     await startWithCloudResult({
       kind: "value",
@@ -218,6 +245,26 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
     expect(screen.getByLabelText("goal count")).toHaveTextContent("1");
     expect(syncMocks.upgradeWorkspaceTransaction).toHaveBeenCalledTimes(1);
     expect(syncMocks.saveCloudRecoverySnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not upgrade an older cloud workspace after malformed records would be discarded", async () => {
+    await startWithCloudResult({
+      kind: "value",
+      snapshot: {
+        data: {
+          goals: [{ id: "goal-without-a-title" }],
+        },
+        schemaVersion: 1,
+        revision: 2,
+      },
+    });
+
+    expect(screen.getByLabelText("sync status")).toHaveTextContent("offline");
+    expect(screen.getByLabelText("sync error")).toHaveTextContent(
+      "goals[0] is missing required data",
+    );
+    expect(syncMocks.upgradeWorkspaceTransaction).not.toHaveBeenCalled();
+    expect(syncMocks.saveRecoverySnapshot).toHaveBeenCalledTimes(1);
   });
 
   it("groups several rapid edits into one delayed Firestore write", async () => {
@@ -296,6 +343,37 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
         window.localStorage.getItem("resolve-sync-v2:cloud-user") ?? "{}",
       ),
     ).toMatchObject({ dirty: false });
+  });
+
+  it("retries dirty changes as soon as connectivity returns", async () => {
+    await startWithCloudResult({
+      kind: "value",
+      snapshot: {
+        data: createEmptyData("cloud-user"),
+        schemaVersion: CURRENT_WORKSPACE_SCHEMA_VERSION,
+        revision: 1,
+      },
+    });
+    syncMocks.syncWorkspaceTransaction.mockRejectedValueOnce(
+      new Error("network unavailable"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add local task" }));
+    await act(async () => {
+      vi.advanceTimersByTime(CLOUD_SAVE_DEBOUNCE_MS);
+      await Promise.resolve();
+    });
+    expect(screen.getByLabelText("sync status")).toHaveTextContent("offline");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(syncMocks.syncWorkspaceTransaction).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("sync status")).toHaveTextContent("synced"),
+    );
   });
 
   it("does not poll again until the cloud-check cache expires", async () => {
@@ -444,7 +522,7 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
   it("blocks writes from an app older than the cloud workspace", async () => {
     await startWithCloudResult({
       kind: "value",
-      snapshot: { data: { goals: [] }, schemaVersion: 5, revision: 1 },
+      snapshot: { data: { goals: [] }, schemaVersion: 7, revision: 1 },
     });
 
     expect(screen.getByLabelText("sync status")).toHaveTextContent("error");

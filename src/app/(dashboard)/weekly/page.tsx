@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useEffect,
   useMemo,
@@ -12,6 +13,8 @@ import {
   AlertTriangle,
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ListTodo,
   Pencil,
   Save,
@@ -43,6 +46,9 @@ import { formatDate } from "@/lib/utils";
 import type { Task } from "@/types";
 import { WeeklyEventEditor } from "@/components/weekly/weekly-event-editor";
 import { expandEvents } from "@/features/workspace/lib/events";
+import { getDailyCapacitySummary } from "@/features/workspace/lib/analytics";
+import { getScheduleConflicts } from "@/features/workspace/lib/scheduling";
+import { isDateKey, parseLocalDate } from "@/lib/date";
 import {
   getTaskEstimatedMinutes,
   getTaskDeadline,
@@ -56,6 +62,7 @@ export default function WeeklyPage() {
   const {
     tasks,
     weeklyPriorities,
+    weeklyPrioritiesByWeek,
     updatePriorities,
     updateTask,
     moveTask,
@@ -64,9 +71,29 @@ export default function WeeklyPage() {
     preferences,
     modules,
   } = useResolve();
-  const dates = useMemo(() => getWeekDateKeys(), []);
-  const [priorities, setPriorities] = useState(weeklyPriorities);
+  const router = useRouter();
+  const currentWeekStart = getWeekDateKeys()[0];
+  const [weekStart, setWeekStart] = useState(currentWeekStart);
+  const selectedWeekPriorities = useMemo(
+    () =>
+      (weeklyPrioritiesByWeek ?? {})[weekStart] ??
+      (weekStart === currentWeekStart
+        ? weeklyPriorities
+        : ["", "", ""]),
+    [
+      currentWeekStart,
+      weekStart,
+      weeklyPriorities,
+      weeklyPrioritiesByWeek,
+    ],
+  );
+  const dates = useMemo(
+    () => getWeekDateKeys(parseLocalDate(weekStart)),
+    [weekStart],
+  );
+  const [priorities, setPriorities] = useState(selectedWeekPriorities);
   const prioritiesDirtyRef = useRef(false);
+  const prioritiesWeekRef = useRef(weekStart);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("academics");
@@ -85,11 +112,55 @@ export default function WeeklyPage() {
   const workspaceEvents = useMemo(() => events ?? [], [events]);
 
   useEffect(() => {
+    const setFromUrl = () => {
+      const requested = new URLSearchParams(window.location.search).get("week");
+      if (isDateKey(requested)) {
+        setWeekStart(getWeekDateKeys(parseLocalDate(requested))[0]);
+      } else {
+        setWeekStart(getWeekDateKeys()[0]);
+      }
+    };
+    setFromUrl();
+    window.addEventListener("popstate", setFromUrl);
+    const timer = window.setInterval(() => {
+      if (!new URLSearchParams(window.location.search).has("week")) {
+        setWeekStart(getWeekDateKeys()[0]);
+      }
+    }, 60_000);
+    return () => {
+      window.removeEventListener("popstate", setFromUrl);
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  function showWeek(date: string, preserveInUrl = true) {
+    const normalized = getWeekDateKeys(parseLocalDate(date))[0];
+    setWeekStart(normalized);
+    router.replace(
+      preserveInUrl ? `/weekly?week=${normalized}` : "/weekly",
+      { scroll: false },
+    );
+  }
+
+  function moveWeek(weeks: number) {
+    const date = parseLocalDate(weekStart);
+    date.setDate(date.getDate() + weeks * 7);
+    showWeek(getWeekDateKeys(date)[0]);
+  }
+
+  useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      if (!prioritiesDirtyRef.current) setPriorities(weeklyPriorities);
+      const weekChanged = prioritiesWeekRef.current !== weekStart;
+      if (weekChanged) {
+        prioritiesWeekRef.current = weekStart;
+        prioritiesDirtyRef.current = false;
+      }
+      if (weekChanged || !prioritiesDirtyRef.current) {
+        setPriorities(selectedWeekPriorities);
+      }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [weeklyPriorities]);
+  }, [selectedWeekPriorities, weekStart]);
 
   useEffect(() => {
     let frame = 0;
@@ -125,35 +196,25 @@ export default function WeeklyPage() {
     overloadedDays,
     tasksByDate,
     eventsByDate,
+    scheduleConflicts,
   } = useMemo(() => {
     const tasksThisWeek = tasks.filter((task) => {
       const date = getTaskScheduleDate(task);
       return date !== undefined && date >= dates[0] && date <= dates[6];
     });
     const occurrences = expandEvents(workspaceEvents, dates[0], dates[6]);
-    const scheduledMinutesByDay = new Map<string, number>();
     const taskIndex = new Map<string, Task[]>();
     const eventIndex = new Map<string, (typeof occurrences)[number][]>();
     for (const task of tasksThisWeek) {
       const date = getTaskScheduleDate(task);
       if (!date) continue;
       taskIndex.set(date, [...(taskIndex.get(date) ?? []), task]);
-      scheduledMinutesByDay.set(
-        date,
-        (scheduledMinutesByDay.get(date) ?? 0) +
-          (getTaskEstimatedMinutes(task) ?? 0),
-      );
     }
     for (const event of occurrences) {
       eventIndex.set(event.date, [
         ...(eventIndex.get(event.date) ?? []),
         event,
       ]);
-      scheduledMinutesByDay.set(
-        event.date,
-        (scheduledMinutesByDay.get(event.date) ?? 0) +
-          (event.durationMinutes ?? 0),
-      );
     }
     const activePreparationAssessmentIds = new Set(
       tasks.flatMap((task) =>
@@ -198,11 +259,23 @@ export default function WeeklyPage() {
           !activePreparationAssessmentIds.has(assessment.id),
       );
 
+    const capacityByDate = new Map(
+      dates.map((date) => [
+        date,
+        getDailyCapacitySummary({
+          date,
+          capacityMinutes: dailyCapacityMinutes,
+          tasks,
+          events: workspaceEvents,
+        }),
+      ]),
+    );
     return {
       weekTasks: tasksThisWeek,
       eventOccurrences: occurrences,
-      totalMinutes: tasksThisWeek.reduce(
-        (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
+      totalMinutes: dates.reduce(
+        (sum, date) =>
+          sum + (capacityByDate.get(date)?.scheduledTaskMinutes ?? 0),
         0,
       ),
       fixedMinutes: occurrences.reduce(
@@ -214,12 +287,11 @@ export default function WeeklyPage() {
       unscheduledTasks: backlog,
       assessmentWarnings: warnings,
       overloadedDays: dates.filter(
-        (date) =>
-          (scheduledMinutesByDay.get(date) ?? 0) >
-          dailyCapacityMinutes,
+        (date) => capacityByDate.get(date)?.isOverloaded,
       ),
       tasksByDate: taskIndex,
       eventsByDate: eventIndex,
+      scheduleConflicts: getScheduleConflicts(tasksThisWeek, occurrences),
     };
   }, [
     dates,
@@ -293,9 +365,41 @@ export default function WeeklyPage() {
     <PageShell title="Weekly Plan">
       <div className="mx-auto max-w-7xl space-y-6">
         <PageIntro
-          eyebrow={`Week of ${formatDate(`${dates[0]}T12:00:00`)}`}
+          eyebrow={`${formatDate(`${dates[0]}T12:00:00`)} – ${formatDate(`${dates[6]}T12:00:00`)}`}
           title="Backstage planning board"
           description="Connect the semester plot to seven realistic days. Move any card with its day selector."
+          action={
+            <div className="flex max-w-full flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => moveWeek(-1)}
+                aria-label="Previous week"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={weekStart === currentWeekStart ? "default" : "ghost"}
+                onClick={() => showWeek(currentWeekStart, false)}
+              >
+                Current week
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => moveWeek(1)}
+                aria-label="Next week"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          }
         />
 
         <div className="grid gap-4 sm:grid-cols-3">
@@ -323,6 +427,33 @@ export default function WeeklyPage() {
           />
         </div>
 
+        {scheduleConflicts.length > 0 && (
+          <Card className="border-warning/40">
+            <CardHeader>
+              <CardTitle>Schedule conflicts</CardTitle>
+              <CardDescription>
+                Resolve found exact-time overlaps or deadline problems. You can
+                keep them, but review them before relying on this plan.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2 md:grid-cols-2">
+              {scheduleConflicts.map((conflict) => (
+                <div
+                  key={conflict.id}
+                  className="rounded-xl border border-warning/30 bg-warning/5 p-3"
+                >
+                  <p className="text-[10px] font-black uppercase tracking-wider text-warning">
+                    {conflict.kind.replaceAll("_", " ")} · {conflict.date}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">
+                    {conflict.message}
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div>
@@ -334,7 +465,7 @@ export default function WeeklyPage() {
             <Button
               size="sm"
               onClick={() => {
-                updatePriorities(priorities);
+                updatePriorities(priorities, weekStart);
                 prioritiesDirtyRef.current = false;
               }}
               disabled={!priorities.some((priority) => priority.trim())}
@@ -676,6 +807,11 @@ export default function WeeklyPage() {
                         {event.durationMinutes
                           ? `${event.durationMinutes} min`
                           : "Duration not set"}
+                        {event.continuesFromPreviousDay
+                          ? " · continued from previous day"
+                          : event.continuesIntoNextDay
+                            ? " · continues tomorrow"
+                            : ""}
                       </p>
                     </div>
                   ))}

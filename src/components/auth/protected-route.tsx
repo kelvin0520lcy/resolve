@@ -17,10 +17,17 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
+      <div
+        className="flex min-h-screen items-center justify-center bg-background p-6"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="manga-panel flex w-full max-w-sm flex-col items-center gap-3 rounded-[28px] p-8 text-center">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-accent/30 border-t-accent" />
-          <p className="text-sm text-muted">Loading Resolve!...</p>
+          <p className="font-display text-2xl">Checking your backstage pass</p>
+          <p className="text-sm leading-6 text-muted">
+            Restoring the local workspace and confirming your account session…
+          </p>
         </div>
       </div>
     );

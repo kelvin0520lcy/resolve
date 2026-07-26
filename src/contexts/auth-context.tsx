@@ -17,6 +17,7 @@ import {
   GoogleAuthProvider,
   sendPasswordResetEmail,
   updateProfile,
+  deleteUser,
   type User as FirebaseUser,
 } from "firebase/auth";
 import {
@@ -24,6 +25,11 @@ import {
   isFirebaseConfigured,
 } from "@/lib/firebase/config";
 import type { User } from "@/types";
+import {
+  deleteCloudAccountData,
+  restoreCloudAccountData,
+} from "@/lib/firebase/workspace";
+import { deleteLocalAccountData } from "@/features/workspace/lib/recovery";
 
 type AuthContextValue = {
   user: User | null;
@@ -35,6 +41,7 @@ type AuthContextValue = {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -152,6 +159,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async resetPassword(email) {
         await sendPasswordResetEmail(getFirebaseAuth(), email);
+      },
+      async deleteAccount() {
+        const activeUser = getFirebaseAuth().currentUser;
+        if (!activeUser) throw new Error("Sign in again before deleting the account.");
+        const lastSignIn = activeUser.metadata.lastSignInTime
+          ? Date.parse(activeUser.metadata.lastSignInTime)
+          : 0;
+        if (!lastSignIn || Date.now() - lastSignIn > 5 * 60_000) {
+          throw new Error(
+            "For security, sign out and sign in again before deleting the account.",
+          );
+        }
+        const backup = await deleteCloudAccountData(activeUser.uid);
+        try {
+          await deleteUser(activeUser);
+        } catch (caught) {
+          try {
+            await restoreCloudAccountData(activeUser.uid, backup);
+          } catch {
+            throw new Error(
+              "Account deletion stopped, but Resolve could not automatically restore the cloud copy. Do not retry until you have exported your local workspace.",
+              { cause: caught },
+            );
+          }
+          throw caught;
+        }
+        await deleteLocalAccountData(activeUser.uid);
+        setFirebaseUser(null);
+        setUser(null);
       },
     }),
     [user, firebaseUser, loading, isConfigured],

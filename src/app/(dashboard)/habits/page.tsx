@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   Check,
   Flame,
@@ -95,6 +95,30 @@ export default function HabitsPage() {
     (a, b) =>
       b.consistency - a.consistency || b.completed - a.completed,
   )[0]?.habit;
+
+  useEffect(() => {
+    let frame = 0;
+    function openDeepLink(href = window.location.href) {
+      const url = new URL(href, window.location.origin);
+      const habitId = url.searchParams.get("habit");
+      if (!habitId) return;
+      frame = window.requestAnimationFrame(() => {
+        document
+          .getElementById(`habit-${habitId}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
+    const handleRecord = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (href?.startsWith("/habits")) openDeepLink(href);
+    };
+    openDeepLink();
+    window.addEventListener("resolve:open-record", handleRecord);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resolve:open-record", handleRecord);
+    };
+  }, [habits.length]);
 
   function resetForm() {
     setTitle("");
@@ -386,7 +410,8 @@ export default function HabitsPage() {
                 {habits.map((habit) => (
                   <div
                     key={habit.id}
-                    className="grid grid-cols-[300px_repeat(7,1fr)] items-center gap-2 rounded-2xl border border-border bg-surface p-3"
+                    id={`habit-${habit.id}`}
+                    className="scroll-mt-24 grid grid-cols-[300px_repeat(7,1fr)] items-center gap-2 rounded-2xl border border-border bg-surface p-3"
                   >
                     <div className="flex min-w-0 items-start justify-between gap-2 pr-3">
                       <div className="min-w-0">

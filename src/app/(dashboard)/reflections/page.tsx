@@ -70,6 +70,7 @@ export default function ReflectionsPage() {
   const [nextChanges, setNextChanges] = useState("");
   const [energy, setEnergy] = useState(3);
   const [saved, setSaved] = useState(false);
+  const [linkedReflectionId, setLinkedReflectionId] = useState<string>();
   const [actionTitle, setActionTitle] = useState("");
   const [actionMinutes, setActionMinutes] = useState("30");
   const recentReviews = useMemo(
@@ -78,6 +79,9 @@ export default function ReflectionsPage() {
         b.createdAt.localeCompare(a.createdAt),
       ),
     [reflections],
+  );
+  const linkedReflection = reflections.find(
+    (reflection) => reflection.id === linkedReflectionId,
   );
   const summary = useMemo(
     () => summarizeReflections(reflections),
@@ -132,6 +136,31 @@ export default function ReflectionsPage() {
       task.origin.reflectionDate === today &&
       task.status !== "cancelled",
   );
+
+  useEffect(() => {
+    let frame = 0;
+    function openDeepLink(href = window.location.href) {
+      const url = new URL(href, window.location.origin);
+      const reflectionId = url.searchParams.get("reflection") ?? undefined;
+      setLinkedReflectionId(reflectionId);
+      if (!reflectionId) return;
+      frame = window.requestAnimationFrame(() => {
+        document
+          .getElementById("linked-reflection")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+    const handleRecord = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (href?.startsWith("/reflections")) openDeepLink(href);
+    };
+    openDeepLink();
+    window.addEventListener("resolve:open-record", handleRecord);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resolve:open-record", handleRecord);
+    };
+  }, [reflections.length]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() =>
@@ -246,6 +275,48 @@ export default function ReflectionsPage() {
             </div>
           }
         />
+
+        {linkedReflection && linkedReflection.id !== todayReflection?.id && (
+          <Card id="linked-reflection" className="scroll-mt-24 border-accent/30">
+            <CardHeader>
+              <CardDescription>
+                {linkedReflection.type} reflection ·{" "}
+                {formatDate(`${linkedReflection.periodStart}T12:00:00`)}
+              </CardDescription>
+              <CardTitle>Saved reflection</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              {[
+                ["Wins", linkedReflection.wins],
+                ["Friction", linkedReflection.difficulties],
+                ["Lesson", linkedReflection.lessons],
+                ["Next change", linkedReflection.nextChanges],
+              ]
+                .filter((entry) => entry[1]?.trim())
+                .map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-2xl border border-border bg-surface p-4"
+                  >
+                    <p className="text-[10px] font-black uppercase tracking-wider text-accent">
+                      {label}
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              <div className="rounded-2xl border border-border bg-surface p-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-accent">
+                  Energy
+                </p>
+                <p className="mt-2 text-sm font-bold">
+                  {linkedReflection.energy ?? linkedReflection.mood ?? "—"}/5
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-accent/25">
           <CardContent className="grid gap-4 pt-6 sm:grid-cols-3">

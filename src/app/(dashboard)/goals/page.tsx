@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { GoalBreakdown } from "@/components/goals/goal-breakdown";
 import { PageShell } from "@/components/layout/page-shell";
-import { Badge } from "@/components/ui/badge";
+import { Badge, ProgressBar } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LinkedRecordDeleteButton } from "@/components/ui/linked-record-delete-button";
 import {
@@ -56,6 +56,11 @@ export default function GoalsPage() {
   const [category, setCategory] = useState<GoalCategory>("academics");
   const [priority, setPriority] = useState<Goal["priority"]>("medium");
   const [deadline, setDeadline] = useState(offsetDate(60));
+  const [measurementType, setMeasurementType] =
+    useState<Goal["measurementType"]>("manual");
+  const [targetValue, setTargetValue] = useState("");
+  const [currentValue, setCurrentValue] = useState("");
+  const [unit, setUnit] = useState("");
 
   useEffect(() => {
     let frame = 0;
@@ -97,6 +102,10 @@ export default function GoalsPage() {
     setCategory("academics");
     setPriority("medium");
     setDeadline(offsetDate(60));
+    setMeasurementType("manual");
+    setTargetValue("");
+    setCurrentValue("");
+    setUnit("");
     setEditingGoalId(null);
     setShowForm(false);
   }
@@ -113,6 +122,16 @@ export default function GoalsPage() {
     setCategory(goal.category as GoalCategory);
     setPriority(goal.priority);
     setDeadline(goal.deadline ?? offsetDate(60));
+    setMeasurementType(
+      goal.measurementType === "milestone" ? "manual" : goal.measurementType,
+    );
+    setTargetValue(
+      goal.targetValue === undefined ? "" : String(goal.targetValue),
+    );
+    setCurrentValue(
+      goal.currentValue === undefined ? "" : String(goal.currentValue),
+    );
+    setUnit(goal.unit ?? "");
     setShowForm(true);
     window.requestAnimationFrame(() => {
       document
@@ -130,6 +149,10 @@ export default function GoalsPage() {
       category,
       priority,
       deadline,
+      measurementType,
+      targetValue: targetValue ? Number(targetValue) : undefined,
+      currentValue: currentValue ? Number(currentValue) : undefined,
+      unit: unit.trim() || undefined,
     };
     if (editingGoalId) {
       updateGoal(editingGoalId, changes);
@@ -257,6 +280,64 @@ export default function GoalsPage() {
                     required
                   />
                 </label>
+                <label className="text-sm font-bold">
+                  Progress tracking
+                  <select
+                    className={`${fieldClassName} mt-2`}
+                    value={measurementType}
+                    onChange={(event) =>
+                      setMeasurementType(
+                        event.target.value as Goal["measurementType"],
+                      )
+                    }
+                  >
+                    <option value="manual">Complete manually</option>
+                    <option value="percentage">Percentage</option>
+                    <option value="count">Count</option>
+                    <option value="duration">Duration</option>
+                  </select>
+                </label>
+                {measurementType !== "manual" && (
+                  <>
+                    <label className="text-sm font-bold">
+                      Current value
+                      <input
+                        className={`${fieldClassName} mt-2`}
+                        type="number"
+                        min="0"
+                        value={currentValue}
+                        onChange={(event) => setCurrentValue(event.target.value)}
+                        placeholder="0"
+                      />
+                    </label>
+                    <label className="text-sm font-bold">
+                      Target value
+                      <input
+                        className={`${fieldClassName} mt-2`}
+                        type="number"
+                        min="1"
+                        value={targetValue}
+                        onChange={(event) => setTargetValue(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="text-sm font-bold">
+                      Unit
+                      <input
+                        className={`${fieldClassName} mt-2`}
+                        value={unit}
+                        onChange={(event) => setUnit(event.target.value)}
+                        placeholder={
+                          measurementType === "duration"
+                            ? "hours"
+                            : measurementType === "percentage"
+                              ? "%"
+                              : "items"
+                        }
+                      />
+                    </label>
+                  </>
+                )}
                 <Button className="md:col-span-2" type="submit">
                   {editingGoalId ? "Save goal changes" : "Add semester goal"}
                 </Button>
@@ -323,6 +404,22 @@ export default function GoalsPage() {
                       />
                     </div>
                   </div>
+                  {goal.measurementType !== "manual" &&
+                    goal.measurementType !== "milestone" &&
+                    goal.targetValue !== undefined && (
+                      <div className="mt-3 rounded-xl border border-border bg-surface/60 p-3">
+                        <ProgressBar
+                          value={
+                            ((goal.currentValue ?? 0) / goal.targetValue) * 100
+                          }
+                          label={`${goal.title} measured progress`}
+                        />
+                        <p className="mt-2 text-xs text-muted">
+                          {goal.currentValue ?? 0} of {goal.targetValue}{" "}
+                          {goal.unit ?? ""}
+                        </p>
+                      </div>
+                    )}
                   <CardTitle className="pt-3">{goal.title}</CardTitle>
                   <CardDescription className="leading-6">
                     {goal.description}

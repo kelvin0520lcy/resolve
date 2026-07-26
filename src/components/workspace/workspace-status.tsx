@@ -3,6 +3,7 @@
 import { AlertTriangle, Check, CloudOff, RefreshCw, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useResolve } from "@/contexts/resolve-context";
+import { useDialogFocus } from "@/hooks/use-dialog-focus";
 
 function preview(value: unknown) {
   if (value === undefined) return "Not set";
@@ -23,6 +24,9 @@ export function WorkspaceStatus() {
     exportWorkspace,
   } = useResolve();
   const conflict = conflicts[0];
+  const conflictDialogRef = useDialogFocus<HTMLDivElement>(
+    Boolean(conflict),
+  );
   const needsSizeWarning =
     workspaceSize.state === "archive_recommended" ||
     workspaceSize.state === "approaching_limit";
@@ -69,7 +73,12 @@ export function WorkspaceStatus() {
           <div className="pointer-events-auto flex items-start gap-3 rounded-2xl border-2 border-danger/60 bg-[#18121f] p-4 text-white shadow-xl">
             <CloudOff className="mt-0.5 h-5 w-5 shrink-0 text-danger" />
             <div>
-              <p className="text-sm font-black">Cloud sync needs attention</p>
+              <p className="text-sm font-black">
+                {syncError.includes("workspace") ||
+                syncError.includes("browser")
+                  ? "Workspace needs attention"
+                  : "Cloud sync needs attention"}
+              </p>
               <p className="mt-1 text-xs leading-5 text-white/70">{syncError}</p>
             </div>
           </div>
@@ -83,7 +92,10 @@ export function WorkspaceStatus() {
           aria-modal="true"
           aria-labelledby="workspace-conflict-title"
         >
-          <div className="manga-panel max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-2xl overflow-y-auto rounded-[28px] p-5 sm:p-7">
+          <div
+            ref={conflictDialogRef}
+            className="manga-panel max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-2xl overflow-y-auto rounded-[28px] p-5 sm:p-7"
+          >
             <div className="flex items-start gap-3">
               <RefreshCw className="mt-1 h-6 w-6 shrink-0 text-warning" />
               <div>

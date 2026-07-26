@@ -135,33 +135,33 @@ export default function LandingPage() {
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
-                  href="/dashboard"
+                  href="/signup"
                   className={buttonVariants({
                     size: "lg",
                     className: "group",
                   })}
                 >
                   <Play className="h-4 w-4 fill-current" />
-                  Enter the live house
+                  Start planning
                   <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
                 </Link>
                 <Link
-                  href="/signup"
+                  href="/login"
                   className={buttonVariants({
                     size: "lg",
                     variant: "secondary",
                     className: "bg-black/50 backdrop-blur",
                   })}
                 >
-                  Create account
+                  Sign in
                 </Link>
               </div>
 
               <div className="mt-10 grid max-w-xl grid-cols-3 gap-2 sm:gap-3">
                 {[
-                  ["12+", "episode views"],
-                  ["7", "daily rhythms"],
-                  ["4", "cast moods"],
+                  ["Local-first", "instant browser saves"],
+                  ["Cloud sync", "account continuity"],
+                  ["One plan", "semester to today"],
                 ].map(([value, label]) => (
                   <div
                     key={label}
@@ -194,7 +194,11 @@ export default function LandingPage() {
         <div className="overflow-hidden border-b-2 border-[#18121f] bg-warning py-2 text-[#18121f]">
           <div className="flex min-w-max animate-[marquee_18s_linear_infinite] items-center gap-7 text-xs font-black uppercase tracking-[0.22em]">
             {[1, 2].map((set) => (
-              <div key={set} className="flex items-center gap-7">
+              <div
+                key={set}
+                className="flex items-center gap-7"
+                aria-hidden={set === 2 ? "true" : undefined}
+              >
                 <span>Goals are story arcs</span>
                 <Sparkles className="h-4 w-4" />
                 <span>Habits are rehearsal</span>
