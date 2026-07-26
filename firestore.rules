@@ -20,6 +20,20 @@ service cloud.firestore {
       allow read, create, update, delete: if isOwner(userId);
     }
 
+    match /workspaces/{userId}/recoverySnapshots/{snapshotId} {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.userId == userId;
+      allow update: if false;
+    }
+
+    match /workspaces/{userId}/semesterArchives/{semesterId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.userId == userId;
+      allow update, delete: if false;
+    }
+
     // Milestones inherit ownership from their parent goal in the data model.
     match /milestones/{docId} {
       allow read, delete: if ownsGoal(resource.data.goalId);

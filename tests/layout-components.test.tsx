@@ -77,19 +77,25 @@ describe("character arc navigation components", () => {
     );
   });
 
-  it("keeps one mobile entry point for the band and each character", () => {
+  it("keeps daily actions visible and the full band one tap away", async () => {
+    const user = userEvent.setup();
     render(<MobileNav />);
     const nav = screen.getByRole("navigation");
-    expect(nav.querySelectorAll("a")).toHaveLength(6);
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+    expect(nav.querySelectorAll("a")).toHaveLength(3);
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
       "href",
       "/dashboard",
     );
-    expect(screen.getByRole("link", { name: "Guitar" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Today" })).toHaveAttribute(
+      "href",
+      "/today",
+    );
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.getByRole("link", { name: /^Guitar/ })).toHaveAttribute(
       "href",
       "/guitar",
     );
-    expect(screen.getByRole("link", { name: "Goals" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /^Goals/ })).toHaveAttribute(
       "href",
       "/goals",
     );

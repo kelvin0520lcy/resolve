@@ -18,9 +18,14 @@ import {
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
 import { formatDate, getSemesterWeek } from "@/lib/utils";
 import type { SemesterEvent } from "@/types";
+import {
+  getDeadlineDateKey,
+  getDerivedDeadlines,
+} from "@/features/workspace/lib/deadlines";
 
 export default function TimelinePage() {
-  const { semester, tasks } = useResolve();
+  const workspace = useResolve();
+  const { semester } = workspace;
   const stats = getSemesterWeek(semester.startDate, semester.endDate);
   const events: SemesterEvent[] = [
     {
@@ -63,15 +68,16 @@ export default function TimelinePage() {
           },
         ]
       : []),
-    ...tasks
-      .filter((task) => task.deadline)
-      .map((task) => ({
-        id: `deadline-${task.id}`,
-        title: task.title,
-        date: task.deadline!,
-        category: task.category,
-        type: "deadline" as const,
-      })),
+    ...getDerivedDeadlines(workspace).map((deadline) => ({
+      id: deadline.id,
+      title: deadline.title,
+      date: getDeadlineDateKey(deadline.deadline),
+      category: deadline.sourceType,
+      type:
+        deadline.sourceType === "milestone"
+          ? ("milestone" as const)
+          : ("deadline" as const),
+    })),
     {
       id: "semester-end",
       title: "Semester finale",

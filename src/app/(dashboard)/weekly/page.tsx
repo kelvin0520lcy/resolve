@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -10,6 +12,7 @@ import {
   AlertTriangle,
   CalendarDays,
   Check,
+  ListTodo,
   Pencil,
   Save,
   X,
@@ -38,6 +41,16 @@ import {
 } from "@/contexts/resolve-context";
 import { formatDate } from "@/lib/utils";
 import type { Task } from "@/types";
+import { WeeklyEventEditor } from "@/components/weekly/weekly-event-editor";
+import { expandEvents } from "@/features/workspace/lib/events";
+import {
+  getTaskEstimatedMinutes,
+  getTaskDeadline,
+  getDeadlineDateKey,
+  getDeadlineLocalTime,
+  getTaskScheduleDate,
+  zonedLocalDateTimeToIso,
+} from "@/features/workspace/lib/deadlines";
 
 export default function WeeklyPage() {
   const {
@@ -47,9 +60,13 @@ export default function WeeklyPage() {
     updateTask,
     moveTask,
     removeTask,
+    events,
+    preferences,
+    modules,
   } = useResolve();
   const dates = useMemo(() => getWeekDateKeys(), []);
   const [priorities, setPriorities] = useState(weeklyPriorities);
+  const prioritiesDirtyRef = useRef(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("academics");
@@ -57,32 +74,160 @@ export default function WeeklyPage() {
   const [minutes, setMinutes] = useState("30");
   const [scheduledDate, setScheduledDate] = useState(dates[0]);
   const [deadline, setDeadline] = useState("");
+  const [deadlineTime, setDeadlineTime] = useState("");
+  const planningPreferences = preferences ?? {
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    dailyCapacityMinutes: 480,
+    nextActionEnabled: true,
+    showDeadlineWarnings: true,
+  };
+  const dailyCapacityMinutes = planningPreferences.dailyCapacityMinutes;
+  const workspaceEvents = useMemo(() => events ?? [], [events]);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() =>
-      setPriorities(weeklyPriorities),
-    );
+    const frame = window.requestAnimationFrame(() => {
+      if (!prioritiesDirtyRef.current) setPriorities(weeklyPriorities);
+    });
     return () => window.cancelAnimationFrame(frame);
   }, [weeklyPriorities]);
-  const weekTasks = tasks.filter(
-    (task) =>
-      task.scheduledDate &&
-      task.scheduledDate >= dates[0] &&
-      task.scheduledDate <= dates[6],
-  );
-  const totalMinutes = weekTasks.reduce(
-    (sum, task) => sum + (task.estimatedMinutes ?? 0),
-    0,
-  );
-  const highPriority = weekTasks.filter(
-    (task) => task.priority === "high",
-  ).length;
-  const overloadedDays = dates.filter(
-    (date) =>
-      weekTasks
-        .filter((task) => task.scheduledDate === date)
-        .reduce((sum, task) => sum + (task.estimatedMinutes ?? 0), 0) > 480,
-  );
+
+  useEffect(() => {
+    let frame = 0;
+    const openLinkedEvent = (href = window.location.href) => {
+      const eventId = new URL(href, window.location.origin).searchParams.get(
+        "event",
+      );
+      if (!eventId) return;
+      frame = window.requestAnimationFrame(() => {
+        const target = Array.from(
+          document.querySelectorAll<HTMLElement>("[data-workspace-event]"),
+        ).find((element) => element.dataset.workspaceEvent === eventId);
+        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    };
+    const handleRecord = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (href?.startsWith("/weekly")) openLinkedEvent(href);
+    };
+    openLinkedEvent();
+    window.addEventListener("resolve:open-record", handleRecord);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resolve:open-record", handleRecord);
+    };
+  }, [workspaceEvents.length]);
+  const {
+    totalMinutes,
+    fixedMinutes,
+    highPriority,
+    unscheduledTasks,
+    assessmentWarnings,
+    overloadedDays,
+    tasksByDate,
+    eventsByDate,
+  } = useMemo(() => {
+    const tasksThisWeek = tasks.filter((task) => {
+      const date = getTaskScheduleDate(task);
+      return date !== undefined && date >= dates[0] && date <= dates[6];
+    });
+    const occurrences = expandEvents(workspaceEvents, dates[0], dates[6]);
+    const scheduledMinutesByDay = new Map<string, number>();
+    const taskIndex = new Map<string, Task[]>();
+    const eventIndex = new Map<string, (typeof occurrences)[number][]>();
+    for (const task of tasksThisWeek) {
+      const date = getTaskScheduleDate(task);
+      if (!date) continue;
+      taskIndex.set(date, [...(taskIndex.get(date) ?? []), task]);
+      scheduledMinutesByDay.set(
+        date,
+        (scheduledMinutesByDay.get(date) ?? 0) +
+          (getTaskEstimatedMinutes(task) ?? 0),
+      );
+    }
+    for (const event of occurrences) {
+      eventIndex.set(event.date, [
+        ...(eventIndex.get(event.date) ?? []),
+        event,
+      ]);
+      scheduledMinutesByDay.set(
+        event.date,
+        (scheduledMinutesByDay.get(event.date) ?? 0) +
+          (event.durationMinutes ?? 0),
+      );
+    }
+    const activePreparationAssessmentIds = new Set(
+      tasks.flatMap((task) =>
+        task.origin?.kind === "assessment-preparation" &&
+        !["cancelled", "skipped"].includes(task.status)
+          ? [task.origin.assessmentId]
+          : [],
+      ),
+    );
+    const backlog = tasks
+      .filter(
+        (task) =>
+          !getTaskScheduleDate(task) &&
+          !["completed", "cancelled", "skipped"].includes(task.status),
+      )
+      .sort((a, b) => {
+        const aDeadline = getTaskDeadline(a);
+        const bDeadline = getTaskDeadline(b);
+        return (
+          (b.deferral?.deferCount ?? 0) - (a.deferral?.deferCount ?? 0) ||
+          (a.priority === "high" ? -1 : b.priority === "high" ? 1 : 0) ||
+          (aDeadline
+            ? getDeadlineDateKey(aDeadline)
+            : "9999-12-31"
+          ).localeCompare(
+            bDeadline ? getDeadlineDateKey(bDeadline) : "9999-12-31",
+          )
+        );
+      });
+    const warnings = modules
+      .flatMap((moduleRecord) =>
+        moduleRecord.assessments.map((assessment) => ({
+          assessment,
+          moduleRecord,
+        })),
+      )
+      .filter(
+        ({ assessment }) =>
+          assessment.deadline >= dates[0] &&
+          assessment.deadline <= dates[6] &&
+          !["submitted", "graded"].includes(assessment.status) &&
+          !activePreparationAssessmentIds.has(assessment.id),
+      );
+
+    return {
+      weekTasks: tasksThisWeek,
+      eventOccurrences: occurrences,
+      totalMinutes: tasksThisWeek.reduce(
+        (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
+        0,
+      ),
+      fixedMinutes: occurrences.reduce(
+        (sum, event) => sum + (event.durationMinutes ?? 0),
+        0,
+      ),
+      highPriority: tasksThisWeek.filter((task) => task.priority === "high")
+        .length,
+      unscheduledTasks: backlog,
+      assessmentWarnings: warnings,
+      overloadedDays: dates.filter(
+        (date) =>
+          (scheduledMinutesByDay.get(date) ?? 0) >
+          dailyCapacityMinutes,
+      ),
+      tasksByDate: taskIndex,
+      eventsByDate: eventIndex,
+    };
+  }, [
+    dates,
+    modules,
+    dailyCapacityMinutes,
+    tasks,
+    workspaceEvents,
+  ]);
 
   function resetTaskEditor() {
     setEditingTaskId(null);
@@ -92,6 +237,7 @@ export default function WeeklyPage() {
     setMinutes("30");
     setScheduledDate(dates[0]);
     setDeadline("");
+    setDeadlineTime("");
   }
 
   function startEditingTask(task: Task) {
@@ -99,9 +245,11 @@ export default function WeeklyPage() {
     setTitle(task.title);
     setCategory(task.category);
     setPriority(task.priority);
-    setMinutes(String(task.estimatedMinutes ?? 30));
-    setScheduledDate(task.scheduledDate ?? dates[0]);
-    setDeadline(task.deadline ?? "");
+    setMinutes(String(getTaskEstimatedMinutes(task) ?? 30));
+    setScheduledDate(getTaskScheduleDate(task) ?? dates[0]);
+    const taskDeadline = getTaskDeadline(task);
+    setDeadline(taskDeadline ? getDeadlineDateKey(taskDeadline) : "");
+    setDeadlineTime(taskDeadline ? getDeadlineLocalTime(taskDeadline) : "");
     window.requestAnimationFrame(() => {
       document
         .getElementById("weekly-task-editor")
@@ -118,7 +266,25 @@ export default function WeeklyPage() {
       priority,
       estimatedMinutes: Number(minutes) || 0,
       scheduledDate,
+      schedule: {
+        date: scheduledDate,
+        estimatedMinutes: Number(minutes) || undefined,
+        timeZone: planningPreferences.timeZone,
+      },
       deadline: deadline || undefined,
+      deadlineInfo: deadline
+        ? deadlineTime
+          ? {
+              kind: "dateTime",
+              at: zonedLocalDateTimeToIso(
+                deadline,
+                deadlineTime,
+                planningPreferences.timeZone,
+              ),
+              timeZone: planningPreferences.timeZone,
+            }
+          : { kind: "date", date: deadline }
+        : undefined,
     });
     resetTaskEditor();
   }
@@ -135,8 +301,8 @@ export default function WeeklyPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <MetricCard
             label="Planned workload"
-            value={`${Math.round((totalMinutes / 60) * 10) / 10}h`}
-            detail="estimated focused time"
+            value={`${Math.round(((totalMinutes + fixedMinutes) / 60) * 10) / 10}h`}
+            detail={`${Math.round(totalMinutes / 60)}h tasks · ${Math.round(fixedMinutes / 60)}h fixed`}
             icon={<CalendarDays className="h-5 w-5" />}
           />
           <MetricCard
@@ -151,14 +317,14 @@ export default function WeeklyPage() {
             detail={
               overloadedDays.length
                 ? "redistribute before the week starts"
-                : "no day exceeds eight hours"
+                : `no day exceeds ${Math.round(planningPreferences.dailyCapacityMinutes / 60)} hours`
             }
             icon={<Check className="h-5 w-5" />}
           />
         </div>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardHeader className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div>
               <CardTitle>Top three priorities</CardTitle>
               <CardDescription>
@@ -167,8 +333,11 @@ export default function WeeklyPage() {
             </div>
             <Button
               size="sm"
-              onClick={() => updatePriorities(priorities)}
-              disabled={priorities.some((priority) => !priority.trim())}
+              onClick={() => {
+                updatePriorities(priorities);
+                prioritiesDirtyRef.current = false;
+              }}
+              disabled={!priorities.some((priority) => priority.trim())}
             >
               <Save className="h-4 w-4" />
               Save
@@ -186,13 +355,14 @@ export default function WeeklyPage() {
                 <input
                   className={fieldClassName}
                   value={priority}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    prioritiesDirtyRef.current = true;
                     setPriorities((current) =>
                       current.map((item, itemIndex) =>
                         itemIndex === index ? event.target.value : item,
                       ),
-                    )
-                  }
+                    );
+                  }}
                   aria-label={`Priority ${index + 1}`}
                 />
               </label>
@@ -200,9 +370,114 @@ export default function WeeklyPage() {
           </CardContent>
         </Card>
 
+        <WeeklyEventEditor weekStart={dates[0]} />
+
+        {(unscheduledTasks.length > 0 || assessmentWarnings.length > 0) && (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <ListTodo className="h-5 w-5 text-accent" />
+                  <CardTitle>Unscheduled work</CardTitle>
+                </div>
+                <CardDescription>
+                  Important backlog work stays here until you deliberately
+                  assign it to a day.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {unscheduledTasks.slice(0, 8).map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 sm:flex-row sm:items-center"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-bold">
+                        {task.title}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted">
+                        {task.priority} priority
+                        {getTaskEstimatedMinutes(task)
+                          ? ` · ${getTaskEstimatedMinutes(task)} min`
+                          : " · estimate recommended"}
+                        {(task.deferral?.deferCount ?? 0) > 0
+                          ? ` · deferred ${task.deferral!.deferCount}×`
+                          : ""}
+                      </p>
+                    </div>
+                    <label className="shrink-0 text-[10px] font-black uppercase tracking-wider text-muted">
+                      Plan on
+                      <select
+                        className="mt-1 block h-9 rounded-lg border border-border bg-surface-muted px-2 text-xs font-medium normal-case tracking-normal text-foreground"
+                        defaultValue=""
+                        onChange={(event) => {
+                          if (event.target.value) {
+                            moveTask(task.id, event.target.value);
+                          }
+                        }}
+                      >
+                        <option value="" disabled>
+                          Choose day
+                        </option>
+                        {dates.map((date) => (
+                          <option key={date} value={date}>
+                            {new Date(`${date}T12:00:00`).toLocaleDateString(
+                              "en-SG",
+                              { weekday: "short" },
+                            )}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="border-warning/30">
+              <CardHeader>
+                <CardTitle>Preparation checks</CardTitle>
+                <CardDescription>
+                  Assessments due this week that have no active preparation
+                  task.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {assessmentWarnings.map(({ assessment, moduleRecord }) => (
+                  <div
+                    key={assessment.id}
+                    className="rounded-xl border border-warning/30 bg-warning/5 p-3"
+                  >
+                    <p className="text-sm font-bold">
+                      {moduleRecord.code} · {assessment.title}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      Due{" "}
+                      {formatDate(`${assessment.deadline}T12:00:00`)} ·{" "}
+                      {assessment.weight}% of module
+                    </p>
+                    <Link
+                      href={`/academics?assessment=${encodeURIComponent(assessment.id)}`}
+                      className="mt-2 inline-flex text-xs font-black text-warning underline underline-offset-4"
+                    >
+                      Preview preparation tasks
+                    </Link>
+                  </div>
+                ))}
+                {!assessmentWarnings.length && (
+                  <p className="py-4 text-sm text-muted">
+                    Every assessment due this week already has preparation
+                    work, or there is no assessment due.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {editingTaskId && (
           <Card id="weekly-task-editor" className="border-accent/30">
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <CardHeader className="flex flex-col items-start justify-between gap-4 sm:flex-row">
               <div>
                 <CardTitle>Edit scheduled task</CardTitle>
                 <CardDescription>
@@ -307,6 +582,19 @@ export default function WeeklyPage() {
                     onChange={(event) => setDeadline(event.target.value)}
                   />
                 </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span>
+                    Deadline time{" "}
+                    <span className="font-medium text-muted">(optional)</span>
+                  </span>
+                  <input
+                    className={fieldClassName}
+                    type="time"
+                    value={deadlineTime}
+                    disabled={!deadline}
+                    onChange={(event) => setDeadlineTime(event.target.value)}
+                  />
+                </label>
                 <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-3">
                   <Button type="submit">
                     <Save className="h-4 w-4" />
@@ -327,11 +615,14 @@ export default function WeeklyPage() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
           {dates.map((date) => {
-            const dayTasks = weekTasks.filter(
-              (task) => task.scheduledDate === date,
-            );
+            const dayTasks = tasksByDate.get(date) ?? [];
+            const dayEvents = eventsByDate.get(date) ?? [];
             const dayMinutes = dayTasks.reduce(
-              (sum, task) => sum + (task.estimatedMinutes ?? 0),
+              (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
+              0,
+            );
+            const dayEventMinutes = dayEvents.reduce(
+              (sum, event) => sum + (event.durationMinutes ?? 0),
               0,
             );
             const isToday = date === offsetDate(0);
@@ -362,18 +653,40 @@ export default function WeeklyPage() {
                     )}
                   </div>
                   <CardDescription>
-                    {dayMinutes ? `${dayMinutes} min` : "Open"}
+                    {dayMinutes + dayEventMinutes
+                      ? `${dayMinutes + dayEventMinutes} min`
+                      : "Open"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 p-3">
+                  {dayEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      data-workspace-event={event.eventId}
+                      className="rounded-xl border border-warning/30 bg-warning/5 p-3"
+                    >
+                      <p className="text-[9px] font-black uppercase tracking-wider text-warning">
+                        Fixed event
+                      </p>
+                      <p className="mt-1 break-words text-xs font-bold leading-5">
+                        {event.title}
+                      </p>
+                      <p className="mt-1 text-[10px] text-muted">
+                        {event.startTime ? `${event.startTime} · ` : ""}
+                        {event.durationMinutes
+                          ? `${event.durationMinutes} min`
+                          : "Duration not set"}
+                      </p>
+                    </div>
+                  ))}
                   {dayTasks.map((task) => (
                     <div
                       key={task.id}
                       className="rounded-xl border border-border bg-surface p-3"
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 flex-wrap items-start gap-2">
                         <CategoryBadge category={task.category} />
-                        <div className="flex flex-wrap justify-end gap-1">
+                        <div className="flex w-full min-w-0 flex-wrap justify-end gap-1">
                           <Button
                             type="button"
                             size="sm"
@@ -391,14 +704,19 @@ export default function WeeklyPage() {
                           />
                         </div>
                       </div>
-                      <p className="mt-2 text-xs font-bold leading-5">
+                      <p className="mt-2 break-words text-xs font-bold leading-5">
                         {task.title}
+                      </p>
+                      <p className="mt-1 text-[10px] text-muted">
+                        {getTaskEstimatedMinutes(task) !== undefined
+                          ? `${getTaskEstimatedMinutes(task)} min`
+                          : "Estimate needed for capacity"}
                       </p>
                       <label className="mt-2 block text-[10px] font-black uppercase tracking-wider text-muted">
                         Move to day
                         <select
                           className="mt-1 w-full rounded-lg border border-border bg-surface-muted px-2 py-1 text-[11px] font-medium normal-case tracking-normal text-foreground outline-none"
-                          value={task.scheduledDate}
+                          value={getTaskScheduleDate(task)}
                           onChange={(event) =>
                             moveTask(task.id, event.target.value)
                           }
@@ -416,7 +734,7 @@ export default function WeeklyPage() {
                       </label>
                     </div>
                   ))}
-                  {!dayTasks.length && (
+                  {!dayTasks.length && !dayEvents.length && (
                     <p className="py-5 text-center text-xs text-muted">
                       Recovery space
                     </p>

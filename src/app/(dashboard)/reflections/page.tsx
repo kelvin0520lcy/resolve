@@ -5,12 +5,16 @@ import {
   ArrowRight,
   BookHeart,
   CalendarCheck,
+  CheckCircle2,
   Cloud,
   HardDrive,
   Lightbulb,
+  ListTodo,
   Save,
   Sparkles,
+  Timer,
 } from "lucide-react";
+import Link from "next/link";
 import { CharacterCompanion } from "@/components/character/character-companion";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
@@ -25,9 +29,14 @@ import {
 import {
   MetricCard,
   PageIntro,
+  fieldClassName,
   textAreaClassName,
 } from "@/components/ui/resolve";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
+import {
+  getTaskEstimatedMinutes,
+  getTaskScheduleDate,
+} from "@/features/workspace/lib/deadlines";
 import { summarizeReflections } from "@/lib/reflection-summary";
 import { formatDate } from "@/lib/utils";
 
@@ -46,6 +55,13 @@ export default function ReflectionsPage() {
     removeReflection,
     storageMode,
     syncStatus,
+    tasks,
+    habits,
+    habitLogs,
+    goals,
+    modules,
+    addTask,
+    preferences,
   } = useResolve();
   const today = offsetDate(0);
   const [wins, setWins] = useState("");
@@ -54,6 +70,8 @@ export default function ReflectionsPage() {
   const [nextChanges, setNextChanges] = useState("");
   const [energy, setEnergy] = useState(3);
   const [saved, setSaved] = useState(false);
+  const [actionTitle, setActionTitle] = useState("");
+  const [actionMinutes, setActionMinutes] = useState("30");
   const recentReviews = useMemo(
     () =>
       [...reflections].sort((a, b) =>
@@ -74,10 +92,108 @@ export default function ReflectionsPage() {
   const carryOver = recentReviews.find(
     (reflection) => reflection.nextChanges?.trim(),
   );
+  const draftKey = `resolve-reflection-draft:${today}`;
+  const tomorrow = offsetDate(1);
+  const completedToday = tasks.filter(
+    (task) =>
+      getTaskScheduleDate(task) === today && task.status === "completed",
+  );
+  const plannedToday = tasks.filter(
+    (task) => getTaskScheduleDate(task) === today,
+  );
+  const deferredToday = tasks.filter(
+    (task) => task.deferral?.lastDeferredAt?.slice(0, 10) === today,
+  );
+  const habitCompletions = habitLogs.filter(
+    (log) => log.date === today && log.completed,
+  ).length;
+  const plannedMinutes = plannedToday.reduce(
+    (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
+    0,
+  );
+  const actualMinutes = completedToday.reduce(
+    (sum, task) => sum + (task.actualMinutes ?? 0),
+    0,
+  );
+  const upcomingAssessments = modules.flatMap((module) =>
+    module.assessments.filter(
+      (assessment) =>
+        !["submitted", "graded"].includes(assessment.status) &&
+        assessment.deadline >= today &&
+        assessment.deadline <= offsetDate(7),
+    ),
+  ).length;
+  const activeGoals = goals.filter(
+    (goal) => !["completed", "paused"].includes(goal.status),
+  ).length;
+  const existingReflectionAction = tasks.find(
+    (task) =>
+      task.origin?.kind === "reflection-action" &&
+      task.origin.reflectionDate === today &&
+      task.status !== "cancelled",
+  );
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() =>
+      setActionTitle(nextChanges.trim()),
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [nextChanges]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const raw = window.localStorage.getItem(draftKey);
+        if (!raw) return;
+        const draft = JSON.parse(raw) as {
+          wins?: string;
+          difficulties?: string;
+          lessons?: string;
+          nextChanges?: string;
+          energy?: number;
+        };
+        setWins(draft.wins ?? "");
+        setDifficulties(draft.difficulties ?? "");
+        setLessons(draft.lessons ?? "");
+        setNextChanges(draft.nextChanges ?? "");
+        setEnergy(
+          typeof draft.energy === "number"
+            ? Math.min(5, Math.max(1, draft.energy))
+            : 3,
+        );
+      } catch {
+        window.localStorage.removeItem(draftKey);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (saved) {
+      window.localStorage.removeItem(draftKey);
+      return;
+    }
+    if (!wins && !difficulties && !lessons && !nextChanges && energy === 3) {
+      return;
+    }
+    window.localStorage.setItem(
+      draftKey,
+      JSON.stringify({ wins, difficulties, lessons, nextChanges, energy }),
+    );
+  }, [
+    difficulties,
+    draftKey,
+    energy,
+    lessons,
+    nextChanges,
+    saved,
+    wins,
+  ]);
 
   useEffect(() => {
     if (!todayReflection) return;
     const frame = window.requestAnimationFrame(() => {
+      if (window.localStorage.getItem(draftKey)) return;
       setWins(todayReflection.wins ?? "");
       setDifficulties(todayReflection.difficulties ?? "");
       setLessons(todayReflection.lessons ?? "");
@@ -85,7 +201,7 @@ export default function ReflectionsPage() {
       setEnergy(todayReflection.energy ?? 3);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [todayReflection]);
+  }, [draftKey, todayReflection]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -174,11 +290,54 @@ export default function ReflectionsPage() {
           />
         </div>
 
+        <Card className="border-accent/25">
+          <CardHeader>
+            <CardTitle>What actually happened today</CardTitle>
+            <CardDescription>
+              Resolve fills this from your workspace so the reflection starts
+              with evidence instead of memory.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                value: `${completedToday.length}/${plannedToday.length}`,
+                label: "tasks completed",
+                Icon: CheckCircle2,
+              },
+              {
+                value: `${actualMinutes || 0}/${plannedMinutes || 0} min`,
+                label: "logged versus planned",
+                Icon: Timer,
+              },
+              {
+                value: `${habitCompletions}/${habits.length}`,
+                label: "habit check-ins",
+                Icon: CalendarCheck,
+              },
+              {
+                value: `${deferredToday.length} · ${upcomingAssessments} due soon`,
+                label: `${activeGoals} active goals`,
+                Icon: ListTodo,
+              },
+            ].map(({ value, label, Icon }) => (
+              <div
+                key={String(label)}
+                className="rounded-2xl border border-border bg-surface p-4"
+              >
+                <Icon className="h-4 w-4 text-accent" />
+                <p className="mt-2 font-display text-2xl">{value}</p>
+                <p className="text-xs text-muted">{label}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between gap-3">
-                <div>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <CardTitle>Today&apos;s review</CardTitle>
                   <CardDescription className="mt-1">
                     {todayReflection
@@ -322,6 +481,93 @@ export default function ReflectionsPage() {
                   {formatDate(`${carryOver.periodStart}T12:00:00`)}
                 </CardContent>
               )}
+            </Card>
+            <Card className="border-accent/30">
+              <CardHeader>
+                <CardTitle>Turn the adjustment into action</CardTitle>
+                <CardDescription>
+                  Review and confirm it first. Resolve never changes tomorrow&apos;s
+                  plan just because you wrote a reflection.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {existingReflectionAction ? (
+                  <div className="rounded-2xl border border-success/35 bg-success/5 p-4">
+                    <p className="text-sm font-black text-success">
+                      Tomorrow&apos;s action is ready
+                    </p>
+                    <p className="mt-1 text-sm">{existingReflectionAction.title}</p>
+                    <Link
+                      href={`/today?task=${encodeURIComponent(existingReflectionAction.id)}`}
+                      className="mt-3 inline-flex text-xs font-black text-accent underline underline-offset-4"
+                    >
+                      Open the task
+                    </Link>
+                  </div>
+                ) : (
+                  <>
+                    <label className="block text-xs font-black">
+                      Proposed task
+                      <input
+                        className={`${fieldClassName} mt-2`}
+                        value={actionTitle}
+                        onChange={(event) => setActionTitle(event.target.value)}
+                      />
+                    </label>
+                    <label className="block text-xs font-black">
+                      Planned duration (minutes)
+                      <input
+                        className={`${fieldClassName} mt-2`}
+                        type="number"
+                        min="5"
+                        max="720"
+                        step="5"
+                        value={actionMinutes}
+                        onChange={(event) => setActionMinutes(event.target.value)}
+                      />
+                    </label>
+                    <Button
+                      className="w-full"
+                      disabled={!actionTitle.trim()}
+                      onClick={() =>
+                        addTask({
+                          title: actionTitle.trim(),
+                          category: "personal",
+                          priority: "medium",
+                          scheduledDate: tomorrow,
+                          schedule: {
+                            date: tomorrow,
+                            estimatedMinutes: Math.min(
+                              720,
+                              Math.max(5, Number(actionMinutes) || 30),
+                            ),
+                            timeZone:
+                              preferences?.timeZone ??
+                              Intl.DateTimeFormat().resolvedOptions().timeZone ??
+                              "UTC",
+                          },
+                          estimatedMinutes: Math.min(
+                            720,
+                            Math.max(5, Number(actionMinutes) || 30),
+                          ),
+                          origin: {
+                            kind: "reflection-action",
+                            reflectionDate: today,
+                          },
+                        })
+                      }
+                    >
+                      Create for tomorrow
+                    </Button>
+                    {!nextChanges.trim() && (
+                      <p className="text-[11px] leading-5 text-muted">
+                        Write “What changes tomorrow?” above, or enter a
+                        specific action here.
+                      </p>
+                    )}
+                  </>
+                )}
+              </CardContent>
             </Card>
             <CharacterCompanion
               compact

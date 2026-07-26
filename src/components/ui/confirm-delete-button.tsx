@@ -19,7 +19,10 @@ export function ConfirmDeleteButton({
   if (confirming) {
     return (
       <div
-        className={cn("flex shrink-0 items-center gap-1.5", className)}
+        className={cn(
+          "flex min-w-0 max-w-full flex-wrap items-center gap-1.5",
+          className,
+        )}
         role="group"
         aria-label={`Confirm removal of ${itemLabel}`}
       >

@@ -1,13 +1,9 @@
 "use client";
 
 import {
-  useCallback,
   createContext,
   useContext,
-  useEffect,
   useMemo,
-  useRef,
-  useState,
   type ReactNode,
 } from "react";
 import { useAuth } from "@/contexts/auth-context";
@@ -20,6 +16,7 @@ import {
 import {
   addSemesterResolutionToData,
   addAssessmentToData,
+  addEventToData,
   addAlgorithmLogToData,
   addApplicationToData,
   addGoalToData,
@@ -29,9 +26,12 @@ import {
   addModuleToData,
   addTaskToData,
   moveTaskInData,
+  setTaskDailyPriorityInData,
+  planAssessmentPreparationToData,
   removeAlgorithmLogFromData,
   removeApplicationFromData,
   removeAssessmentFromData,
+  removeEventFromData,
   removeGoalFromData,
   removeGuitarSessionFromData,
   removeHabitFromData,
@@ -42,6 +42,8 @@ import {
   removeTaskFromData,
   saveReflectionToData,
   setGoalCompletedInData,
+  setMilestoneCompletionModeInData,
+  startNewSemesterInData,
   toggleHabitInData,
   toggleMilestoneInData,
   toggleSemesterResolutionInData,
@@ -59,13 +61,17 @@ import {
   updateModuleStudyMinutesInData,
   updatePrioritiesInData,
   updateSemesterInData,
+  updateEventInData,
+  updateWorkspacePreferencesInData,
   updateSemesterResolutionInData,
   updateTaskInData,
   updateTaskActualMinutesInData,
   type GuitarSessionInput,
+  type LinkedTaskRemovalPolicy,
   type NewAlgorithmLogInput,
   type NewApplicationInput,
   type NewAssessmentInput,
+  type NewEventInput,
   type NewGoalInput,
   type NewHabitInput,
   type NewMilestoneInput,
@@ -75,6 +81,8 @@ import {
   type UpdateAlgorithmLogInput,
   type UpdateApplicationInput,
   type UpdateAssessmentInput,
+  type UpdateEventInput,
+  type PreparationTaskDraft,
   type UpdateGoalInput,
   type UpdateHabitInput,
   type UpdateMilestoneInput,
@@ -83,10 +91,16 @@ import {
   type UpdateSemesterResolutionInput,
 } from "@/features/workspace/lib/resolve-actions";
 import {
-  getWorkspaceSchemaCompatibility,
-  loadWorkspace,
-  saveWorkspace,
-} from "@/lib/firebase/workspace";
+  useWorkspaceSync,
+  type WorkspaceSyncMetrics,
+} from "@/features/workspace/sync/use-workspace-sync";
+export {
+  CLOUD_REFRESH_INTERVAL_MS,
+  CLOUD_SAVE_DEBOUNCE_MS,
+} from "@/features/workspace/sync/use-workspace-sync";
+import type { WorkspaceSizeReport } from "@/features/workspace/lib/workspace-size";
+import type { WorkspaceConflict } from "@/features/workspace/lib/patches";
+import type { RecoverySnapshot } from "@/features/workspace/lib/recovery";
 import {
   createEmptyGuitarLearningState,
   normalizeGuitarLearningState,
@@ -106,6 +120,7 @@ import type {
   Semester,
   SemesterResolution,
   Task,
+  WorkspaceEvent,
 } from "@/types";
 
 type ResolveContextValue = ResolveData & {
@@ -113,21 +128,46 @@ type ResolveContextValue = ResolveData & {
   syncStatus:
     | "demo"
     | "connecting"
+    | "migrating"
     | "saving"
     | "synced"
     | "offline"
+    | "conflict"
     | "error";
   syncError: string;
   lastSyncedAt: string | null;
+  conflicts: WorkspaceConflict[];
+  isSyncLeader: boolean;
+  workspaceSize: WorkspaceSizeReport;
+  syncMetrics: WorkspaceSyncMetrics;
+  canUndo: boolean;
   syncWorkspaceNow: () => Promise<void>;
+  resolveConflict: (
+    conflictId: string,
+    choice: "local" | "remote",
+  ) => void;
+  undoLastChange: () => void;
+  exportWorkspace: () => void;
+  exportTasksCsv: () => void;
+  exportCalendarIcs: () => void;
+  importWorkspace: (value: unknown) => Promise<void>;
+  listRecoverySnapshots: () => Promise<RecoverySnapshot[]>;
+  deleteRecoverySnapshot: (id: string) => Promise<void>;
   addTask: (task: NewTaskInput) => void;
   updateTask: (taskId: string, task: UpdateTaskInput) => void;
   toggleTask: (taskId: string) => void;
   removeTask: (taskId: string) => void;
   moveTask: (taskId: string, scheduledDate: string) => void;
+  setTaskDailyPriority: (
+    taskId: string,
+    rank: Task["dailyPriorityRank"],
+  ) => void;
   addGoal: (goal: NewGoalInput) => void;
   updateGoal: (goalId: string, goal: UpdateGoalInput) => void;
-  removeGoal: (goalId: string) => void;
+  removeGoal: (
+    goalId: string,
+    linkedTaskPolicy?: LinkedTaskRemovalPolicy,
+  ) => void;
   addMilestone: (goalId: string, milestone: NewMilestoneInput) => void;
   updateMilestone: (
     milestoneId: string,
@@ -141,13 +181,20 @@ type ResolveContextValue = ResolveData & {
   removeHabit: (habitId: string) => void;
   addModule: (module: NewModuleInput) => void;
   updateModule: (moduleId: string, module: UpdateModuleInput) => void;
-  removeModule: (moduleId: string) => void;
+  removeModule: (
+    moduleId: string,
+    linkedTaskPolicy?: LinkedTaskRemovalPolicy,
+  ) => void;
   addAssessment: (assessment: NewAssessmentInput) => void;
   updateAssessment: (
     assessmentId: string,
     assessment: UpdateAssessmentInput,
   ) => void;
-  removeAssessment: (moduleId: string, assessmentId: string) => void;
+  removeAssessment: (
+    moduleId: string,
+    assessmentId: string,
+    linkedTaskPolicy?: LinkedTaskRemovalPolicy,
+  ) => void;
   addAlgorithmLog: (log: NewAlgorithmLogInput) => void;
   updateAlgorithmLog: (
     logId: string,
@@ -168,6 +215,11 @@ type ResolveContextValue = ResolveData & {
     moduleId: string,
     assessmentId: string,
     progress: number,
+  ) => void;
+  planAssessmentPreparation: (
+    assessmentId: string,
+    templateId: string,
+    drafts: PreparationTaskDraft[],
   ) => void;
   updateModuleStudyMinutes: (moduleId: string, minutes: number) => void;
   updateTaskActualMinutes: (taskId: string, minutes: number) => void;
@@ -197,6 +249,17 @@ type ResolveContextValue = ResolveData & {
   removeSemesterResolution: (resolutionId: string) => void;
   updateSemester: (semester: Semester) => void;
   updatePriorities: (priorities: string[]) => void;
+  addEvent: (event: NewEventInput) => void;
+  updateEvent: (eventId: string, event: UpdateEventInput) => void;
+  removeEvent: (eventId: string) => void;
+  setMilestoneCompletionMode: (
+    milestoneId: string,
+    mode: Milestone["completionMode"],
+  ) => void;
+  updateWorkspacePreferences: (
+    changes: Partial<ResolveData["preferences"]>,
+  ) => void;
+  archiveSemester: (nextSemester: Semester) => Promise<void>;
   resetWorkspace: () => void;
 };
 
@@ -204,99 +267,10 @@ const ResolveContext = createContext<ResolveContextValue | null>(null);
 
 export { getWeekDateKeys, offsetDate, toDateKey };
 
-export const CLOUD_SAVE_DEBOUNCE_MS = 15_000;
-export const CLOUD_REFRESH_INTERVAL_MS = 15 * 60_000;
-
-type LocalSyncMetadata = {
-  dirty: boolean;
-  lastCheckedAt: number;
-};
-
-function readLocalSyncMetadata(key: string): LocalSyncMetadata {
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(key) ?? "",
-    ) as Partial<LocalSyncMetadata>;
-    return {
-      dirty: parsed.dirty === true,
-      lastCheckedAt: Number.isFinite(parsed.lastCheckedAt)
-        ? Math.max(0, parsed.lastCheckedAt!)
-        : 0,
-    };
-  } catch {
-    return { dirty: false, lastCheckedAt: 0 };
-  }
-}
-
-function writeLocalSyncMetadata(
-  key: string,
-  metadata: LocalSyncMetadata,
-) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(metadata));
-  } catch {
-    // The in-memory and primary local workspace remain usable.
-  }
-}
-
-function hasMeaningfulWorkspaceData(data: ResolveData, userId: string) {
-  const empty = createEmptyData(userId);
-  const hasRecords = [
-    data.goals,
-    data.milestones,
-    data.tasks,
-    data.habits,
-    data.habitLogs,
-    data.guitarSessions,
-    data.reflections,
-    data.modules,
-    data.algorithmLogs,
-    data.applications,
-    data.semester.resolutions,
-    data.guitarLearning.progress,
-  ].some((records) => (records?.length ?? 0) > 0);
-  if (hasRecords || data.weeklyPriorities.some(Boolean)) return true;
-
-  const semesterFields: Array<keyof Semester> = [
-    "name",
-    "academicYear",
-    "startDate",
-    "endDate",
-    "recessWeekStart",
-    "readingWeekStart",
-    "examPeriodStart",
-    "theme",
-    "targetGpa",
-    "description",
-    "status",
-    "mainResolution",
-  ];
-  if (
-    semesterFields.some(
-      (field) => data.semester[field] !== empty.semester[field],
-    )
-  ) {
-    return true;
-  }
-
-  const profile = data.guitarLearning.profile;
-  const emptyProfile = empty.guitarLearning.profile;
-  return (
-    profile.handedness !== emptyProfile.handedness ||
-    profile.placementCompleted ||
-    profile.preferredTuning.some(
-      (note, index) => note !== emptyProfile.preferredTuning[index],
-    ) ||
-    profile.selectedPathIds.length > 0 ||
-    profile.confusingConceptIds.length > 0 ||
-    profile.bookmarkedLessonIds.length > 0 ||
-    profile.hiddenRecommendationIds.length > 0 ||
-    Boolean(profile.currentLessonId)
-  );
-}
-
 export function createEmptyData(userId: string): ResolveData {
   const year = new Date().getFullYear();
+  const timeZone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kuala_Lumpur";
   return {
     semester: {
       id: `semester-${userId}`,
@@ -319,7 +293,14 @@ export function createEmptyData(userId: string): ResolveData {
     modules: [],
     algorithmLogs: [],
     applications: [],
+    events: [],
     weeklyPriorities: ["", "", ""],
+    preferences: {
+      timeZone,
+      dailyCapacityMinutes: 480,
+      autoNextAction: true,
+    },
+    archiveSummaries: [],
   };
 }
 
@@ -347,6 +328,30 @@ export function normalizeStoredData(
       : [];
   const optionalDate = (candidate: unknown) =>
     isDateKey(candidate) ? candidate : undefined;
+  const deadlineValue = (candidate: unknown, legacy?: unknown) => {
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      const value = candidate as { kind?: unknown; date?: unknown; at?: unknown; timeZone?: unknown };
+      if (value.kind === "date" && isDateKey(value.date)) {
+        return { kind: "date" as const, date: value.date };
+      }
+      if (
+        value.kind === "dateTime" &&
+        typeof value.at === "string" &&
+        !Number.isNaN(Date.parse(value.at)) &&
+        typeof value.timeZone === "string" &&
+        value.timeZone
+      ) {
+        return {
+          kind: "dateTime" as const,
+          at: value.at,
+          timeZone: value.timeZone,
+        };
+      }
+    }
+    return isDateKey(legacy)
+      ? ({ kind: "date" as const, date: legacy })
+      : undefined;
+  };
   const storedSemester =
     stored.semester &&
     typeof stored.semester === "object" &&
@@ -468,6 +473,10 @@ export function normalizeStoredData(
           ? milestone.description.trim() || undefined
           : undefined,
       deadline: optionalDate(milestone.deadline),
+      deadlineInfo: deadlineValue(
+        milestone.deadlineInfo,
+        milestone.deadline,
+      ),
       completed: milestone.completed === true,
       completedAt:
         milestone.completed === true &&
@@ -477,6 +486,10 @@ export function normalizeStoredData(
       order: Number.isFinite(milestone.order)
         ? Math.max(1, Math.round(milestone.order))
         : index + 1,
+      completionMode:
+        milestone.completionMode === "required_tasks"
+          ? ("required_tasks" as const)
+          : ("manual" as const),
     }))
     .filter((milestone) => Boolean(milestone.title));
   const validGoalStatuses: Goal["status"][] = [
@@ -523,6 +536,7 @@ export function normalizeStoredData(
         unit: undefined,
         startDate: optionalDate(goal.startDate) ?? semester.startDate,
         deadline: optionalDate(goal.deadline),
+        deadlineInfo: deadlineValue(goal.deadlineInfo, goal.deadline),
         status:
           goal.status === "completed" && !completionIsValid
             ? ("active" as const)
@@ -556,7 +570,32 @@ export function normalizeStoredData(
       (task) =>
         typeof task.id === "string" && typeof task.title === "string",
     )
-    .map((task) => ({
+    .map((task) => {
+      const legacyScheduleDate = optionalDate(task.scheduledDate);
+      const scheduleCandidate =
+        task.schedule &&
+        typeof task.schedule === "object" &&
+        !Array.isArray(task.schedule)
+          ? task.schedule
+          : undefined;
+      const scheduleDate =
+        optionalDate(scheduleCandidate?.date) ?? legacyScheduleDate;
+      const scheduleMinutes = Number.isFinite(
+        scheduleCandidate?.estimatedMinutes,
+      )
+        ? Math.min(
+            720,
+            Math.max(5, Math.round(scheduleCandidate!.estimatedMinutes!)),
+          )
+        : Number.isFinite(task.estimatedMinutes)
+          ? Math.min(720, Math.max(5, Math.round(task.estimatedMinutes!)))
+          : undefined;
+      const timeZone =
+        typeof scheduleCandidate?.timeZone === "string" &&
+        scheduleCandidate.timeZone
+          ? scheduleCandidate.timeZone
+          : seed.preferences.timeZone;
+      return {
       ...task,
       userId,
       semesterId: semester.id,
@@ -565,11 +604,22 @@ export function normalizeStoredData(
         typeof task.category === "string" && task.category.trim()
           ? task.category
           : "custom",
-      scheduledDate: optionalDate(task.scheduledDate),
+      scheduledDate: scheduleDate,
       deadline: optionalDate(task.deadline),
-      estimatedMinutes: Number.isFinite(task.estimatedMinutes)
-        ? Math.min(720, Math.max(5, Math.round(task.estimatedMinutes!)))
+      schedule: scheduleDate
+        ? {
+            date: scheduleDate,
+            startTime:
+              typeof scheduleCandidate?.startTime === "string" &&
+              /^([01]\d|2[0-3]):[0-5]\d$/.test(scheduleCandidate.startTime)
+                ? scheduleCandidate.startTime
+                : undefined,
+            estimatedMinutes: scheduleMinutes,
+            timeZone,
+          }
         : undefined,
+      deadlineInfo: deadlineValue(task.deadlineInfo, task.deadline),
+      estimatedMinutes: scheduleMinutes,
       actualMinutes: Number.isFinite(task.actualMinutes)
         ? Math.min(720, Math.max(0, Math.round(task.actualMinutes!)))
         : undefined,
@@ -598,7 +648,30 @@ export function normalizeStoredData(
         typeof task.createdAt === "string" ? task.createdAt : "",
       updatedAt:
         typeof task.updatedAt === "string" ? task.updatedAt : "",
-    }))
+      prerequisiteTaskIds: stringArray(task.prerequisiteTaskIds),
+      requiredForMilestone: task.requiredForMilestone === true,
+      dailyPriorityRank: [1, 2, 3].includes(task.dailyPriorityRank ?? 0)
+        ? task.dailyPriorityRank
+        : undefined,
+      deferral: {
+        deferCount:
+          task.deferral &&
+          Number.isFinite(task.deferral.deferCount)
+            ? Math.max(0, Math.round(task.deferral.deferCount))
+            : 0,
+        lastDeferredFrom: optionalDate(task.deferral?.lastDeferredFrom),
+        lastDeferredTo: optionalDate(task.deferral?.lastDeferredTo),
+        lastDeferredAt:
+          typeof task.deferral?.lastDeferredAt === "string"
+            ? task.deferral.lastDeferredAt
+            : undefined,
+        lastReason:
+          typeof task.deferral?.lastReason === "string"
+            ? task.deferral.lastReason.trim() || undefined
+            : undefined,
+      },
+    };
+    })
     .filter((task) => Boolean(task.title));
   const habits = recordArray<Habit>(stored.habits)
     .filter(
@@ -779,7 +852,24 @@ export function normalizeStoredData(
             : 0,
           status: validAssessmentStatuses.includes(assessment.status)
             ? assessment.status
-            : ("not_started" as const),
+              : ("not_started" as const),
+          deadlineInfo: deadlineValue(
+            assessment.deadlineInfo,
+            assessment.deadline,
+          ),
+          preparation: {
+            templateId:
+              typeof assessment.preparation?.templateId === "string"
+                ? assessment.preparation.templateId
+                : undefined,
+            generatedTaskIds: stringArray(
+              assessment.preparation?.generatedTaskIds,
+            ),
+            generatedAt:
+              typeof assessment.preparation?.generatedAt === "string"
+                ? assessment.preparation.generatedAt
+                : undefined,
+          },
         })),
     }))
     .filter((module) => Boolean(module.code) && Boolean(module.name));
@@ -849,11 +939,132 @@ export function normalizeStoredData(
           ? application.nextAction.trim() || undefined
           : undefined,
       nextActionDate: optionalDate(application.nextActionDate),
+      nextActionDeadline: deadlineValue(
+        application.nextActionDeadline,
+        application.nextActionDate,
+      ),
     }))
     .filter(
       (application) =>
         Boolean(application.company) && Boolean(application.role),
     );
+
+  const validRecurrenceKinds = [
+    "none",
+    "weekly",
+    "fortnightly",
+    "selected_weekdays",
+  ];
+  const events = recordArray<WorkspaceEvent>(stored.events)
+    .filter(
+      (event) =>
+        typeof event.id === "string" &&
+        typeof event.title === "string" &&
+        isDateKey(event.date),
+    )
+    .map((event) => {
+      const rawRecurrence = (
+        event.recurrence &&
+        typeof event.recurrence === "object" &&
+        !Array.isArray(event.recurrence)
+          ? event.recurrence
+          : { kind: "none" }
+      ) as Record<string, unknown>;
+      const rawKind =
+        typeof rawRecurrence.kind === "string" ? rawRecurrence.kind : "none";
+      const kind = validRecurrenceKinds.includes(rawKind)
+        ? rawKind
+        : "none";
+      const rawWeekdays = rawRecurrence.weekdays;
+      const weekdays: number[] = Array.isArray(rawWeekdays)
+        ? [
+            ...new Set(
+              rawWeekdays.filter(
+                (day): day is number =>
+                  typeof day === "number" &&
+                  Number.isInteger(day) &&
+                  day >= 0 &&
+                  day <= 6,
+              ),
+            ),
+          ]
+        : [];
+      const recurrence =
+        kind === "none"
+          ? ({ kind: "none" } as const)
+          : {
+              kind: kind as "weekly" | "fortnightly" | "selected_weekdays",
+              weekdays,
+              startsOn:
+                optionalDate(
+                  rawRecurrence.startsOn,
+                ) ?? event.date,
+              endsOn: optionalDate(rawRecurrence.endsOn),
+              excludedDates: Array.isArray(rawRecurrence.excludedDates)
+                ? rawRecurrence.excludedDates.filter(
+                    (date): date is string => isDateKey(date),
+                  )
+                : [],
+            };
+      return {
+        ...event,
+        userId,
+        semesterId: semester.id,
+        title: event.title.trim(),
+        category:
+          typeof event.category === "string" && event.category.trim()
+            ? event.category.trim()
+            : "personal",
+        startTime:
+          typeof event.startTime === "string" &&
+          /^([01]\d|2[0-3]):[0-5]\d$/.test(event.startTime)
+            ? event.startTime
+            : undefined,
+        durationMinutes: Number.isFinite(event.durationMinutes)
+          ? Math.min(1440, Math.max(5, Math.round(event.durationMinutes!)))
+          : undefined,
+        timeZone:
+          typeof event.timeZone === "string" && event.timeZone
+            ? event.timeZone
+            : seed.preferences.timeZone,
+        recurrence,
+        createdAt:
+          typeof event.createdAt === "string" ? event.createdAt : "",
+        updatedAt:
+          typeof event.updatedAt === "string" ? event.updatedAt : "",
+      };
+    })
+    .filter((event) => Boolean(event.title));
+  const storedPreferences =
+    stored.preferences &&
+    typeof stored.preferences === "object" &&
+    !Array.isArray(stored.preferences)
+      ? stored.preferences
+      : undefined;
+  const preferences = {
+    timeZone:
+      typeof storedPreferences?.timeZone === "string" &&
+      storedPreferences.timeZone
+        ? storedPreferences.timeZone
+        : seed.preferences.timeZone,
+    dailyCapacityMinutes: Number.isFinite(
+      storedPreferences?.dailyCapacityMinutes,
+    )
+      ? Math.min(
+          1440,
+          Math.max(30, Math.round(storedPreferences!.dailyCapacityMinutes)),
+        )
+      : seed.preferences.dailyCapacityMinutes,
+    autoNextAction: storedPreferences?.autoNextAction !== false,
+    pinnedTaskId:
+      typeof storedPreferences?.pinnedTaskId === "string" &&
+      tasks.some((task) => task.id === storedPreferences.pinnedTaskId)
+        ? storedPreferences.pinnedTaskId
+        : undefined,
+    hiddenRecommendationDate: optionalDate(
+      storedPreferences?.hiddenRecommendationDate,
+    ),
+  };
 
   return {
     semester,
@@ -868,392 +1079,69 @@ export function normalizeStoredData(
     modules,
     algorithmLogs,
     applications,
+    events,
     weeklyPriorities: priorities,
+    preferences,
+    archiveSummaries: recordArray(stored.archiveSummaries),
   };
 }
 
 export function ResolveProvider({ children }: { children: ReactNode }) {
   const { user, isConfigured } = useAuth();
   const identity = user?.id ?? "demo-user";
-  const storageKey = `resolve-data-v2:${identity}`;
-  const syncMetadataKey = `resolve-sync-v1:${identity}`;
   const accountSyncEnabled = isConfigured && Boolean(user);
-  const [data, setData] = useState<ResolveData>(() =>
-    createEmptyData(identity),
-  );
-  const [hydratedKey, setHydratedKey] = useState<string | null>(null);
-  const [cloudReadyKey, setCloudReadyKey] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] =
-    useState<ResolveContextValue["syncStatus"]>(
-      accountSyncEnabled ? "connecting" : "demo",
-    );
-  const [syncError, setSyncError] = useState("");
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const dataJson = useMemo(() => JSON.stringify(data), [data]);
-  const dataRef = useRef(data);
-  const dataJsonRef = useRef(dataJson);
-  const lastRemoteJson = useRef("");
-  const dirtyRef = useRef(false);
-  const lastCheckedAtRef = useRef(0);
-  const readSequenceRef = useRef(0);
-  const readInFlightKeyRef = useRef<string | null>(null);
-  const writeInFlightRef = useRef<Promise<void> | null>(null);
-  const activeStorageKeyRef = useRef(storageKey);
-
-  useEffect(() => {
-    dataRef.current = data;
-    dataJsonRef.current = dataJson;
-  }, [data, dataJson]);
-
-  const updateSyncMetadata = useCallback(
-    (dirty: boolean, lastCheckedAt = lastCheckedAtRef.current) => {
-      dirtyRef.current = dirty;
-      lastCheckedAtRef.current = lastCheckedAt;
-      writeLocalSyncMetadata(syncMetadataKey, {
-        dirty,
-        lastCheckedAt,
-      });
-    },
-    [syncMetadataKey],
-  );
-
-  const mutateData = useCallback(
-    (updater: (current: ResolveData) => ResolveData) => {
-      const current = dataRef.current;
-      const next = updater(current);
-      if (next === current) return;
-      dataRef.current = next;
-      dataJsonRef.current = JSON.stringify(next);
-      updateSyncMetadata(true);
-      setData(next);
-    },
-    [updateSyncMetadata],
-  );
-
-  const persistWorkspace = useCallback(
-    async (snapshotData: ResolveData, snapshotJson: string) => {
-      const targetStorageKey = storageKey;
-      if (snapshotJson === lastRemoteJson.current) {
-        updateSyncMetadata(false, Date.now());
-        return;
-      }
-
-      if (writeInFlightRef.current) {
-        try {
-          await writeInFlightRef.current;
-        } catch {
-          // The queued snapshot below gets its own retry and status handling.
-        }
-        if (snapshotJson === lastRemoteJson.current) return;
-      }
-
-      setSyncStatus("saving");
-      setSyncError("");
-      const write = saveWorkspace(identity, snapshotData);
-      writeInFlightRef.current = write;
-
-      try {
-        await write;
-        if (activeStorageKeyRef.current !== targetStorageKey) return;
-        lastRemoteJson.current = snapshotJson;
-        const savedAt = Date.now();
-        if (dataJsonRef.current === snapshotJson) {
-          updateSyncMetadata(false, savedAt);
-          setSyncStatus("synced");
-          setLastSyncedAt(new Date(savedAt).toISOString());
-        } else {
-          updateSyncMetadata(true, savedAt);
-          setSyncStatus("saving");
-        }
-      } catch (error: unknown) {
-        if (activeStorageKeyRef.current !== targetStorageKey) return;
-        updateSyncMetadata(true);
-        setSyncStatus("offline");
-        setSyncError(
-          error instanceof Error
-            ? error.message
-            : "Cloud sync failed. Changes remain saved in this browser.",
-        );
-      } finally {
-        if (writeInFlightRef.current === write) {
-          writeInFlightRef.current = null;
-        }
-      }
-    },
-    [identity, storageKey, updateSyncMetadata],
-  );
-
-  const refreshWorkspaceFromCloud = useCallback(
-    async (force = false) => {
-      if (!accountSyncEnabled || dirtyRef.current) return;
-      if (readInFlightKeyRef.current === storageKey) return;
-      const now = Date.now();
-      if (
-        !force &&
-        now - lastCheckedAtRef.current < CLOUD_REFRESH_INTERVAL_MS
-      ) {
-        setCloudReadyKey(storageKey);
-        setSyncStatus("synced");
-        return;
-      }
-
-      const sequence = ++readSequenceRef.current;
-      readInFlightKeyRef.current = storageKey;
-      setSyncStatus("connecting");
-      setSyncError("");
-      try {
-        const result = await loadWorkspace<ResolveData>(identity);
-        if (sequence !== readSequenceRef.current) return;
-        if (dirtyRef.current) {
-          setCloudReadyKey(storageKey);
-          setSyncStatus("saving");
-          return;
-        }
-
-        const checkedAt = Date.now();
-        if (result.kind === "missing") {
-          const local = dataRef.current;
-          if (hasMeaningfulWorkspaceData(local, identity)) {
-            lastRemoteJson.current = "__missing_cloud_workspace__";
-            updateSyncMetadata(true, checkedAt);
-            setCloudReadyKey(storageKey);
-            setSyncStatus("saving");
-            return;
-          }
-
-          const empty = createEmptyData(identity);
-          const emptyJson = JSON.stringify(empty);
-          lastRemoteJson.current = emptyJson;
-          dataRef.current = empty;
-          dataJsonRef.current = emptyJson;
-          setData(empty);
-          updateSyncMetadata(false, checkedAt);
-          setCloudReadyKey(storageKey);
-          setSyncStatus("synced");
-          setLastSyncedAt(new Date(checkedAt).toISOString());
-          return;
-        }
-
-        const compatibility = getWorkspaceSchemaCompatibility(
-          result.snapshot.schemaVersion,
-        );
-        if (compatibility === "unsupported") {
-          setCloudReadyKey(null);
-          setSyncStatus("error");
-          setSyncError(
-            "This workspace was saved by a newer Resolve version. Update the app before editing it.",
-          );
-          return;
-        }
-
-        const normalized = normalizeStoredData(
-          result.snapshot.data,
-          identity,
-        );
-        const remoteJson = JSON.stringify(normalized);
-        lastRemoteJson.current = remoteJson;
-        if (remoteJson !== dataJsonRef.current) {
-          dataRef.current = normalized;
-          dataJsonRef.current = remoteJson;
-          setData(normalized);
-        }
-        updateSyncMetadata(false, checkedAt);
-        setCloudReadyKey(storageKey);
-        setSyncStatus("synced");
-        setLastSyncedAt(new Date(checkedAt).toISOString());
-      } catch (error: unknown) {
-        if (sequence !== readSequenceRef.current) return;
-        setSyncStatus("offline");
-        setSyncError(
-          error instanceof Error
-            ? error.message
-            : "Could not check the cloud workspace.",
-        );
-      } finally {
-        if (readInFlightKeyRef.current === storageKey) {
-          readInFlightKeyRef.current = null;
-        }
-      }
-    },
-    [
-      accountSyncEnabled,
-      identity,
-      storageKey,
-      updateSyncMetadata,
-    ],
-  );
-
-  useEffect(() => {
-    const startupId = window.setTimeout(() => {
-      let initial = createEmptyData(identity);
-      let hasLocalWorkspace = false;
-      try {
-        const stored = window.localStorage.getItem(storageKey);
-        if (stored) {
-          initial = normalizeStoredData(JSON.parse(stored), identity);
-          hasLocalWorkspace = true;
-        }
-      } catch {
-        initial = createEmptyData(identity);
-      }
-      const metadata = readLocalSyncMetadata(syncMetadataKey);
-      const localDirty = metadata.dirty && hasLocalWorkspace;
-      const initialJson = JSON.stringify(initial);
-
-      activeStorageKeyRef.current = storageKey;
-      writeInFlightRef.current = null;
-      dataRef.current = initial;
-      dataJsonRef.current = initialJson;
-      setData(initial);
-      setHydratedKey(storageKey);
-      setCloudReadyKey(null);
-      lastRemoteJson.current = "";
-      dirtyRef.current = localDirty;
-      lastCheckedAtRef.current = metadata.lastCheckedAt;
-      setSyncError("");
-      setLastSyncedAt(
-        metadata.lastCheckedAt
-          ? new Date(metadata.lastCheckedAt).toISOString()
-          : null,
-      );
-
-      if (!accountSyncEnabled) {
-        setSyncStatus("demo");
-        return;
-      }
-
-      if (localDirty) {
-        lastRemoteJson.current = "__unsynced_local_workspace__";
-        setCloudReadyKey(storageKey);
-        setSyncStatus("saving");
-        return;
-      }
-
-      if (
-        hasLocalWorkspace &&
-        Date.now() - metadata.lastCheckedAt < CLOUD_REFRESH_INTERVAL_MS
-      ) {
-        lastRemoteJson.current = initialJson;
-        setCloudReadyKey(storageKey);
-        setSyncStatus("synced");
-        return;
-      }
-
-      void refreshWorkspaceFromCloud(true);
-    }, 0);
-
-    return () => {
-      window.clearTimeout(startupId);
-      readSequenceRef.current += 1;
-    };
-  }, [
-    accountSyncEnabled,
-    identity,
-    refreshWorkspaceFromCloud,
-    storageKey,
-    syncMetadataKey,
-  ]);
-
-  useEffect(() => {
-    if (hydratedKey === storageKey) {
-      try {
-        window.localStorage.setItem(storageKey, dataJson);
-      } catch {
-        // Keep the in-memory workspace usable if storage is full or disabled.
-      }
-    }
-  }, [dataJson, hydratedKey, storageKey]);
-
-  useEffect(() => {
-    if (
-      !accountSyncEnabled ||
-      cloudReadyKey !== storageKey ||
-      hydratedKey !== storageKey
-    ) {
-      return;
-    }
-
-    const nextJson = dataJson;
-    if (nextJson === lastRemoteJson.current) {
-      if (dirtyRef.current) updateSyncMetadata(false, Date.now());
-      return;
-    }
-
-    updateSyncMetadata(true);
-    setSyncStatus("saving");
-    const saveTimer = window.setTimeout(() => {
-      void persistWorkspace(data, nextJson);
-    }, CLOUD_SAVE_DEBOUNCE_MS);
-
-    return () => {
-      window.clearTimeout(saveTimer);
-    };
-  }, [
-    accountSyncEnabled,
-    cloudReadyKey,
+  const emptyData = useMemo(() => createEmptyData(identity), [identity]);
+  const {
     data,
-    dataJson,
-    hydratedKey,
-    persistWorkspace,
-    storageKey,
-    updateSyncMetadata,
-  ]);
-
-  useEffect(() => {
-    if (
-      !accountSyncEnabled ||
-      hydratedKey !== storageKey ||
-      cloudReadyKey !== storageKey
-    ) {
-      return;
-    }
-
-    const refreshIfStale = () => {
-      if (
-        document.visibilityState === "visible" &&
-        !dirtyRef.current &&
-        Date.now() - lastCheckedAtRef.current >= CLOUD_REFRESH_INTERVAL_MS
-      ) {
-        void refreshWorkspaceFromCloud();
-      }
-    };
-    const refreshTimer = window.setInterval(
-      refreshIfStale,
-      CLOUD_REFRESH_INTERVAL_MS,
-    );
-    window.addEventListener("focus", refreshIfStale);
-    document.addEventListener("visibilitychange", refreshIfStale);
-    return () => {
-      window.clearInterval(refreshTimer);
-      window.removeEventListener("focus", refreshIfStale);
-      document.removeEventListener("visibilitychange", refreshIfStale);
-    };
-  }, [
-    accountSyncEnabled,
-    cloudReadyKey,
-    hydratedKey,
-    refreshWorkspaceFromCloud,
-    storageKey,
-  ]);
+    hydrated,
+    storageMode,
+    syncStatus,
+    syncError,
+    lastSyncedAt,
+    conflicts,
+    isSyncLeader,
+    workspaceSize,
+    syncMetrics,
+    canUndo,
+    mutateData,
+    syncWorkspaceNow,
+    resolveConflict,
+    undoLastChange,
+    exportWorkspace,
+    exportTasksCsv,
+    exportCalendarIcs,
+    importWorkspace,
+    archiveWorkspace,
+    listRecoverySnapshots,
+    deleteRecoverySnapshot,
+  } = useWorkspaceSync({
+    identity,
+    enabled: accountSyncEnabled,
+    emptyData,
+    normalize: normalizeStoredData,
+  });
 
   const value = useMemo<ResolveContextValue>(
     () => ({
       ...data,
-      storageMode: accountSyncEnabled ? "cloud" : "browser",
+      storageMode,
       syncStatus,
       syncError,
       lastSyncedAt,
-      async syncWorkspaceNow() {
-        if (!accountSyncEnabled) return;
-        if (dirtyRef.current) {
-          await persistWorkspace(
-            dataRef.current,
-            dataJsonRef.current,
-          );
-          return;
-        }
-        await refreshWorkspaceFromCloud(true);
-      },
+      conflicts,
+      isSyncLeader,
+      workspaceSize,
+      syncMetrics,
+      canUndo,
+      syncWorkspaceNow,
+      resolveConflict,
+      undoLastChange,
+      exportWorkspace,
+      exportTasksCsv,
+      exportCalendarIcs,
+      importWorkspace,
+      listRecoverySnapshots,
+      deleteRecoverySnapshot,
       addTask(task) {
         mutateData((current) =>
           addTaskToData(current, task, { identity }),
@@ -1273,6 +1161,11 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           moveTaskInData(current, taskId, scheduledDate),
         );
       },
+      setTaskDailyPriority(taskId, rank) {
+        mutateData((current) =>
+          setTaskDailyPriorityInData(current, taskId, rank),
+        );
+      },
       addGoal(goal) {
         mutateData((current) =>
           addGoalToData(current, goal, { identity }),
@@ -1281,8 +1174,15 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
       updateGoal(goalId, goal) {
         mutateData((current) => updateGoalInData(current, goalId, goal));
       },
-      removeGoal(goalId) {
-        mutateData((current) => removeGoalFromData(current, goalId));
+      removeGoal(goalId, linkedTaskPolicy = "preserve") {
+        mutateData((current) =>
+          removeGoalFromData(
+            current,
+            goalId,
+            new Date().toISOString(),
+            linkedTaskPolicy,
+          ),
+        );
       },
       addMilestone(goalId, milestone) {
         mutateData((current) =>
@@ -1332,8 +1232,10 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           updateModuleInData(current, moduleId, module),
         );
       },
-      removeModule(moduleId) {
-        mutateData((current) => removeModuleFromData(current, moduleId));
+      removeModule(moduleId, linkedTaskPolicy = "preserve") {
+        mutateData((current) =>
+          removeModuleFromData(current, moduleId, linkedTaskPolicy),
+        );
       },
       addAssessment(assessment) {
         mutateData((current) =>
@@ -1345,9 +1247,18 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           updateAssessmentInData(current, assessmentId, assessment),
         );
       },
-      removeAssessment(moduleId, assessmentId) {
+      removeAssessment(
+        moduleId,
+        assessmentId,
+        linkedTaskPolicy = "preserve",
+      ) {
         mutateData((current) =>
-          removeAssessmentFromData(current, moduleId, assessmentId),
+          removeAssessmentFromData(
+            current,
+            moduleId,
+            assessmentId,
+            linkedTaskPolicy,
+          ),
         );
       },
       addAlgorithmLog(log) {
@@ -1392,6 +1303,17 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
             moduleId,
             assessmentId,
             progress,
+          ),
+        );
+      },
+      planAssessmentPreparation(assessmentId, templateId, drafts) {
+        mutateData((current) =>
+          planAssessmentPreparationToData(
+            current,
+            assessmentId,
+            templateId,
+            drafts,
+            { identity },
           ),
         );
       },
@@ -1478,24 +1400,63 @@ export function ResolveProvider({ children }: { children: ReactNode }) {
           updatePrioritiesInData(current, priorities),
         );
       },
+      addEvent(event) {
+        mutateData((current) =>
+          addEventToData(current, event, { identity }),
+        );
+      },
+      updateEvent(eventId, event) {
+        mutateData((current) => updateEventInData(current, eventId, event));
+      },
+      removeEvent(eventId) {
+        mutateData((current) => removeEventFromData(current, eventId));
+      },
+      setMilestoneCompletionMode(milestoneId, mode) {
+        mutateData((current) =>
+          setMilestoneCompletionModeInData(current, milestoneId, mode),
+        );
+      },
+      updateWorkspacePreferences(changes) {
+        mutateData((current) =>
+          updateWorkspacePreferencesInData(current, changes),
+        );
+      },
+      async archiveSemester(nextSemester) {
+        const next = startNewSemesterInData(data, nextSemester);
+        if (next === data) return;
+        await archiveWorkspace(next);
+      },
       resetWorkspace() {
         mutateData(() => createEmptyData(identity));
       },
     }),
     [
-      accountSyncEnabled,
+      canUndo,
+      conflicts,
       data,
+      deleteRecoverySnapshot,
+      archiveWorkspace,
+      exportWorkspace,
+      exportTasksCsv,
+      exportCalendarIcs,
       identity,
+      importWorkspace,
+      isSyncLeader,
       lastSyncedAt,
+      listRecoverySnapshots,
       mutateData,
-      persistWorkspace,
-      refreshWorkspaceFromCloud,
+      resolveConflict,
+      storageMode,
       syncError,
+      syncMetrics,
+      syncWorkspaceNow,
       syncStatus,
+      undoLastChange,
+      workspaceSize,
     ],
   );
 
-  if (hydratedKey !== storageKey) {
+  if (!hydrated) {
     return (
       <div
         className="flex min-h-screen items-center justify-center bg-background"
@@ -1520,4 +1481,8 @@ export function useResolve() {
     throw new Error("useResolve must be used within ResolveProvider");
   }
   return context;
+}
+
+export function useOptionalResolve() {
+  return useContext(ResolveContext);
 }

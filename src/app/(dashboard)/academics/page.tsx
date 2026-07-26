@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   BookOpen,
   CheckCircle2,
   Clock3,
+  ClipboardList,
   GraduationCap,
   Minus,
   Pencil,
@@ -14,7 +15,7 @@ import {
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge, ProgressBar } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
+import { LinkedRecordDeleteButton } from "@/components/ui/linked-record-delete-button";
 import {
   Card,
   CardContent,
@@ -33,6 +34,56 @@ import { offsetDate, useResolve } from "@/contexts/resolve-context";
 import { formatDate } from "@/lib/utils";
 import type { Assessment } from "@/types";
 
+type PreparationDraftRow = {
+  id: string;
+  title: string;
+  estimatedMinutes: number;
+};
+
+function preparationDraft(
+  title = "",
+  estimatedMinutes = 30,
+): PreparationDraftRow {
+  return {
+    id: crypto.randomUUID(),
+    title,
+    estimatedMinutes,
+  };
+}
+
+function preparationTemplate(assessment: Assessment) {
+  if (assessment.type === "exam" || assessment.type === "midterm") {
+    return [
+      preparationDraft(`Map the topics for ${assessment.title}`, 35),
+      preparationDraft(
+        `Build an active-recall set for ${assessment.title}`,
+        75,
+      ),
+      preparationDraft(
+        `Complete a timed practice for ${assessment.title}`,
+        120,
+      ),
+      preparationDraft(`Review mistakes from ${assessment.title}`, 60),
+    ];
+  }
+  if (assessment.type === "presentation") {
+    return [
+      preparationDraft(`Outline the story for ${assessment.title}`, 45),
+      preparationDraft(`Build the slides for ${assessment.title}`, 120),
+      preparationDraft(`Rehearse ${assessment.title} aloud`, 45),
+    ];
+  }
+  return [
+    preparationDraft(`Understand the brief for ${assessment.title}`, 30),
+    preparationDraft(
+      `Research and collect material for ${assessment.title}`,
+      90,
+    ),
+    preparationDraft(`Create the first draft of ${assessment.title}`, 120),
+    preparationDraft(`Review and submit ${assessment.title}`, 60),
+  ];
+}
+
 export default function AcademicsPage() {
   const {
     modules,
@@ -44,6 +95,8 @@ export default function AcademicsPage() {
     removeAssessment,
     updateAssessmentProgress,
     updateModuleStudyMinutes,
+    planAssessmentPreparation,
+    tasks,
   } = useResolve();
   const [showForm, setShowForm] = useState(false);
   const [showAssessment, setShowAssessment] = useState(false);
@@ -63,6 +116,59 @@ export default function AcademicsPage() {
     useState<Assessment["type"]>("assignment");
   const [assessmentWeight, setAssessmentWeight] = useState("20");
   const [assessmentDeadline, setAssessmentDeadline] = useState(offsetDate(7));
+  const [planningAssessmentId, setPlanningAssessmentId] = useState<string | null>(
+    null,
+  );
+  const [preparationDrafts, setPreparationDrafts] = useState<
+    PreparationDraftRow[]
+  >([]);
+  const assessmentRecordCount = modules.reduce(
+    (sum, module) => sum + module.assessments.length,
+    0,
+  );
+
+  useEffect(() => {
+    let frame = 0;
+    const openLinkedAcademicRecord = (href = window.location.href) => {
+      const search = new URL(href, window.location.origin).searchParams;
+      const assessmentId = search.get("assessment");
+      const moduleId = search.get("module");
+      const targetId = assessmentId
+        ? `assessment-${assessmentId}`
+        : moduleId
+          ? `module-${moduleId}`
+          : "";
+      if (!targetId) return;
+      frame = window.requestAnimationFrame(() =>
+        document
+          .getElementById(targetId)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      );
+    };
+    const handleRecord = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (href?.startsWith("/academics")) openLinkedAcademicRecord(href);
+    };
+    openLinkedAcademicRecord();
+    window.addEventListener("resolve:open-record", handleRecord);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resolve:open-record", handleRecord);
+    };
+  }, [assessmentRecordCount, modules.length]);
+
+  function openPreparationPlan(assessment: Assessment) {
+    setPlanningAssessmentId(assessment.id);
+    setPreparationDrafts(preparationTemplate(assessment));
+  }
+
+  function addPreparationDraft() {
+    const draft = preparationDraft();
+    setPreparationDrafts((current) => [...current, draft]);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`preparation-title-${draft.id}`)?.focus();
+    });
+  }
 
   function resetModuleForm() {
     setCode("");
@@ -172,22 +278,61 @@ export default function AcademicsPage() {
     }
     resetAssessmentForm();
   }
-  const studyMinutes = modules.reduce(
-    (sum, module) => sum + module.weeklyStudyMinutes,
-    0,
+  const studyMinutes = useMemo(
+    () =>
+      modules.reduce(
+        (sum, module) => sum + module.weeklyStudyMinutes,
+        0,
+      ),
+    [modules],
   );
-  const assessments = modules
-    .flatMap((module) =>
-      module.assessments.map((assessment) => ({
-        ...assessment,
-        moduleCode: module.code,
-        moduleColor: module.color,
-      })),
-    )
-    .sort((a, b) => a.deadline.localeCompare(b.deadline));
-  const leastAttention = [...modules].sort(
-    (a, b) => a.weeklyStudyMinutes - b.weeklyStudyMinutes,
-  )[0];
+  const assessments = useMemo(
+    () =>
+      modules
+        .flatMap((module) =>
+          module.assessments.map((assessment) => ({
+            ...assessment,
+            moduleCode: module.code,
+            moduleColor: module.color,
+          })),
+        )
+        .sort((a, b) => a.deadline.localeCompare(b.deadline)),
+    [modules],
+  );
+  const leastAttention = useMemo(
+    () =>
+      modules.reduce<(typeof modules)[number] | undefined>(
+        (least, module) =>
+          !least || module.weeklyStudyMinutes < least.weeklyStudyMinutes
+            ? module
+            : least,
+        undefined,
+      ),
+    [modules],
+  );
+  const preparationTasksByAssessment = useMemo(() => {
+    const index = new Map<string, (typeof tasks)[number][]>();
+    for (const task of tasks) {
+      if (task.origin?.kind !== "assessment-preparation") continue;
+      const existing = index.get(task.origin.assessmentId) ?? [];
+      existing.push(task);
+      index.set(task.origin.assessmentId, existing);
+    }
+    return index;
+  }, [tasks]);
+  const preparationTaskCountByModule = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const linkedTasks of preparationTasksByAssessment.values()) {
+      for (const task of linkedTasks) {
+        if (task.origin?.kind !== "assessment-preparation") continue;
+        counts.set(
+          task.origin.moduleId,
+          (counts.get(task.origin.moduleId) ?? 0) + 1,
+        );
+      }
+    }
+    return counts;
+  }, [preparationTasksByAssessment]);
 
   return (
     <PageShell title="Academics">
@@ -456,14 +601,18 @@ export default function AcademicsPage() {
                   assessment.status !== "graded",
               ) ?? sortedAssessments[0];
             return (
-              <Card key={module.id} className="overflow-hidden">
+              <Card
+                key={module.id}
+                id={`module-${module.id}`}
+                className="scroll-mt-24 overflow-hidden"
+              >
                 <div
                   className="h-2"
                   style={{ backgroundColor: module.color }}
                 />
                 <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
                       <p
                         className="text-xs font-black uppercase tracking-[0.15em]"
                         style={{ color: module.color }}
@@ -486,10 +635,12 @@ export default function AcademicsPage() {
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
                       </Button>
-                      <ConfirmDeleteButton
+                      <LinkedRecordDeleteButton
                         itemLabel={`module ${module.code}`}
-                        onConfirm={() => removeModule(module.id)}
-                        className="flex-wrap justify-end"
+                        linkedTaskCount={
+                          preparationTaskCountByModule.get(module.id) ?? 0
+                        }
+                        onConfirm={(policy) => removeModule(module.id, policy)}
                       />
                     </div>
                   </div>
@@ -596,6 +747,7 @@ export default function AcademicsPage() {
             {assessments.map((assessment) => (
               <div
                 key={assessment.id}
+                id={`assessment-${assessment.id}`}
                 className="grid items-center gap-3 rounded-2xl border border-border bg-surface p-4 md:grid-cols-[100px_1fr_minmax(180px,0.8fr)_180px]"
               >
                 <Badge
@@ -694,12 +846,26 @@ export default function AcademicsPage() {
                       <Pencil className="h-3.5 w-3.5" />
                       Edit
                     </Button>
-                    <ConfirmDeleteButton
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => openPreparationPlan(assessment)}
+                    >
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      Plan preparation
+                    </Button>
+                    <LinkedRecordDeleteButton
                       itemLabel={`assessment ${assessment.title}`}
-                      onConfirm={() =>
+                      linkedTaskCount={
+                        preparationTasksByAssessment.get(assessment.id)
+                          ?.length ?? 0
+                      }
+                      onConfirm={(policy) =>
                         removeAssessment(
                           assessment.moduleId,
                           assessment.id,
+                          policy,
                         )
                       }
                     />
@@ -707,6 +873,158 @@ export default function AcademicsPage() {
                 </div>
               </div>
             ))}
+            {planningAssessmentId && (() => {
+              const assessment = assessments.find(
+                (item) => item.id === planningAssessmentId,
+              );
+              if (!assessment) return null;
+              const linkedTasks =
+                preparationTasksByAssessment.get(assessment.id) ?? [];
+              const validDraftCount = preparationDrafts.filter((draft) =>
+                draft.title.trim(),
+              ).length;
+              return (
+                <div className="rounded-2xl border-2 border-accent/35 bg-accent/5 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-accent">
+                        Preview before creating
+                      </p>
+                      <p className="mt-1 font-black">
+                        Preparation for {assessment.title}
+                      </p>
+                      <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">
+                        These are editable suggestions. Remove anything you do
+                        not need, or add as many custom preparation tasks as the
+                        assessment requires.
+                      </p>
+                      {linkedTasks.length > 0 && (
+                        <p className="mt-1 text-xs text-muted">
+                          {linkedTasks.length} linked preparation task
+                          {linkedTasks.length === 1 ? "" : "s"} already exist.
+                          Only missing titles will be created.
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setPlanningAssessmentId(null)}
+                    >
+                      <X className="h-4 w-4" />
+                      Close
+                    </Button>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {preparationDrafts.map((draft, index) => (
+                      <div
+                        key={draft.id}
+                        className="grid min-w-0 gap-2 rounded-xl border border-border bg-surface p-3 sm:grid-cols-[minmax(0,1fr)_130px_auto]"
+                      >
+                        <label className="text-xs font-bold">
+                          Task {index + 1}
+                          <input
+                            id={`preparation-title-${draft.id}`}
+                            className={`${fieldClassName} mt-1`}
+                            value={draft.title}
+                            onChange={(event) =>
+                              setPreparationDrafts((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, title: event.target.value }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="text-xs font-bold">
+                          Duration (min)
+                          <input
+                            className={`${fieldClassName} mt-1`}
+                            type="number"
+                            min="5"
+                            max="720"
+                            step="5"
+                            value={draft.estimatedMinutes}
+                            onChange={(event) =>
+                              setPreparationDrafts((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...item,
+                                        estimatedMinutes: Number(event.target.value),
+                                      }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="self-end text-muted hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+                          onClick={() =>
+                            setPreparationDrafts((current) =>
+                              current.filter((_, itemIndex) => itemIndex !== index),
+                            )
+                          }
+                          aria-label={`Remove preparation task ${index + 1}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    {!preparationDrafts.length && (
+                      <div className="rounded-xl border border-dashed border-border p-4 text-center">
+                        <p className="text-sm font-bold">
+                          This preparation plan is empty.
+                        </p>
+                        <p className="mt-1 text-xs text-muted">
+                          Add the first task when you know the next concrete
+                          step.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={addPreparationDraft}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add preparation task
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={!validDraftCount}
+                      onClick={() => {
+                        planAssessmentPreparation(
+                          assessment.id,
+                          `standard-${assessment.type}-v1`,
+                          preparationDrafts,
+                        );
+                        setPlanningAssessmentId(null);
+                      }}
+                    >
+                      Create {validDraftCount} confirmed task
+                      {validDraftCount === 1 ? "" : "s"}
+                    </Button>
+                    {linkedTasks.length > 0 && (
+                      <a
+                        href="/today"
+                        className="inline-flex min-h-9 max-w-full items-center rounded-xl px-3 py-2 text-center text-xs font-black leading-tight text-accent"
+                      >
+                        View preparation tasks
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
             {!assessments.length && (
               <EmptyState
                 title="No assessment deadlines yet"

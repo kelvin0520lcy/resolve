@@ -9,8 +9,11 @@ import type {
   JobApplication,
   Milestone,
   Reflection,
+  SemesterArchiveSummary,
   Semester,
   Task,
+  WorkspaceEvent,
+  WorkspacePreferences,
 } from "@/types";
 
 export type ResolveData = {
@@ -26,5 +29,8 @@ export type ResolveData = {
   modules: AcademicModule[];
   algorithmLogs: AlgorithmLog[];
   applications: JobApplication[];
+  events: WorkspaceEvent[];
   weeklyPriorities: string[];
+  preferences: WorkspacePreferences;
+  archiveSummaries: SemesterArchiveSummary[];
 };

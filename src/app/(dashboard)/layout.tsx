@@ -3,6 +3,8 @@ import { AppHeader } from "@/components/layout/app-header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ResolveProvider } from "@/contexts/resolve-context";
+import { WorkspaceStatus } from "@/components/workspace/workspace-status";
+import { CommandPalette } from "@/components/layout/command-palette";
 
 export default function DashboardLayout({
   children,
@@ -18,6 +20,8 @@ export default function DashboardLayout({
             {children}
           </div>
           <MobileNav />
+          <WorkspaceStatus />
+          <CommandPalette />
         </div>
       </ResolveProvider>
     </ProtectedRoute>

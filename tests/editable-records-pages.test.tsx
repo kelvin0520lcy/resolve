@@ -18,9 +18,12 @@ const spies = vi.hoisted(() => ({
   updateMilestone: vi.fn(),
   updateModule: vi.fn(),
   updateAssessment: vi.fn(),
+  planAssessmentPreparation: vi.fn(),
   updateAlgorithmLog: vi.fn(),
   updateApplication: vi.fn(),
   updateGuitarSession: vi.fn(),
+  updatePriorities: vi.fn(),
+  setTaskDailyPriority: vi.fn(),
 }));
 
 const workspace = vi.hoisted(() => {
@@ -152,11 +155,18 @@ const workspace = vi.hoisted(() => {
       progress: [],
     },
     weeklyPriorities: ["One", "Two", "Three"],
-    updatePriorities: vi.fn(),
+    preferences: {
+      timeZone: "Asia/Kuala_Lumpur",
+      dailyCapacityMinutes: 480,
+      nextActionEnabled: true,
+      showDeadlineWarnings: true,
+    },
+    updatePriorities: spies.updatePriorities,
     addTask: vi.fn(),
     updateTask: spies.updateTask,
     toggleTask: vi.fn(),
     moveTask: vi.fn(),
+    setTaskDailyPriority: spies.setTaskDailyPriority,
     removeTask: vi.fn(),
     toggleHabit: vi.fn(),
     updateTaskActualMinutes: vi.fn(),
@@ -176,6 +186,7 @@ const workspace = vi.hoisted(() => {
     removeModule: vi.fn(),
     addAssessment: vi.fn(),
     updateAssessment: spies.updateAssessment,
+    planAssessmentPreparation: spies.planAssessmentPreparation,
     removeAssessment: vi.fn(),
     updateAssessmentProgress: vi.fn(),
     updateModuleStudyMinutes: vi.fn(),
@@ -259,6 +270,46 @@ describe("editable user-created records", () => {
     );
   });
 
+  it("starts, pauses, and completes a focused task without leaving Today", async () => {
+    const user = userEvent.setup();
+    render(<TodayPage />);
+
+    await user.click(screen.getByRole("button", { name: "Focus" }));
+    expect(screen.getByRole("dialog", { name: "Review lecture notes" }))
+      .toBeInTheDocument();
+    expect(spies.updateTask).toHaveBeenCalledWith(
+      "task-1",
+      expect.objectContaining({ status: "in_progress" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pause" }));
+    await user.type(
+      screen.getByRole("textbox", { name: /Quick note/ }),
+      "Review examples next.",
+    );
+    await user.click(screen.getByRole("button", { name: "Complete" }));
+
+    expect(workspace.toggleTask).toHaveBeenCalledWith("task-1");
+    expect(spies.updateTask).toHaveBeenLastCalledWith(
+      "task-1",
+      expect.objectContaining({
+        description: "Review examples next.",
+      }),
+    );
+  });
+
+  it("lets the user choose a unique daily top-three task", async () => {
+    const user = userEvent.setup();
+    render(<TodayPage />);
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Daily priority 1" }),
+      "task-1",
+    );
+
+    expect(spies.setTaskDailyPriority).toHaveBeenCalledWith("task-1", 1);
+  });
+
   it("edits a scheduled task from the Weekly Plan", async () => {
     const user = userEvent.setup();
     render(<WeeklyPage />);
@@ -285,6 +336,62 @@ describe("editable user-created records", () => {
         scheduledDate: "2026-07-25",
       }),
     );
+  });
+
+  it("preserves an exact task deadline when editing it from Weekly Plan", async () => {
+    const user = userEvent.setup();
+    const originalTask = workspace.tasks[0];
+    workspace.tasks[0] = {
+      ...originalTask,
+      deadlineInfo: {
+        kind: "dateTime",
+        at: "2026-07-25T04:30:00.000Z",
+        timeZone: "Asia/Kuala_Lumpur",
+      },
+    };
+
+    try {
+      render(<WeeklyPage />);
+      await user.click(
+        screen.getByRole("button", {
+          name: "Edit task Review lecture notes",
+        }),
+      );
+
+      expect(screen.getByLabelText("Deadline (optional)")).toHaveValue(
+        "2026-07-25",
+      );
+      expect(screen.getByLabelText("Deadline time (optional)")).toHaveValue(
+        "12:30",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Save task changes" }),
+      );
+
+      expect(spies.updateTask).toHaveBeenCalledWith(
+        "task-1",
+        expect.objectContaining({
+          deadlineInfo: {
+            kind: "dateTime",
+            at: "2026-07-25T04:30:00.000Z",
+            timeZone: "Asia/Kuala_Lumpur",
+          },
+        }),
+      );
+    } finally {
+      workspace.tasks[0] = originalTask;
+    }
+  });
+
+  it("saves a weekly plan with one priority instead of requiring all three", async () => {
+    const user = userEvent.setup();
+    render(<WeeklyPage />);
+
+    await user.clear(screen.getByRole("textbox", { name: "Priority 2" }));
+    await user.clear(screen.getByRole("textbox", { name: "Priority 3" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(spies.updatePriorities).toHaveBeenCalledWith(["One", "", ""]);
   });
 
   it("edits a flexible habit and its weekly frequency", async () => {
@@ -361,6 +468,39 @@ describe("editable user-created records", () => {
     expect(spies.updateAssessment).toHaveBeenCalledWith(
       "assessment-1",
       expect.objectContaining({ title: "Final project" }),
+    );
+  });
+
+  it("adds preparation tasks beyond the suggested assessment plan", async () => {
+    const user = userEvent.setup();
+    render(<AcademicsPage />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Plan preparation" }),
+    );
+    expect(screen.getAllByRole("textbox", { name: /Task \d+/ })).toHaveLength(
+      4,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Add preparation task" }),
+    );
+    const taskInputs = screen.getAllByRole("textbox", { name: /Task \d+/ });
+    expect(taskInputs).toHaveLength(5);
+    await user.type(taskInputs[4], "Create a one-page formula sheet");
+    await user.click(
+      screen.getByRole("button", { name: "Create 5 confirmed tasks" }),
+    );
+
+    expect(spies.planAssessmentPreparation).toHaveBeenCalledWith(
+      "assessment-1",
+      "standard-midterm-v1",
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "Create a one-page formula sheet",
+          estimatedMinutes: 30,
+        }),
+      ]),
     );
   });
 

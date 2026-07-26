@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
-import { LogOut, MessageCircle, Settings, Sparkles } from "lucide-react";
+import { Command, LogOut, MessageCircle, Settings, Sparkles } from "lucide-react";
 import type { PageTheme } from "@/lib/page-themes";
+import { useOptionalResolve } from "@/contexts/resolve-context";
 
 export function AppHeader({
   title,
@@ -17,9 +18,15 @@ export function AppHeader({
   theme: PageTheme;
 }) {
   const { user, signOut, isConfigured } = useAuth();
+  const workspace = useOptionalResolve();
+  const syncStatus = workspace?.syncStatus ?? "synced";
+  const syncWorkspaceNow =
+    workspace?.syncWorkspaceNow ?? (async () => undefined);
+  const exportWorkspace = workspace?.exportWorkspace ?? (() => undefined);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const [reactionOpen, setReactionOpen] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const reactionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,16 +53,25 @@ export function AppHeader({
     };
   }, [reactionOpen]);
 
-  async function handleSignOut() {
+  async function performSignOut(syncFirst = false) {
     if (signingOut) return;
     setSigningOut(true);
     setSignOutError("");
     try {
+      if (syncFirst) await syncWorkspaceNow();
       await signOut();
     } catch {
       setSignOutError("Could not log out. Please try again.");
       setSigningOut(false);
     }
+  }
+
+  function handleSignOut() {
+    if (["saving", "offline", "conflict"].includes(syncStatus)) {
+      setConfirmSignOut(true);
+      return;
+    }
+    void performSignOut();
   }
 
   return (
@@ -83,6 +99,23 @@ export function AppHeader({
         </div>
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={() =>
+            window.dispatchEvent(
+              new CustomEvent("resolve:command", {
+                detail: { mode: "search" },
+              }),
+            )
+          }
+          className="hidden h-10 items-center gap-2 rounded-xl border-2 border-border bg-surface-elevated px-3 text-xs font-black text-muted transition hover:border-accent hover:text-accent md:flex"
+        >
+          <Command className="h-4 w-4" />
+          Search
+          <kbd className="rounded-md border border-border px-1.5 py-0.5 text-[9px]">
+            ⌘K
+          </kbd>
+        </button>
         <div ref={reactionRef} className="relative">
           <button
             type="button"
@@ -172,6 +205,52 @@ export function AppHeader({
               {signingOut ? "Logging out…" : "Log out"}
             </span>
           </Button>
+        )}
+        {confirmSignOut && (
+          <div
+            className="absolute right-3 top-[calc(100%+8px)] z-50 w-[min(24rem,calc(100vw-1.5rem))] rounded-2xl border-2 border-warning/60 bg-[#18121f] p-4 text-white shadow-2xl"
+            role="dialog"
+            aria-label="Pending workspace changes"
+          >
+            <p className="text-sm font-black">Changes are still pending</p>
+            <p className="mt-1 text-xs leading-5 text-white/70">
+              They are safe on this device. Resolve will not discard them when
+              you log out.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {syncStatus !== "conflict" && (
+                <Button
+                  size="sm"
+                  onClick={() => void performSignOut(true)}
+                  disabled={signingOut}
+                >
+                  Sync, then log out
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void performSignOut(false)}
+                disabled={signingOut}
+              >
+                Keep locally and log out
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setConfirmSignOut(false)}
+              >
+                Cancel
+              </Button>
+              <button
+                type="button"
+                onClick={exportWorkspace}
+                className="text-xs font-bold text-warning underline"
+              >
+                Export backup
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </header>

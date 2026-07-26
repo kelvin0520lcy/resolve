@@ -18,16 +18,32 @@ type ReadResult =
   | { kind: "missing" }
   | {
       kind: "value";
-      snapshot: { data: unknown; schemaVersion: number };
+      snapshot: {
+        data: unknown;
+        schemaVersion: number;
+        revision: number;
+        updatedByClientId?: string;
+      };
     };
 
 const syncMocks = vi.hoisted(() => ({
   loadWorkspace:
     vi.fn<(userId: string) => Promise<ReadResult>>(),
-  saveWorkspace: vi
-    .fn<(userId: string, data: unknown) => Promise<void>>()
-    .mockResolvedValue(undefined),
+  syncWorkspaceTransaction: vi.fn(),
+  upgradeWorkspaceTransaction: vi.fn(),
+  saveCloudRecoverySnapshot: vi.fn(async () => undefined),
+  saveCloudSemesterArchive: vi.fn(async () => undefined),
+  saveRecoverySnapshot: vi.fn(async () => undefined),
 }));
+
+vi.mock("@/features/workspace/lib/recovery", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/features/workspace/lib/recovery")>();
+  return {
+    ...actual,
+    saveRecoverySnapshot: syncMocks.saveRecoverySnapshot,
+  };
+});
 
 vi.mock("@/contexts/auth-context", () => ({
   useAuth: () => ({
@@ -40,15 +56,28 @@ vi.mock("@/contexts/auth-context", () => ({
   }),
 }));
 
-vi.mock("@/lib/firebase/workspace", () => ({
-  getWorkspaceSchemaCompatibility: (schemaVersion: number) =>
-    schemaVersion === 3
-      ? "current"
-      : schemaVersion < 3
-        ? "upgrade"
-        : "unsupported",
+vi.mock("@/lib/firebase/workspace", () => {
+  class WorkspaceConflictError extends Error {}
+  return {
   loadWorkspace: syncMocks.loadWorkspace,
-  saveWorkspace: syncMocks.saveWorkspace,
+  syncWorkspaceTransaction: syncMocks.syncWorkspaceTransaction,
+  upgradeWorkspaceTransaction: syncMocks.upgradeWorkspaceTransaction,
+  saveCloudRecoverySnapshot: syncMocks.saveCloudRecoverySnapshot,
+  saveCloudSemesterArchive: syncMocks.saveCloudSemesterArchive,
+  WorkspaceConflictError,
+  };
+});
+
+vi.mock("@/features/workspace/sync/tab-coordinator", () => ({
+  TabSyncCoordinator: class {
+    tabId = "test-tab";
+    start(onLeader: (leader: boolean) => void) {
+      onLeader(true);
+    }
+    stop() {}
+    publish() {}
+    requestSync() {}
+  },
 }));
 
 function ProviderProbe() {
@@ -57,6 +86,7 @@ function ProviderProbe() {
     tasks,
     syncStatus,
     syncError,
+    isSyncLeader,
     addTask,
     syncWorkspaceNow,
   } = useResolve();
@@ -66,6 +96,9 @@ function ProviderProbe() {
       <output aria-label="task count">{tasks.length}</output>
       <output aria-label="sync status">{syncStatus}</output>
       <output aria-label="sync error">{syncError}</output>
+      <output aria-label="sync leader">
+        {isSyncLeader ? "leader" : "follower"}
+      </output>
       <button
         type="button"
         onClick={() =>
@@ -110,8 +143,11 @@ async function startWithCloudResult(result: ReadResult) {
   );
   await waitFor(() =>
     expect(screen.getByLabelText("sync status")).not.toHaveTextContent(
-      "connecting",
+      /connecting|migrating/,
     ),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("sync leader")).toHaveTextContent("leader"),
   );
 }
 
@@ -119,8 +155,32 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   window.localStorage.clear();
   syncMocks.loadWorkspace.mockReset();
-  syncMocks.saveWorkspace.mockReset();
-  syncMocks.saveWorkspace.mockResolvedValue(undefined);
+  syncMocks.syncWorkspaceTransaction.mockReset();
+  syncMocks.syncWorkspaceTransaction.mockImplementation(
+    async ({
+      localData,
+      baseRevision,
+      patches,
+    }: {
+      localData: unknown;
+      baseRevision: number;
+      patches: unknown[];
+    }) => ({
+      data: localData,
+      revision: baseRevision + 1,
+      patchesApplied: patches.length,
+    }),
+  );
+  syncMocks.upgradeWorkspaceTransaction.mockReset();
+  syncMocks.upgradeWorkspaceTransaction.mockImplementation(
+    async ({ data, expectedRevision }: { data: unknown; expectedRevision: number }) => ({
+      data,
+      revision: expectedRevision + 1,
+    }),
+  );
+  syncMocks.saveCloudRecoverySnapshot.mockClear();
+  syncMocks.saveCloudSemesterArchive.mockClear();
+  syncMocks.saveRecoverySnapshot.mockClear();
 });
 
 afterEach(() => {
@@ -128,7 +188,7 @@ afterEach(() => {
 });
 
 describe("ResolveProvider quota-conscious cloud sync", () => {
-  it("loads an older workspace without spending a write on migration", async () => {
+  it("backs up and transactionally upgrades an older workspace", async () => {
     await startWithCloudResult({
       kind: "value",
       snapshot: {
@@ -151,11 +211,13 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
           ],
         },
         schemaVersion: 1,
+        revision: 2,
       },
     });
 
     expect(screen.getByLabelText("goal count")).toHaveTextContent("1");
-    expect(syncMocks.saveWorkspace).not.toHaveBeenCalled();
+    expect(syncMocks.upgradeWorkspaceTransaction).toHaveBeenCalledTimes(1);
+    expect(syncMocks.saveCloudRecoverySnapshot).toHaveBeenCalledTimes(1);
   });
 
   it("groups several rapid edits into one delayed Firestore write", async () => {
@@ -163,7 +225,8 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
       kind: "value",
       snapshot: {
         data: createEmptyData("cloud-user"),
-        schemaVersion: 3,
+        schemaVersion: 4,
+        revision: 1,
       },
     });
 
@@ -175,20 +238,24 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
     act(() => {
       vi.advanceTimersByTime(CLOUD_SAVE_DEBOUNCE_MS - 1);
     });
-    expect(syncMocks.saveWorkspace).not.toHaveBeenCalled();
+    expect(syncMocks.syncWorkspaceTransaction).not.toHaveBeenCalled();
 
     await act(async () => {
       vi.advanceTimersByTime(1);
       await Promise.resolve();
     });
-    expect(syncMocks.saveWorkspace).toHaveBeenCalledTimes(1);
-    expect(syncMocks.saveWorkspace.mock.calls[0][1]).toMatchObject({
-      tasks: expect.arrayContaining([
+    expect(syncMocks.syncWorkspaceTransaction).toHaveBeenCalledTimes(1);
+    expect(syncMocks.syncWorkspaceTransaction.mock.calls[0][0]).toMatchObject({
+      localData: {
+        tasks: expect.arrayContaining([
         expect.objectContaining({ title: "Local edit" }),
-      ]),
+        ]),
+      },
     });
     expect(
-      (syncMocks.saveWorkspace.mock.calls[0][1] as { tasks: unknown[] }).tasks,
+      (syncMocks.syncWorkspaceTransaction.mock.calls[0][0] as {
+        localData: { tasks: unknown[] };
+      }).localData.tasks,
     ).toHaveLength(3);
   });
 
@@ -197,10 +264,11 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
       kind: "value",
       snapshot: {
         data: createEmptyData("cloud-user"),
-        schemaVersion: 3,
+        schemaVersion: 4,
+        revision: 1,
       },
     });
-    syncMocks.saveWorkspace.mockRejectedValueOnce(
+    syncMocks.syncWorkspaceTransaction.mockRejectedValueOnce(
       new Error("quota exceeded"),
     );
 
@@ -212,21 +280,20 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
     expect(screen.getByLabelText("sync status")).toHaveTextContent("offline");
     expect(
       JSON.parse(
-        window.localStorage.getItem("resolve-sync-v1:cloud-user") ?? "{}",
+        window.localStorage.getItem("resolve-sync-v2:cloud-user") ?? "{}",
       ),
     ).toMatchObject({ dirty: true });
 
-    syncMocks.saveWorkspace.mockResolvedValue(undefined);
     fireEvent.click(screen.getByRole("button", { name: "Sync now" }));
     await waitFor(() =>
-      expect(syncMocks.saveWorkspace).toHaveBeenCalledTimes(2),
+      expect(syncMocks.syncWorkspaceTransaction).toHaveBeenCalledTimes(2),
     );
     await waitFor(() =>
       expect(screen.getByLabelText("sync status")).toHaveTextContent("synced"),
     );
     expect(
       JSON.parse(
-        window.localStorage.getItem("resolve-sync-v1:cloud-user") ?? "{}",
+        window.localStorage.getItem("resolve-sync-v2:cloud-user") ?? "{}",
       ),
     ).toMatchObject({ dirty: false });
   });
@@ -236,7 +303,8 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
       kind: "value",
       snapshot: {
         data: createEmptyData("cloud-user"),
-        schemaVersion: 3,
+        schemaVersion: 4,
+        revision: 1,
       },
     };
     await startWithCloudResult(result);
@@ -272,8 +340,18 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
       JSON.stringify(local),
     );
     window.localStorage.setItem(
-      "resolve-sync-v1:cloud-user",
-      JSON.stringify({ dirty: false, lastCheckedAt: Date.now() }),
+      "resolve-sync-base-v1:cloud-user",
+      JSON.stringify(local),
+    );
+    window.localStorage.setItem(
+      "resolve-sync-v2:cloud-user",
+      JSON.stringify({
+        dirty: false,
+        lastCheckedAt: Date.now(),
+        baseRevision: 4,
+        schemaVersion: 4,
+        patches: [],
+      }),
     );
 
     renderProvider();
@@ -282,7 +360,7 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
     expect(screen.getByLabelText("task count")).toHaveTextContent("1");
     expect(screen.getByLabelText("sync status")).toHaveTextContent("synced");
     expect(syncMocks.loadWorkspace).not.toHaveBeenCalled();
-    expect(syncMocks.saveWorkspace).not.toHaveBeenCalled();
+    expect(syncMocks.syncWorkspaceTransaction).not.toHaveBeenCalled();
   });
 
   it("retries a dirty browser copy without reading over it", async () => {
@@ -303,8 +381,18 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
       JSON.stringify(local),
     );
     window.localStorage.setItem(
-      "resolve-sync-v1:cloud-user",
-      JSON.stringify({ dirty: true, lastCheckedAt: 0 }),
+      "resolve-sync-base-v1:cloud-user",
+      JSON.stringify(createEmptyData("cloud-user")),
+    );
+    window.localStorage.setItem(
+      "resolve-sync-v2:cloud-user",
+      JSON.stringify({
+        dirty: true,
+        lastCheckedAt: Date.now(),
+        baseRevision: 3,
+        schemaVersion: 4,
+        patches: [],
+      }),
     );
 
     renderProvider();
@@ -315,9 +403,11 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
       vi.advanceTimersByTime(CLOUD_SAVE_DEBOUNCE_MS);
       await Promise.resolve();
     });
-    expect(syncMocks.saveWorkspace).toHaveBeenCalledTimes(1);
-    expect(syncMocks.saveWorkspace.mock.calls[0][1]).toMatchObject({
-      tasks: [expect.objectContaining({ id: "unsynced-task" })],
+    expect(syncMocks.syncWorkspaceTransaction).toHaveBeenCalledTimes(1);
+    expect(syncMocks.syncWorkspaceTransaction.mock.calls[0][0]).toMatchObject({
+      localData: {
+        tasks: [expect.objectContaining({ id: "unsynced-task" })],
+      },
     });
   });
 
@@ -335,9 +425,11 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
       await Promise.resolve();
     });
 
-    expect(syncMocks.saveWorkspace).toHaveBeenCalledTimes(1);
-    expect(syncMocks.saveWorkspace.mock.calls[0][1]).toMatchObject({
-      weeklyPriorities: ["Finish the report", "", ""],
+    expect(syncMocks.syncWorkspaceTransaction).toHaveBeenCalledTimes(1);
+    expect(syncMocks.syncWorkspaceTransaction.mock.calls[0][0]).toMatchObject({
+      localData: {
+        weeklyPriorities: ["Finish the report", "", ""],
+      },
     });
   });
 
@@ -346,13 +438,13 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
     act(() => {
       vi.advanceTimersByTime(CLOUD_SAVE_DEBOUNCE_MS);
     });
-    expect(syncMocks.saveWorkspace).not.toHaveBeenCalled();
+    expect(syncMocks.syncWorkspaceTransaction).not.toHaveBeenCalled();
   });
 
   it("blocks writes from an app older than the cloud workspace", async () => {
     await startWithCloudResult({
       kind: "value",
-      snapshot: { data: { goals: [] }, schemaVersion: 4 },
+      snapshot: { data: { goals: [] }, schemaVersion: 5, revision: 1 },
     });
 
     expect(screen.getByLabelText("sync status")).toHaveTextContent("error");
@@ -363,11 +455,14 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
     act(() => {
       vi.advanceTimersByTime(CLOUD_SAVE_DEBOUNCE_MS);
     });
-    expect(syncMocks.saveWorkspace).not.toHaveBeenCalled();
+    expect(syncMocks.syncWorkspaceTransaction).not.toHaveBeenCalled();
   });
 
   it("keeps local edits without writing when the initial server read fails", async () => {
     syncMocks.loadWorkspace.mockRejectedValue(
+      new Error("network unavailable"),
+    );
+    syncMocks.syncWorkspaceTransaction.mockRejectedValue(
       new Error("network unavailable"),
     );
     renderProvider();
@@ -384,10 +479,10 @@ describe("ResolveProvider quota-conscious cloud sync", () => {
     });
 
     expect(screen.getByLabelText("task count")).toHaveTextContent("1");
-    expect(syncMocks.saveWorkspace).not.toHaveBeenCalled();
+    expect(syncMocks.syncWorkspaceTransaction).toHaveBeenCalledTimes(1);
     expect(
       JSON.parse(
-        window.localStorage.getItem("resolve-sync-v1:cloud-user") ?? "{}",
+        window.localStorage.getItem("resolve-sync-v2:cloud-user") ?? "{}",
       ),
     ).toMatchObject({ dirty: true });
   });

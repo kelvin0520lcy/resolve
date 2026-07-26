@@ -34,6 +34,7 @@ export function GoalBreakdown({
   toggleMilestone,
   removeMilestone,
   setGoalCompleted,
+  setMilestoneCompletionMode,
 }: {
   goal: Goal;
   milestones: Milestone[];
@@ -45,6 +46,10 @@ export function GoalBreakdown({
   toggleMilestone: (milestoneId: string) => void;
   removeMilestone: (milestoneId: string) => void;
   setGoalCompleted: (goalId: string, completed: boolean) => void;
+  setMilestoneCompletionMode?: (
+    milestoneId: string,
+    mode: Milestone["completionMode"],
+  ) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -277,13 +282,14 @@ export function GoalBreakdown({
                   <button
                     type="button"
                     onClick={() => toggleMilestone(milestone.id)}
+                    disabled={milestone.completionMode === "required_tasks"}
                     aria-label={
                       milestone.completed
                         ? `Mark ${milestone.title} incomplete`
                         : `Complete ${milestone.title}`
                     }
                     aria-pressed={milestone.completed}
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 font-black transition ${
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
                       milestone.completed
                         ? "border-success bg-success text-white"
                         : "border-border text-muted hover:border-accent hover:text-accent"
@@ -310,6 +316,22 @@ export function GoalBreakdown({
                         {formatDate(`${milestone.deadline}T12:00:00`)}
                       </p>
                     )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMilestoneCompletionMode?.(
+                          milestone.id,
+                          milestone.completionMode === "required_tasks"
+                            ? "manual"
+                            : "required_tasks",
+                        )
+                      }
+                      className="mt-1 text-[10px] font-black uppercase tracking-wider text-accent"
+                    >
+                      {milestone.completionMode === "required_tasks"
+                        ? "Automatic · required tasks"
+                        : "Manual completion"}
+                    </button>
                   </div>
                   <button
                     type="button"

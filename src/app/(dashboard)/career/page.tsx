@@ -566,24 +566,26 @@ export default function CareerPage() {
                   key={application.id}
                   className="rounded-2xl border border-border bg-surface p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-black">{application.company}</p>
-                      <p className="mt-1 text-sm text-muted">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="break-words font-black">
+                        {application.company}
+                      </p>
+                      <p className="mt-1 break-words text-sm text-muted">
                         {application.role}
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
+                    <div className="flex w-full min-w-0 flex-wrap items-end gap-2 sm:w-auto sm:justify-end">
                       <Badge
                         variant={stageVariant[application.stage]}
                         className="capitalize"
                       >
                         {application.stage}
                       </Badge>
-                      <label className="text-right text-[10px] font-black uppercase tracking-wider text-muted">
+                      <label className="text-left text-[10px] font-black uppercase tracking-wider text-muted sm:text-right">
                         Move stage
                         <select
-                          className="mt-1 block rounded-lg border border-border bg-surface-muted px-2 py-1 text-xs font-bold normal-case tracking-normal text-foreground outline-none focus:border-accent"
+                          className="mt-1 block max-w-full rounded-lg border border-border bg-surface-muted px-2 py-1 text-xs font-bold normal-case tracking-normal text-foreground outline-none focus:border-accent"
                           value={application.stage}
                           onChange={(event) =>
                             updateApplicationStage(

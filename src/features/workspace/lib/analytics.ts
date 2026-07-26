@@ -1,4 +1,5 @@
 import type { GuitarPracticeSession, Task } from "@/types";
+import { getTaskEstimatedMinutes } from "@/features/workspace/lib/deadlines";
 
 export function getTrackedMinutesByCategory(
   tasks: Task[],
@@ -9,7 +10,7 @@ export function getTrackedMinutesByCategory(
   for (const task of tasks) {
     totals[task.category] =
       (totals[task.category] ?? 0) +
-      (task.actualMinutes ?? task.estimatedMinutes ?? 0);
+      (task.actualMinutes ?? getTaskEstimatedMinutes(task) ?? 0);
   }
   for (const session of guitarSessions) {
     totals.guitar = (totals.guitar ?? 0) + session.durationMinutes;

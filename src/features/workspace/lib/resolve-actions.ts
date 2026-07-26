@@ -13,23 +13,44 @@ import type {
   Semester,
   SemesterResolution,
   Task,
+  WorkspaceEvent,
+  WorkspacePreferences,
 } from "@/types";
 
 export type NewTaskInput = Pick<Task, "title" | "category" | "priority"> &
   Partial<
-    Pick<Task, "scheduledDate" | "deadline" | "estimatedMinutes" | "goalId">
+    Pick<
+      Task,
+      | "description"
+      | "scheduledDate"
+      | "deadline"
+      | "schedule"
+      | "deadlineInfo"
+      | "estimatedMinutes"
+      | "goalId"
+      | "milestoneId"
+      | "prerequisiteTaskIds"
+      | "requiredForMilestone"
+      | "origin"
+    >
   >;
-export type UpdateTaskInput = NewTaskInput;
+export type UpdateTaskInput = NewTaskInput &
+  Partial<Pick<Task, "status">>;
 
 export type NewGoalInput = Pick<
   Goal,
   "title" | "description" | "category" | "priority"
 > &
-  Partial<Pick<Goal, "deadline" | "motivation">>;
+  Partial<Pick<Goal, "deadline" | "deadlineInfo" | "motivation">>;
 export type UpdateGoalInput = NewGoalInput;
 
 export type NewMilestoneInput = Pick<Milestone, "title"> &
-  Partial<Pick<Milestone, "description" | "deadline">>;
+  Partial<
+    Pick<
+      Milestone,
+      "description" | "deadline" | "deadlineInfo" | "completionMode"
+    >
+  >;
 export type UpdateMilestoneInput = NewMilestoneInput;
 
 export type NewHabitInput = Pick<
@@ -59,7 +80,7 @@ export type NewAssessmentInput = Pick<
   Assessment,
   "moduleId" | "title" | "type" | "weight" | "deadline"
 > &
-  Partial<Pick<Assessment, "targetScore">>;
+  Partial<Pick<Assessment, "targetScore" | "deadlineInfo">>;
 export type UpdateAssessmentInput = NewAssessmentInput;
 
 export type NewAlgorithmLogInput = Omit<
@@ -78,6 +99,20 @@ export type GuitarSessionInput = Omit<
 
 export type NewSemesterResolutionInput = Pick<SemesterResolution, "title">;
 export type UpdateSemesterResolutionInput = NewSemesterResolutionInput;
+
+export type NewEventInput = Omit<
+  WorkspaceEvent,
+  "id" | "userId" | "semesterId" | "createdAt" | "updatedAt"
+>;
+export type UpdateEventInput = NewEventInput;
+
+export type PreparationTaskDraft = {
+  title: string;
+  estimatedMinutes?: number;
+  category?: string;
+  priority?: Task["priority"];
+};
+export type LinkedTaskRemovalPolicy = "preserve" | "delete";
 
 export type MutationMeta = {
   identity: string;
@@ -119,6 +154,60 @@ function normalizeHabitSchedule(habit: NewHabitInput) {
   return { scheduleType, targetDays, targetFrequency };
 }
 
+function normalizeTaskMinutes(minutes: unknown) {
+  return Number.isFinite(minutes)
+    ? Math.min(720, Math.max(5, Math.round(minutes as number)))
+    : undefined;
+}
+
+function taskDeadline(task: NewTaskInput) {
+  return (
+    task.deadlineInfo ??
+    (isDateKey(task.deadline)
+      ? ({ kind: "date", date: task.deadline } as const)
+      : undefined)
+  );
+}
+
+function recalculateAutomaticMilestones(
+  current: ResolveData,
+  timestamp: string,
+): ResolveData {
+  let changed = false;
+  const milestones = current.milestones.map((milestone) => {
+    if (milestone.completionMode !== "required_tasks") return milestone;
+    const requiredTasks = current.tasks.filter(
+      (task) =>
+        task.milestoneId === milestone.id && task.requiredForMilestone === true,
+    );
+    if (!requiredTasks.length) return milestone;
+    const completed = requiredTasks.every((task) => task.status === "completed");
+    if (completed === milestone.completed) return milestone;
+    changed = true;
+    return {
+      ...milestone,
+      completed,
+      completedAt: completed ? timestamp : undefined,
+    };
+  });
+  if (!changed) return current;
+  const reopenedGoalIds = new Set(
+    milestones
+      .filter((milestone) => !milestone.completed)
+      .map((milestone) => milestone.goalId),
+  );
+  const next: ResolveData = {
+    ...current,
+    milestones,
+    goals: current.goals.map((goal) =>
+      goal.status === "completed" && reopenedGoalIds.has(goal.id)
+        ? { ...goal, status: "active", updatedAt: timestamp }
+        : goal,
+    ),
+  };
+  return recalculateAutomaticMilestones(next, timestamp);
+}
+
 export function addTaskToData(
   current: ResolveData,
   task: NewTaskInput,
@@ -126,12 +215,27 @@ export function addTaskToData(
 ): ResolveData {
   const cleanTitle = task.title.trim();
   if (!cleanTitle) return current;
-  const requestedMinutes = Number.isFinite(task.estimatedMinutes)
-    ? task.estimatedMinutes!
-    : 30;
   const timestamp = mutationTime(meta);
+  const scheduleDate = isDateKey(task.schedule?.date)
+    ? task.schedule.date
+    : isDateKey(task.scheduledDate)
+      ? task.scheduledDate
+      : undefined;
+  const estimatedMinutes = normalizeTaskMinutes(
+    task.schedule?.estimatedMinutes ?? task.estimatedMinutes,
+  );
+  const schedule = scheduleDate
+    ? {
+        date: scheduleDate,
+        startTime: task.schedule?.startTime,
+        estimatedMinutes,
+        timeZone:
+          task.schedule?.timeZone || current.preferences.timeZone,
+      }
+    : undefined;
+  const deadlineInfo = taskDeadline(task);
 
-  return {
+  const next: ResolveData = {
     ...current,
     tasks: [
       ...current.tasks,
@@ -141,20 +245,33 @@ export function addTaskToData(
         id: mutationId(meta),
         userId: meta.identity,
         semesterId: current.semester.id,
-        scheduledDate: isDateKey(task.scheduledDate)
-          ? task.scheduledDate
-          : offsetDate(0),
-        deadline: isDateKey(task.deadline) ? task.deadline : undefined,
-        estimatedMinutes: Math.min(
-          720,
-          Math.max(5, Math.round(requestedMinutes)),
+        description: task.description?.trim() || undefined,
+        scheduledDate: scheduleDate,
+        schedule,
+        deadline:
+          deadlineInfo?.kind === "date" ? deadlineInfo.date : undefined,
+        deadlineInfo,
+        estimatedMinutes,
+        goalId: current.goals.some((goal) => goal.id === task.goalId)
+          ? task.goalId
+          : undefined,
+        milestoneId: current.milestones.some(
+          (milestone) => milestone.id === task.milestoneId,
+        )
+          ? task.milestoneId
+          : undefined,
+        prerequisiteTaskIds: (task.prerequisiteTaskIds ?? []).filter((id) =>
+          current.tasks.some((candidate) => candidate.id === id),
         ),
+        requiredForMilestone: task.requiredForMilestone === true,
+        deferral: { deferCount: 0 },
         status: "planned",
         createdAt: timestamp,
         updatedAt: timestamp,
       },
     ],
   };
+  return recalculateAutomaticMilestones(next, timestamp);
 }
 
 export function updateTaskInData(
@@ -166,25 +283,41 @@ export function updateTaskInData(
   const cleanTitle = changes.title.trim();
   const existing = current.tasks.find((task) => task.id === taskId);
   if (!existing || !cleanTitle) return current;
-  const estimatedMinutes = Number.isFinite(changes.estimatedMinutes)
-    ? Math.min(720, Math.max(5, Math.round(changes.estimatedMinutes!)))
-    : existing.estimatedMinutes;
+  const estimatedMinutes = normalizeTaskMinutes(
+    changes.schedule?.estimatedMinutes ?? changes.estimatedMinutes,
+  );
+  const scheduleDate = isDateKey(changes.schedule?.date)
+    ? changes.schedule.date
+    : isDateKey(changes.scheduledDate)
+      ? changes.scheduledDate
+      : undefined;
+  const deadlineInfo = taskDeadline(changes);
 
-  return {
+  const next: ResolveData = {
     ...current,
     tasks: current.tasks.map((task) =>
       task.id === taskId
         ? {
             ...task,
             title: cleanTitle,
+            description: changes.description?.trim() || undefined,
             category: changes.category.trim() || "custom",
             priority: changes.priority,
-            scheduledDate: isDateKey(changes.scheduledDate)
-              ? changes.scheduledDate
-              : task.scheduledDate,
-            deadline: isDateKey(changes.deadline)
-              ? changes.deadline
+            scheduledDate: scheduleDate,
+            schedule: scheduleDate
+              ? {
+                  date: scheduleDate,
+                  startTime: changes.schedule?.startTime,
+                  estimatedMinutes,
+                  timeZone:
+                    changes.schedule?.timeZone ||
+                    task.schedule?.timeZone ||
+                    current.preferences.timeZone,
+                }
               : undefined,
+            deadline:
+              deadlineInfo?.kind === "date" ? deadlineInfo.date : undefined,
+            deadlineInfo,
             estimatedMinutes,
             goalId:
               changes.goalId === undefined
@@ -192,11 +325,30 @@ export function updateTaskInData(
                 : current.goals.some((goal) => goal.id === changes.goalId)
                   ? changes.goalId
                   : task.goalId,
+            milestoneId:
+              changes.milestoneId === undefined
+                ? task.milestoneId
+                : current.milestones.some(
+                      (milestone) => milestone.id === changes.milestoneId,
+                    )
+                  ? changes.milestoneId
+                  : undefined,
+            prerequisiteTaskIds: (changes.prerequisiteTaskIds ?? []).filter(
+              (id) => id !== taskId && current.tasks.some((item) => item.id === id),
+            ),
+            requiredForMilestone: changes.requiredForMilestone === true,
+            origin: changes.origin ?? task.origin,
+            dailyPriorityRank:
+              scheduleDate === (task.schedule?.date ?? task.scheduledDate)
+                ? task.dailyPriorityRank
+                : undefined,
+            status: changes.status ?? task.status,
             updatedAt: timestamp,
           }
         : task,
     ),
   };
+  return recalculateAutomaticMilestones(next, timestamp);
 }
 
 export function toggleTaskInData(
@@ -205,7 +357,7 @@ export function toggleTaskInData(
   timestamp = new Date().toISOString(),
 ): ResolveData {
   if (!current.tasks.some((task) => task.id === taskId)) return current;
-  return {
+  const next: ResolveData = {
     ...current,
     tasks: current.tasks.map((task) =>
       task.id === taskId
@@ -218,6 +370,7 @@ export function toggleTaskInData(
         : task,
     ),
   };
+  return recalculateAutomaticMilestones(next, timestamp);
 }
 
 export function removeTaskFromData(
@@ -225,10 +378,11 @@ export function removeTaskFromData(
   taskId: string,
 ): ResolveData {
   if (!current.tasks.some((task) => task.id === taskId)) return current;
-  return {
+  const next: ResolveData = {
     ...current,
     tasks: current.tasks.filter((task) => task.id !== taskId),
   };
+  return recalculateAutomaticMilestones(next, new Date().toISOString());
 }
 
 export function updateTaskActualMinutesInData(
@@ -277,11 +431,78 @@ export function moveTaskInData(
         ? {
             ...task,
             scheduledDate,
-            status: task.status === "completed" ? "completed" : "rescheduled",
+            schedule: {
+              date: scheduledDate,
+              startTime: task.schedule?.startTime,
+              estimatedMinutes:
+                task.schedule?.estimatedMinutes ?? task.estimatedMinutes,
+              timeZone:
+                task.schedule?.timeZone ?? current.preferences.timeZone,
+            },
+            status:
+              task.status === "completed"
+                ? "completed"
+                : task.scheduledDate &&
+                    task.scheduledDate <= offsetDate(0) &&
+                    scheduledDate > task.scheduledDate
+                  ? "rescheduled"
+                  : task.status === "in_progress"
+                    ? "in_progress"
+                    : "planned",
+            deferral:
+              task.scheduledDate &&
+              task.scheduledDate <= offsetDate(0) &&
+              scheduledDate > task.scheduledDate
+                ? {
+                    deferCount: (task.deferral?.deferCount ?? 0) + 1,
+                    lastDeferredFrom: task.scheduledDate,
+                    lastDeferredTo: scheduledDate,
+                    lastDeferredAt: timestamp,
+                  }
+                : task.deferral ?? { deferCount: 0 },
+            dailyPriorityRank:
+              task.scheduledDate === scheduledDate
+                ? task.dailyPriorityRank
+                : undefined,
             updatedAt: timestamp,
           }
         : task,
     ),
+  };
+}
+
+export function setTaskDailyPriorityInData(
+  current: ResolveData,
+  taskId: string,
+  rank: Task["dailyPriorityRank"],
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  const target = current.tasks.find((task) => task.id === taskId);
+  const scheduledDate = target?.schedule?.date ?? target?.scheduledDate;
+  if (
+    !target ||
+    !scheduledDate ||
+    (rank !== undefined && ![1, 2, 3].includes(rank))
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    tasks: current.tasks.map((task) => {
+      const taskDate = task.schedule?.date ?? task.scheduledDate;
+      if (task.id === taskId) {
+        return { ...task, dailyPriorityRank: rank, updatedAt: timestamp };
+      }
+      if (
+        rank !== undefined &&
+        taskDate === scheduledDate &&
+        task.dailyPriorityRank === rank
+      ) {
+        return { ...task, dailyPriorityRank: undefined, updatedAt: timestamp };
+      }
+      return task;
+    }),
   };
 }
 
@@ -304,6 +525,11 @@ export function addGoalToData(
         title: cleanTitle,
         description: cleanDescription,
         deadline: isDateKey(goal.deadline) ? goal.deadline : undefined,
+        deadlineInfo:
+          goal.deadlineInfo ??
+          (isDateKey(goal.deadline)
+            ? { kind: "date", date: goal.deadline }
+            : undefined),
         id: mutationId(meta),
         userId: meta.identity,
         semesterId: current.semester.id,
@@ -347,6 +573,11 @@ export function updateGoalInData(
             deadline: isDateKey(changes.deadline)
               ? changes.deadline
               : undefined,
+            deadlineInfo:
+              changes.deadlineInfo ??
+              (isDateKey(changes.deadline)
+                ? { kind: "date", date: changes.deadline }
+                : undefined),
             updatedAt: timestamp,
           }
         : goal,
@@ -358,6 +589,7 @@ export function removeGoalFromData(
   current: ResolveData,
   goalId: string,
   timestamp = new Date().toISOString(),
+  linkedTaskPolicy: LinkedTaskRemovalPolicy = "preserve",
 ): ResolveData {
   if (!current.goals.some((goal) => goal.id === goalId)) return current;
   const milestoneIds = new Set(
@@ -372,17 +604,24 @@ export function removeGoalFromData(
     milestones: current.milestones.filter(
       (milestone) => milestone.goalId !== goalId,
     ),
-    tasks: current.tasks.map((task) =>
-      task.goalId === goalId ||
-      (task.milestoneId && milestoneIds.has(task.milestoneId))
-        ? {
-            ...task,
-            goalId: undefined,
-            milestoneId: undefined,
-            updatedAt: timestamp,
-          }
-        : task,
-    ),
+    tasks:
+      linkedTaskPolicy === "delete"
+        ? current.tasks.filter(
+            (task) =>
+              task.goalId !== goalId &&
+              !(task.milestoneId && milestoneIds.has(task.milestoneId)),
+          )
+        : current.tasks.map((task) =>
+            task.goalId === goalId ||
+            (task.milestoneId && milestoneIds.has(task.milestoneId))
+              ? {
+                  ...task,
+                  goalId: undefined,
+                  milestoneId: undefined,
+                  updatedAt: timestamp,
+                }
+              : task,
+          ),
   };
 }
 
@@ -463,8 +702,17 @@ export function addMilestoneToData(
         deadline: isDateKey(milestone.deadline)
           ? milestone.deadline
           : undefined,
+        deadlineInfo:
+          milestone.deadlineInfo ??
+          (isDateKey(milestone.deadline)
+            ? { kind: "date", date: milestone.deadline }
+            : undefined),
         completed: false,
         order,
+        completionMode:
+          milestone.completionMode === "required_tasks"
+            ? "required_tasks"
+            : "manual",
       },
     ],
   };
@@ -498,6 +746,13 @@ export function updateMilestoneInData(
             deadline: isDateKey(changes.deadline)
               ? changes.deadline
               : undefined,
+            deadlineInfo:
+              changes.deadlineInfo ??
+              (isDateKey(changes.deadline)
+                ? { kind: "date", date: changes.deadline }
+                : undefined),
+            completionMode:
+              changes.completionMode ?? item.completionMode ?? "manual",
           }
         : item,
     ),
@@ -515,6 +770,7 @@ export function toggleMilestoneInData(
   const targetMilestone = current.milestones.find(
     (milestone) => milestone.id === milestoneId,
   )!;
+  if (targetMilestone.completionMode === "required_tasks") return current;
 
   return {
     ...current,
@@ -784,11 +1040,29 @@ export function updateModuleInData(
 export function removeModuleFromData(
   current: ResolveData,
   moduleId: string,
+  linkedTaskPolicy: LinkedTaskRemovalPolicy = "preserve",
+  timestamp = new Date().toISOString(),
 ): ResolveData {
-  if (!current.modules.some((module) => module.id === moduleId)) return current;
+  const target = current.modules.find((module) => module.id === moduleId);
+  if (!target) return current;
+  const assessmentIds = new Set(
+    target.assessments.map((assessment) => assessment.id),
+  );
+  const isLinked = (task: Task) =>
+    task.origin?.kind === "assessment-preparation" &&
+    (task.origin.moduleId === moduleId ||
+      assessmentIds.has(task.origin.assessmentId));
   return {
     ...current,
     modules: current.modules.filter((module) => module.id !== moduleId),
+    tasks:
+      linkedTaskPolicy === "delete"
+        ? current.tasks.filter((task) => !isLinked(task))
+        : current.tasks.map((task) =>
+            isLinked(task)
+              ? { ...task, origin: undefined, updatedAt: timestamp }
+              : task,
+          ),
   };
 }
 
@@ -830,6 +1104,12 @@ export function addAssessmentToData(
                     : Math.min(100, Math.max(0, assessment.targetScore)),
                 progress: 0,
                 status: "not_started",
+                deadlineInfo:
+                  assessment.deadlineInfo ?? {
+                    kind: "date",
+                    date: assessment.deadline,
+                  },
+                preparation: { generatedTaskIds: [] },
               },
             ],
           }
@@ -869,6 +1149,11 @@ export function updateAssessmentInData(
     type: changes.type,
     weight: Math.min(100, Math.max(0, Math.round(changes.weight))),
     deadline: changes.deadline,
+    deadlineInfo:
+      changes.deadlineInfo ?? {
+        kind: "date",
+        date: changes.deadline,
+      },
     targetScore:
       changes.targetScore === undefined
         ? existing.targetScore
@@ -887,6 +1172,89 @@ export function updateAssessmentInData(
         ? { ...module, assessments: [...withoutTarget, updated] }
         : { ...module, assessments: withoutTarget };
     }),
+  };
+}
+
+export function planAssessmentPreparationToData(
+  current: ResolveData,
+  assessmentId: string,
+  templateId: string,
+  drafts: PreparationTaskDraft[],
+  meta: MutationMeta,
+): ResolveData {
+  const moduleRecord = current.modules.find((item) =>
+    item.assessments.some((assessment) => assessment.id === assessmentId),
+  );
+  const assessment = moduleRecord?.assessments.find(
+    (item) => item.id === assessmentId,
+  );
+  if (!moduleRecord || !assessment) return current;
+  const existing = current.tasks.filter(
+    (task) =>
+      task.origin?.kind === "assessment-preparation" &&
+      task.origin.assessmentId === assessmentId,
+  );
+  const existingTitles = new Set(
+    existing.map((task) => task.title.trim().toLocaleLowerCase()),
+  );
+  const timestamp = mutationTime(meta);
+  const newTasks: Task[] = [];
+  for (const draft of drafts) {
+    const title = draft.title.trim();
+    if (!title || existingTitles.has(title.toLocaleLowerCase())) continue;
+    existingTitles.add(title.toLocaleLowerCase());
+    newTasks.push({
+      id: crypto.randomUUID(),
+      userId: meta.identity,
+      semesterId: current.semester.id,
+      title,
+      category: draft.category?.trim() || "academics",
+      priority:
+        draft.priority ?? (assessment.weight >= 40 ? "high" : "medium"),
+      estimatedMinutes: normalizeTaskMinutes(draft.estimatedMinutes),
+      status: "planned",
+      origin: {
+        kind: "assessment-preparation",
+        assessmentId,
+        moduleId: moduleRecord.id,
+        templateId,
+      },
+      prerequisiteTaskIds: [],
+      requiredForMilestone: false,
+      deferral: { deferCount: 0 },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  }
+  if (!newTasks.length) return current;
+  const generatedTaskIds = [
+    ...(assessment.preparation?.generatedTaskIds ?? []).filter((id) =>
+      current.tasks.some((task) => task.id === id),
+    ),
+    ...newTasks.map((task) => task.id),
+  ];
+  return {
+    ...current,
+    tasks: [...current.tasks, ...newTasks],
+    modules: current.modules.map((item) =>
+      item.id === moduleRecord.id
+        ? {
+            ...item,
+            assessments: item.assessments.map((candidate) =>
+              candidate.id === assessmentId
+                ? {
+                    ...candidate,
+                    preparation: {
+                      templateId,
+                      generatedTaskIds,
+                      generatedAt: timestamp,
+                    },
+                  }
+                : candidate,
+            ),
+          }
+        : item,
+    ),
   };
 }
 
@@ -939,6 +1307,8 @@ export function removeAssessmentFromData(
   current: ResolveData,
   moduleId: string,
   assessmentId: string,
+  linkedTaskPolicy: LinkedTaskRemovalPolicy = "preserve",
+  timestamp = new Date().toISOString(),
 ): ResolveData {
   if (
     !current.modules.some(
@@ -962,6 +1332,21 @@ export function removeAssessmentFromData(
           }
         : module,
     ),
+    tasks:
+      linkedTaskPolicy === "delete"
+        ? current.tasks.filter(
+            (task) =>
+              !(
+                task.origin?.kind === "assessment-preparation" &&
+                task.origin.assessmentId === assessmentId
+              ),
+          )
+        : current.tasks.map((task) =>
+            task.origin?.kind === "assessment-preparation" &&
+            task.origin.assessmentId === assessmentId
+              ? { ...task, origin: undefined, updatedAt: timestamp }
+              : task,
+          ),
   };
 }
 
@@ -1559,4 +1944,211 @@ export function updatePrioritiesInData(
     return current;
   }
   return { ...current, weeklyPriorities: cleaned };
+}
+
+function validEventInput(event: NewEventInput) {
+  if (!event.title.trim() || !isDateKey(event.date)) return false;
+  if (
+    event.startTime &&
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(event.startTime)
+  ) {
+    return false;
+  }
+  if (
+    event.durationMinutes !== undefined &&
+    (!Number.isFinite(event.durationMinutes) || event.durationMinutes <= 0)
+  ) {
+    return false;
+  }
+  if (event.recurrence.kind === "none") return true;
+  return (
+    isDateKey(event.recurrence.startsOn) &&
+    (!event.recurrence.endsOn || isDateKey(event.recurrence.endsOn)) &&
+    event.recurrence.weekdays.length > 0
+  );
+}
+
+export function addEventToData(
+  current: ResolveData,
+  event: NewEventInput,
+  meta: MutationMeta,
+): ResolveData {
+  if (!validEventInput(event)) return current;
+  const timestamp = mutationTime(meta);
+  return {
+    ...current,
+    events: [
+      ...current.events,
+      {
+        ...event,
+        id: mutationId(meta),
+        userId: meta.identity,
+        semesterId: current.semester.id,
+        title: event.title.trim(),
+        category: event.category.trim() || "personal",
+        timeZone: event.timeZone || current.preferences.timeZone,
+        durationMinutes: Number.isFinite(event.durationMinutes)
+          ? Math.min(1440, Math.max(5, Math.round(event.durationMinutes!)))
+          : undefined,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+    ],
+  };
+}
+
+export function updateEventInData(
+  current: ResolveData,
+  eventId: string,
+  event: UpdateEventInput,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  if (
+    !validEventInput(event) ||
+    !current.events.some((item) => item.id === eventId)
+  ) {
+    return current;
+  }
+  return {
+    ...current,
+    events: current.events.map((item) =>
+      item.id === eventId
+        ? {
+            ...item,
+            ...event,
+            title: event.title.trim(),
+            category: event.category.trim() || "personal",
+            timeZone: event.timeZone || current.preferences.timeZone,
+            durationMinutes: Number.isFinite(event.durationMinutes)
+              ? Math.min(
+                  1440,
+                  Math.max(5, Math.round(event.durationMinutes!)),
+                )
+              : undefined,
+            updatedAt: timestamp,
+          }
+        : item,
+    ),
+  };
+}
+
+export function removeEventFromData(
+  current: ResolveData,
+  eventId: string,
+): ResolveData {
+  if (!current.events.some((event) => event.id === eventId)) return current;
+  return {
+    ...current,
+    events: current.events.filter((event) => event.id !== eventId),
+  };
+}
+
+export function updateWorkspacePreferencesInData(
+  current: ResolveData,
+  changes: Partial<WorkspacePreferences>,
+): ResolveData {
+  return {
+    ...current,
+    preferences: {
+      ...current.preferences,
+      timeZone:
+        typeof changes.timeZone === "string" && changes.timeZone
+          ? changes.timeZone
+          : current.preferences.timeZone,
+      dailyCapacityMinutes: Number.isFinite(changes.dailyCapacityMinutes)
+        ? Math.min(
+            1440,
+            Math.max(30, Math.round(changes.dailyCapacityMinutes!)),
+          )
+        : current.preferences.dailyCapacityMinutes,
+      autoNextAction:
+        changes.autoNextAction ?? current.preferences.autoNextAction,
+      pinnedTaskId:
+        changes.pinnedTaskId === undefined
+          ? current.preferences.pinnedTaskId
+          : current.tasks.some((task) => task.id === changes.pinnedTaskId)
+            ? changes.pinnedTaskId
+            : undefined,
+      hiddenRecommendationDate:
+        changes.hiddenRecommendationDate === undefined
+          ? current.preferences.hiddenRecommendationDate
+          : isDateKey(changes.hiddenRecommendationDate)
+            ? changes.hiddenRecommendationDate
+            : undefined,
+    },
+  };
+}
+
+export function setMilestoneCompletionModeInData(
+  current: ResolveData,
+  milestoneId: string,
+  completionMode: Milestone["completionMode"],
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  if (
+    !current.milestones.some((milestone) => milestone.id === milestoneId) ||
+    !["manual", "required_tasks"].includes(completionMode ?? "")
+  ) {
+    return current;
+  }
+  return recalculateAutomaticMilestones(
+    {
+      ...current,
+      milestones: current.milestones.map((milestone) =>
+        milestone.id === milestoneId
+          ? { ...milestone, completionMode }
+          : milestone,
+      ),
+    },
+    timestamp,
+  );
+}
+
+export function startNewSemesterInData(
+  current: ResolveData,
+  semester: Semester,
+  timestamp = new Date().toISOString(),
+): ResolveData {
+  if (
+    !semester.name.trim() ||
+    !isDateKey(semester.startDate) ||
+    !isDateKey(semester.endDate) ||
+    semester.endDate <= semester.startDate
+  ) {
+    return current;
+  }
+  const summary = {
+    id: `archive-${current.semester.id}-${timestamp}`,
+    semesterId: current.semester.id,
+    semesterName: current.semester.name,
+    archivedAt: timestamp,
+    completedTasks: current.tasks.filter((task) => task.status === "completed")
+      .length,
+    completedGoals: current.goals.filter((goal) => goal.status === "completed")
+      .length,
+    habitCompletions: current.habitLogs.filter((log) => log.completed).length,
+    reflectionCount: current.reflections.length,
+  };
+  return {
+    ...current,
+    semester: {
+      ...semester,
+      userId: current.semester.userId,
+      status: "active",
+      resolutions: semester.resolutions ?? [],
+    },
+    goals: [],
+    milestones: [],
+    tasks: [],
+    habits: [],
+    habitLogs: [],
+    guitarSessions: [],
+    reflections: [],
+    modules: [],
+    algorithmLogs: [],
+    applications: [],
+    events: [],
+    weeklyPriorities: ["", "", ""],
+    archiveSummaries: [...current.archiveSummaries, summary],
+  };
 }

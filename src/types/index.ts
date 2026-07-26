@@ -67,6 +67,7 @@ export type Goal = {
   unit?: string;
   startDate: string;
   deadline?: string;
+  deadlineInfo?: DeadlineValue;
   status:
     | "not_started"
     | "active"
@@ -84,10 +85,59 @@ export type Milestone = {
   title: string;
   description?: string;
   deadline?: string;
+  deadlineInfo?: DeadlineValue;
   completed: boolean;
   completedAt?: string;
   order: number;
+  completionMode?: MilestoneCompletionMode;
 };
+
+export type LocalDateDeadline = {
+  kind: "date";
+  date: string;
+};
+
+export type ExactDeadline = {
+  kind: "dateTime";
+  at: string;
+  timeZone: string;
+};
+
+export type DeadlineValue = LocalDateDeadline | ExactDeadline;
+
+export type TaskSchedule = {
+  date: string;
+  startTime?: string;
+  estimatedMinutes?: number;
+  timeZone: string;
+};
+
+export type TaskDeferralSummary = {
+  deferCount: number;
+  lastDeferredFrom?: string;
+  lastDeferredTo?: string;
+  lastDeferredAt?: string;
+  lastReason?: string;
+};
+
+export type TaskOrigin =
+  | {
+      kind: "assessment-preparation";
+      assessmentId: string;
+      moduleId: string;
+      templateId: string;
+    }
+  | {
+      kind: "guitar-lesson";
+      lessonId: string;
+    }
+  | {
+      kind: "quick-capture";
+    }
+  | {
+      kind: "reflection-action";
+      reflectionDate: string;
+    };
 
 export type Task = {
   id: string;
@@ -100,6 +150,8 @@ export type Task = {
   category: string;
   scheduledDate?: string;
   deadline?: string;
+  schedule?: TaskSchedule;
+  deadlineInfo?: DeadlineValue;
   estimatedMinutes?: number;
   actualMinutes?: number;
   priority: "low" | "medium" | "high";
@@ -112,6 +164,11 @@ export type Task = {
     | "rescheduled"
     | "cancelled";
   recurrenceRule?: string;
+  prerequisiteTaskIds?: string[];
+  requiredForMilestone?: boolean;
+  dailyPriorityRank?: 1 | 2 | 3;
+  origin?: TaskOrigin;
+  deferral?: TaskDeferralSummary;
   completedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -187,10 +244,16 @@ export type Assessment = {
   type: "assignment" | "project" | "quiz" | "midterm" | "presentation" | "exam";
   weight: number;
   deadline: string;
+  deadlineInfo?: DeadlineValue;
   progress: number;
   status: "not_started" | "in_progress" | "submitted" | "graded";
   score?: number;
   targetScore?: number;
+  preparation?: {
+    templateId?: string;
+    generatedTaskIds: string[];
+    generatedAt?: string;
+  };
 };
 
 export type AcademicModule = {
@@ -232,6 +295,53 @@ export type JobApplication = {
   stage: "saved" | "applied" | "assessment" | "interview" | "offer" | "closed";
   nextAction?: string;
   nextActionDate?: string;
+  nextActionDeadline?: DeadlineValue;
+};
+
+export type MilestoneCompletionMode = "manual" | "required_tasks";
+
+export type EventRecurrence =
+  | { kind: "none" }
+  | {
+      kind: "weekly" | "fortnightly" | "selected_weekdays";
+      weekdays: number[];
+      startsOn: string;
+      endsOn?: string;
+      excludedDates?: string[];
+    };
+
+export type WorkspaceEvent = {
+  id: string;
+  userId: string;
+  semesterId: string;
+  title: string;
+  category: string;
+  date: string;
+  startTime?: string;
+  durationMinutes?: number;
+  timeZone: string;
+  recurrence: EventRecurrence;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkspacePreferences = {
+  timeZone: string;
+  dailyCapacityMinutes: number;
+  autoNextAction: boolean;
+  pinnedTaskId?: string;
+  hiddenRecommendationDate?: string;
+};
+
+export type SemesterArchiveSummary = {
+  id: string;
+  semesterId: string;
+  semesterName: string;
+  archivedAt: string;
+  completedTasks: number;
+  completedGoals: number;
+  habitCompletions: number;
+  reflectionCount: number;
 };
 
 export type SemesterEvent = {

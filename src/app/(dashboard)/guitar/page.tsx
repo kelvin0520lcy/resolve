@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   BookOpen,
   Check,
@@ -126,6 +126,8 @@ export default function GuitarPage() {
     updateGuitarLearning,
     goals,
     guitarSessions,
+    tasks = [],
+    addTask,
   } = useResolve();
   const [mode, setMode] = useState<GuitarStudioMode>("overview");
   const [selectedToolId, setSelectedToolId] =
@@ -135,9 +137,73 @@ export default function GuitarPage() {
     Record<string, number>
   >({});
 
+  useEffect(() => {
+    function openDeepLink(href = window.location.href) {
+      const url = new URL(href, window.location.origin);
+      const requestedMode = url.searchParams.get("mode");
+      const requestedLesson = url.searchParams.get("lesson");
+      if (
+        requestedMode &&
+        ["overview", "learn", "explore", "learning-map"].includes(
+          requestedMode,
+        )
+      ) {
+        setMode(requestedMode as GuitarStudioMode);
+      }
+      if (requestedLesson) {
+        setLessonToOpen(requestedLesson);
+        setMode("learn");
+      }
+    }
+    const handleRecord = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (href?.startsWith("/guitar")) openDeepLink(href);
+    };
+    openDeepLink();
+    window.addEventListener("resolve:open-record", handleRecord);
+    return () => window.removeEventListener("resolve:open-record", handleRecord);
+  }, []);
+
+  function updateLessonDeepLink(lessonId?: string) {
+    setLessonToOpen(lessonId);
+    const url = new URL(window.location.href);
+    if (lessonId) {
+      url.searchParams.set("mode", "learn");
+      url.searchParams.set("lesson", lessonId);
+    } else {
+      url.searchParams.delete("lesson");
+    }
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }
+
   function openTool(toolId: GuitarToolId) {
     setSelectedToolId(toolId);
     setMode("explore");
+  }
+
+  function createLessonTask(lessonId: string, lessonTitle: string) {
+    if (typeof addTask !== "function") return;
+    if (
+      tasks.some(
+        (task) =>
+          task.origin?.kind === "guitar-lesson" &&
+          task.origin.lessonId === lessonId &&
+          !["completed", "cancelled", "skipped"].includes(task.status),
+      )
+    ) {
+      return;
+    }
+    addTask({
+      title: `Practise: ${lessonTitle}`,
+      category: "guitar",
+      priority: "medium",
+      estimatedMinutes: 30,
+      origin: { kind: "guitar-lesson", lessonId },
+    });
   }
 
   return (
@@ -192,10 +258,25 @@ export default function GuitarPage() {
               <div className="mt-6">
                 {mode === "learn" && (
                   <GuitarLearnMode
+                    key={lessonToOpen ?? "guitar-learn"}
                     state={guitarLearning}
                     updateState={updateGuitarLearning}
                     goals={goals}
                     sessions={guitarSessions}
+                    lessonTaskIds={tasks
+                      .filter(
+                        (task) =>
+                          task.origin?.kind === "guitar-lesson" &&
+                          !["completed", "cancelled", "skipped"].includes(
+                            task.status,
+                          ),
+                      )
+                      .map((task) =>
+                        task.origin?.kind === "guitar-lesson"
+                          ? task.origin.lessonId
+                          : "",
+                      )}
+                    onCreateLessonTask={createLessonTask}
                     onOpenTool={openTool}
                     initialLessonId={lessonToOpen}
                     initialLessonStage={
@@ -203,7 +284,7 @@ export default function GuitarPage() {
                         ? lessonStageById[lessonToOpen]
                         : undefined
                     }
-                    onActiveLessonChange={setLessonToOpen}
+                    onActiveLessonChange={updateLessonDeepLink}
                     onLessonStageChange={(lessonId, stage) =>
                       setLessonStageById((current) => ({
                         ...current,
@@ -217,7 +298,7 @@ export default function GuitarPage() {
                     selectedToolId={selectedToolId}
                     onSelectTool={setSelectedToolId}
                     onOpenLesson={(lessonId) => {
-                      setLessonToOpen(lessonId);
+                      updateLessonDeepLink(lessonId);
                       setMode("learn");
                     }}
                   />
@@ -227,7 +308,7 @@ export default function GuitarPage() {
                     state={guitarLearning}
                     updateState={updateGuitarLearning}
                     onOpenLesson={(lessonId) => {
-                      setLessonToOpen(lessonId);
+                      updateLessonDeepLink(lessonId);
                       setMode("learn");
                     }}
                   />
@@ -717,8 +798,8 @@ function GuitarOverview() {
                   className="rounded-2xl border border-border bg-surface p-4"
                   aria-labelledby={`guitar-area-${area.id}`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
                       <h3
                         id={`guitar-area-${area.id}`}
                         className="font-black"

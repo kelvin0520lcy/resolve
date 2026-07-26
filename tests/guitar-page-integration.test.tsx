@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const learningState = vi.hoisted(() => ({
   profile: {
@@ -16,13 +16,18 @@ const learningState = vi.hoisted(() => ({
   },
   progress: [],
 }));
+const pageActions = vi.hoisted(() => ({
+  addTask: vi.fn(),
+}));
 
 vi.mock("@/contexts/resolve-context", () => ({
   offsetDate: () => "2026-07-25",
   useResolve: () => ({
     guitarSessions: [],
     goals: [],
+    tasks: [],
     guitarLearning: learningState,
+    addTask: pageActions.addTask,
     addGuitarSession: vi.fn(),
     updateGuitarLearning: vi.fn(),
   }),
@@ -58,6 +63,13 @@ vi.mock("@/components/ui/resolve", async (importOriginal) => {
 });
 
 import GuitarPage from "@/app/(dashboard)/guitar/page";
+import { GUITAR_LESSONS } from "@/features/guitar-learning/data/curriculum";
+
+beforeEach(() => {
+  learningState.profile.placementCompleted = false;
+  pageActions.addTask.mockClear();
+  window.history.replaceState({}, "", "/guitar");
+});
 
 describe("Guitar Studio page integration", () => {
   it("preserves practice overview and exposes all new modes in one route", async () => {
@@ -86,5 +98,42 @@ describe("Guitar Studio page integration", () => {
 
     await user.click(screen.getByRole("tab", { name: /Overview/ }));
     expect(screen.getByText("Practice-area coverage")).toBeInTheDocument();
+  });
+
+  it("opens a deep-linked lesson and preserves it across refreshable URLs", async () => {
+    learningState.profile.placementCompleted = true;
+    const lesson = GUITAR_LESSONS[0];
+    window.history.replaceState(
+      {},
+      "",
+      `/guitar?mode=learn&lesson=${encodeURIComponent(lesson.id)}`,
+    );
+
+    render(<GuitarPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: lesson.title }),
+    ).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get("lesson")).toBe(
+      lesson.id,
+    );
+  });
+
+  it("creates one canonical practice task from a recommended lesson", async () => {
+    const user = userEvent.setup();
+    learningState.profile.placementCompleted = true;
+    render(<GuitarPage />);
+
+    await user.click(screen.getByRole("tab", { name: "Learn" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Add practice task" }),
+    );
+
+    expect(pageActions.addTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "guitar",
+        origin: expect.objectContaining({ kind: "guitar-lesson" }),
+      }),
+    );
   });
 });

@@ -9,6 +9,7 @@ export {
   normalizeStoredData,
   offsetDate,
   toDateKey,
+  useOptionalResolve,
   useResolve,
 } from "@/features/workspace/resolve-provider";
 export type { ResolveData } from "@/features/workspace/types";

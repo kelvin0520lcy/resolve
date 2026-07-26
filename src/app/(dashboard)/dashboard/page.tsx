@@ -14,6 +14,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { CharacterCompanion } from "@/components/character/character-companion";
 import { MainResolutionPanel } from "@/components/resolution/main-resolution-panel";
 import { ProgressBar } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
@@ -29,8 +30,17 @@ import {
 } from "@/components/ui/resolve";
 import { resolveCharacterState } from "@/lib/character/dialogue";
 import { getScheduledHabits } from "@/features/workspace/lib/habits";
+import {
+  formatDeadline,
+  getDeadlineDateKey,
+  getDerivedDeadlines,
+  getTaskEstimatedMinutes,
+  getTaskScheduleDate,
+  isDeadlineComplete,
+} from "@/features/workspace/lib/deadlines";
+import { rankNextActions } from "@/features/workspace/lib/recommendations";
 import { getDailyMotivation } from "@/lib/daily-motivation";
-import { formatDate, getSemesterWeek } from "@/lib/utils";
+import { getSemesterWeek } from "@/lib/utils";
 import {
   getWeekDateKeys,
   offsetDate,
@@ -38,6 +48,7 @@ import {
 } from "@/contexts/resolve-context";
 
 export default function DashboardPage() {
+  const workspace = useResolve();
   const {
     semester,
     tasks,
@@ -52,35 +63,38 @@ export default function DashboardPage() {
     updateSemesterResolution,
     toggleSemesterResolution,
     removeSemesterResolution,
-  } = useResolve();
+    updateWorkspacePreferences,
+    preferences,
+  } = workspace;
   const today = offsetDate(0);
   const weekDates = getWeekDateKeys();
-  const todayTasks = tasks.filter((task) => task.scheduledDate === today);
+  const todayTasks = tasks.filter(
+    (task) => getTaskScheduleDate(task) === today,
+  );
   const todayHabits = getScheduledHabits(habits, today);
   const completedToday = todayTasks.filter(
     (task) => task.status === "completed",
   ).length;
-  const deadlines = tasks
+  const deadlines = getDerivedDeadlines(workspace)
     .filter(
-      (task) =>
-        task.deadline &&
-        task.deadline >= today &&
-        task.status !== "completed",
+      (deadline) =>
+        getDeadlineDateKey(deadline.deadline) >= today &&
+        !isDeadlineComplete(deadline),
     )
-    .sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? ""))
     .slice(0, 3);
-  const overdue = tasks.filter(
-    (task) =>
-      task.deadline && task.deadline < today && task.status !== "completed",
+  const overdue = getDerivedDeadlines(workspace).filter(
+    (deadline) =>
+      getDeadlineDateKey(deadline.deadline) < today &&
+      !isDeadlineComplete(deadline),
   ).length;
   const weekMinutes = tasks
     .filter(
       (task) =>
-        task.scheduledDate &&
-        task.scheduledDate >= weekDates[0] &&
-        task.scheduledDate <= weekDates[6],
+        getTaskScheduleDate(task) &&
+        getTaskScheduleDate(task)! >= weekDates[0] &&
+        getTaskScheduleDate(task)! <= weekDates[6],
     )
-    .reduce((sum, task) => sum + (task.estimatedMinutes ?? 0), 0);
+    .reduce((sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0), 0);
   const completedHabits = todayHabits.filter((habit) =>
     habitLogs.some(
       (log) =>
@@ -128,6 +142,93 @@ export default function DashboardPage() {
     todayTasks.find((task) => task.status !== "completed")?.title ??
     weeklyPriorities.find(Boolean);
   const dailyQuote = getDailyMotivation(today, semester.userId);
+  const recommendation = rankNextActions(
+    workspace,
+    today,
+    preferences.dailyCapacityMinutes,
+  )[0];
+  const activeTaskGoalIds = new Set(
+    tasks
+      .filter(
+        (task) =>
+          task.goalId &&
+          !["completed", "cancelled", "skipped"].includes(task.status),
+      )
+      .map((task) => task.goalId),
+  );
+  const goalsWithoutActions = goals.filter(
+    (goal) =>
+      !["completed", "paused"].includes(goal.status) &&
+      !activeTaskGoalIds.has(goal.id),
+  );
+  const repeatedlyDeferred = tasks.filter(
+    (task) =>
+      (task.deferral?.deferCount ?? 0) >= 3 &&
+      !["completed", "cancelled", "skipped"].includes(task.status),
+  );
+  const todayMinutes = todayTasks.reduce(
+    (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
+    0,
+  );
+  const assessmentsNeedingPreparation = workspace.modules
+    .flatMap((module) => module.assessments)
+    .filter(
+      (assessment) =>
+        !["submitted", "graded"].includes(assessment.status) &&
+        assessment.deadline >= today &&
+        assessment.deadline <= offsetDate(7) &&
+        !tasks.some(
+          (task) =>
+            task.origin?.kind === "assessment-preparation" &&
+            task.origin.assessmentId === assessment.id &&
+            !["completed", "cancelled", "skipped"].includes(task.status),
+        ),
+    );
+  const attentionItems = [
+    ...(overdue
+      ? [
+          {
+            id: "overdue",
+            title: `${overdue} overdue deadline${overdue === 1 ? "" : "s"}`,
+            detail: "Choose whether to complete, defer, or cancel each item.",
+            href: "/timeline",
+            action: "Review deadlines",
+          },
+        ]
+      : []),
+    ...(todayMinutes > preferences.dailyCapacityMinutes
+      ? [
+          {
+            id: "capacity",
+            title: "Today exceeds your planning capacity",
+            detail: `${todayMinutes} minutes planned against ${preferences.dailyCapacityMinutes} available.`,
+            href: "/today",
+            action: "Rebalance today",
+          },
+        ]
+      : []),
+    ...goalsWithoutActions.slice(0, 2).map((goal) => ({
+      id: `goal:${goal.id}`,
+      title: `${goal.title} has no next action`,
+      detail: "Create one shared task so the goal can move this week.",
+      href: `/goals?goal=${encodeURIComponent(goal.id)}`,
+      action: "Open goal",
+    })),
+    ...assessmentsNeedingPreparation.slice(0, 2).map((assessment) => ({
+      id: `assessment:${assessment.id}`,
+      title: `${assessment.title} needs preparation`,
+      detail: `Due ${formatDeadline({ kind: "date", date: assessment.deadline })}. No active preparation task exists.`,
+      href: `/academics?assessment=${encodeURIComponent(assessment.id)}`,
+      action: "Plan preparation",
+    })),
+    ...repeatedlyDeferred.slice(0, 2).map((task) => ({
+      id: `deferred:${task.id}`,
+      title: `${task.title} keeps being deferred`,
+      detail: `Deferred ${task.deferral?.deferCount ?? 0} times. Reduce its scope or give it an exact block.`,
+      href: `/today?task=${encodeURIComponent(task.id)}`,
+      action: "Review task",
+    })),
+  ].slice(0, 5);
 
   return (
     <PageShell title="Dashboard">
@@ -177,9 +278,115 @@ export default function DashboardPage() {
           />
         </div>
 
+        <Card className="overflow-hidden border-warning/40 bg-[linear-gradient(120deg,rgba(255,199,72,0.14),rgba(255,79,154,0.07))]">
+          <CardContent className="flex flex-col gap-4 pt-6 lg:flex-row lg:items-center lg:justify-between">
+            {recommendation ? (
+              <>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-warning">
+                    Recommended next action
+                  </p>
+                  <h2 className="mt-1 break-words font-display text-2xl">
+                    {recommendation.task.title}
+                  </h2>
+                  <p className="mt-2 text-sm text-muted">
+                    {recommendation.reasons.join(" · ") ||
+                      "Available and ready to begin"}
+                  </p>
+                </div>
+                <div className="flex max-w-full flex-wrap gap-2 lg:shrink-0">
+                  <Link
+                    href={`/today?task=${encodeURIComponent(recommendation.task.id)}`}
+                    className="inline-flex min-h-10 max-w-full items-center rounded-xl bg-accent px-4 py-2 text-center text-sm font-black leading-tight text-white"
+                  >
+                    Start this
+                  </Link>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      updateWorkspacePreferences({
+                        pinnedTaskId:
+                          preferences.pinnedTaskId === recommendation.task.id
+                            ? undefined
+                            : recommendation.task.id,
+                      })
+                    }
+                  >
+                    {preferences.pinnedTaskId === recommendation.task.id
+                      ? "Unpin"
+                      : "Pin"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      updateWorkspacePreferences({
+                        hiddenRecommendationDate: today,
+                      })
+                    }
+                  >
+                    Hide today
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div>
+                <p className="font-display text-xl">
+                  {preferences.autoNextAction
+                    ? "No available task needs a recommendation."
+                    : "Automatic recommendations are paused."}
+                </p>
+                <Link
+                  href="/today"
+                  className="mt-2 inline-flex text-sm font-bold text-accent"
+                >
+                  Choose a task manually
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Needs attention</CardTitle>
+            <CardDescription>
+              Only exceptions that require a decision appear here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {attentionItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col gap-3 rounded-2xl border border-warning/30 bg-warning/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-black">{item.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    {item.detail}
+                  </p>
+                </div>
+                <Link
+                  href={item.href}
+                  className="inline-flex min-h-9 max-w-full items-center justify-center rounded-xl bg-warning px-3 py-2 text-center text-xs font-black leading-tight text-[#18121f] sm:shrink-0"
+                >
+                  {item.action}
+                </Link>
+              </div>
+            ))}
+            {!attentionItems.length && (
+              <p className="rounded-2xl border border-success/25 bg-success/5 p-4 text-sm font-semibold text-success">
+                No urgent exception needs a decision. Continue with the
+                recommended next action.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <CardHeader className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div>
                 <CardTitle>Today&apos;s setlist</CardTitle>
                 <CardDescription>
@@ -188,7 +395,7 @@ export default function DashboardPage() {
               </div>
               <Link
                 href="/today?add=true"
-                className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl bg-accent px-3 text-xs font-bold text-white"
+                className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-xl bg-accent px-3 py-2 text-xs font-bold leading-tight text-white sm:shrink-0"
               >
                 <Plus className="h-4 w-4" />
                 Add task
@@ -227,7 +434,10 @@ export default function DashboardPage() {
                         {task.title}
                       </p>
                       <p className="mt-0.5 break-words text-xs leading-5 text-muted">
-                        {task.estimatedMinutes ?? 0} min · {task.priority} priority
+                        {getTaskEstimatedMinutes(task) !== undefined
+                          ? `${getTaskEstimatedMinutes(task)} min · `
+                          : ""}
+                        {task.priority} priority
                       </p>
                     </div>
                     <div className="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:col-start-3 sm:row-start-1 sm:justify-end">
@@ -247,7 +457,7 @@ export default function DashboardPage() {
                   action={
                     <Link
                       href="/today?add=true"
-                      className="inline-flex h-9 items-center rounded-xl bg-accent px-4 text-xs font-bold text-white"
+                      className="inline-flex min-h-9 max-w-full items-center rounded-xl bg-accent px-4 py-2 text-center text-xs font-bold leading-tight text-white"
                     >
                       Add a task
                     </Link>
@@ -326,12 +536,10 @@ export default function DashboardPage() {
                   key={deadline.id}
                   className="rounded-2xl border-2 border-border bg-surface p-4 transition hover:-translate-y-1 hover:border-accent/50"
                 >
-                  <CategoryBadge category={deadline.category} />
+                  <CategoryBadge category={deadline.sourceType} />
                   <p className="mt-3 text-sm font-bold">{deadline.title}</p>
                   <p className="mt-1 text-xs text-muted">
-                    {deadline.deadline
-                      ? formatDate(`${deadline.deadline}T12:00:00`)
-                      : "No date"}
+                    {formatDeadline(deadline.deadline)}
                   </p>
                 </div>
               ))}
@@ -354,14 +562,14 @@ export default function DashboardPage() {
             <CardContent className="grid gap-2">
               <Link
                 href="/guitar"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1e1b4b] px-4 text-sm font-bold text-white"
+                className="inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-xl bg-[#1e1b4b] px-4 py-2.5 text-center text-sm font-bold leading-tight text-white"
               >
                 <Zap className="h-4 w-4 text-accent" />
                 Log guitar practice
               </Link>
               <Link
                 href="/reflections"
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-bold"
+                className="inline-flex min-h-11 max-w-full items-center justify-center rounded-xl border border-border bg-surface px-4 py-2.5 text-center text-sm font-bold leading-tight"
               >
                 Reflect on today
               </Link>

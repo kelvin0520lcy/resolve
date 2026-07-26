@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { BarChart3, Lightbulb, Target, Timer } from "lucide-react";
 import {
   Bar,
@@ -29,6 +30,14 @@ import {
 import { GOAL_CATEGORIES } from "@/lib/constants/categories";
 import { offsetDate, useResolve } from "@/contexts/resolve-context";
 import { getTrackedMinutesByCategory } from "@/features/workspace/lib/analytics";
+import {
+  getHabitCompletionCount,
+  getHabitTargetCount,
+} from "@/features/workspace/lib/habits";
+import {
+  getTaskEstimatedMinutes,
+  getTaskScheduleDate,
+} from "@/features/workspace/lib/deadlines";
 
 export default function AnalyticsPage() {
   const { tasks, goals, milestones, habits, habitLogs, guitarSessions } =
@@ -37,7 +46,9 @@ export default function AnalyticsPage() {
     offsetDate(day),
   );
   const lastSeven = lastSevenDates.map((date) => {
-    const dayTasks = tasks.filter((task) => task.scheduledDate === date);
+    const dayTasks = tasks.filter(
+      (task) => getTaskScheduleDate(task) === date,
+    );
     const complete = dayTasks.filter(
       (task) => task.status === "completed",
     ).length;
@@ -57,7 +68,7 @@ export default function AnalyticsPage() {
     color: category.color,
   })).filter((item) => item.value > 0);
   const plannedMinutes = tasks.reduce(
-    (sum, task) => sum + (task.estimatedMinutes ?? 0),
+    (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
     0,
   );
   const actualMinutes = tasks.reduce(
@@ -82,30 +93,17 @@ export default function AnalyticsPage() {
       0,
     ) / Math.max(goals.length, 1),
   );
+  const habitTarget = habits.reduce(
+    (sum, habit) => sum + getHabitTargetCount(habit, lastSevenDates),
+    0,
+  );
+  const habitCompleted = habits.reduce(
+    (sum, habit) =>
+      sum + getHabitCompletionCount(habit, habitLogs, lastSevenDates),
+    0,
+  );
   const habitRate = Math.round(
-    (habitLogs.filter((log) => {
-      const habit = habits.find((item) => item.id === log.habitId);
-      const day = new Date(`${log.date}T12:00:00`).getDay();
-      return (
-        lastSevenDates.includes(log.date) &&
-        log.completed &&
-        habit?.targetDays.includes(day)
-      );
-    }).length /
-      Math.max(
-        habits.reduce(
-          (total, habit) =>
-            total +
-            lastSevenDates.filter((date) =>
-              habit.targetDays.includes(
-                new Date(`${date}T12:00:00`).getDay(),
-              ),
-            ).length,
-          0,
-        ),
-        1,
-      )) *
-      100,
+    (Math.min(habitCompleted, habitTarget) / Math.max(habitTarget, 1)) * 100,
   );
   const guitarTechniqueMinutes = guitarSessions
     .filter((session) => session.category !== "Repertoire")
@@ -119,23 +117,77 @@ export default function AnalyticsPage() {
     goals.length > 0 ||
     habits.length > 0 ||
     guitarSessions.length > 0;
-  const insights = hasActivity ? [
-    plannedMinutes > 0 && actualMinutes < plannedMinutes * 0.75
-      ? `Actual logged time is ${Math.round((actualMinutes / Math.max(plannedMinutes, 1)) * 100)}% of planned time. Reduce estimates or log completed sessions more consistently.`
-      : plannedMinutes > 0
-        ? "Planned and actual time are tracking within a realistic range."
-        : "Add estimated time to tasks to compare planning with reality.",
-    guitarTotal && guitarTechniqueMinutes / guitarTotal < 0.4
-      ? "Repertoire dominates guitar practice. Protect one technique-only session next week."
-      : "Guitar practice includes a healthy amount of technique work.",
-    goals.some((goal) => goal.status === "at_risk")
-      ? "At least one goal is at risk. Give it a specific task on the weekly board."
-      : goals.length
-        ? "Every active goal currently has a healthy status."
-        : "Create a measurable goal to unlock progress analysis.",
-  ] : [
-    "Add your first task, goal, habit, or practice session. Analytics will explain patterns only after real activity exists.",
-  ];
+  const frequentlyDeferred = tasks.filter(
+    (task) =>
+      (task.deferral?.deferCount ?? 0) >= 2 &&
+      !["completed", "cancelled", "skipped"].includes(task.status),
+  );
+  const activeGoalIdsWithTasks = new Set(
+    tasks
+      .filter(
+        (task) =>
+          task.goalId &&
+          !["completed", "cancelled", "skipped"].includes(task.status),
+      )
+      .map((task) => task.goalId),
+  );
+  const goalWithoutAction = goals.find(
+    (goal) =>
+      !["completed", "paused"].includes(goal.status) &&
+      !activeGoalIdsWithTasks.has(goal.id),
+  );
+  const insights = hasActivity
+    ? [
+        {
+          text:
+            plannedMinutes > 0 && actualMinutes < plannedMinutes * 0.75
+              ? `Actual logged time is ${Math.round((actualMinutes / Math.max(plannedMinutes, 1)) * 100)}% of planned time. Reduce tomorrow’s load or correct the estimates.`
+              : plannedMinutes > 0
+                ? "Planned and actual time are tracking within a realistic range."
+                : "Add estimated time to tasks to compare planning with reality.",
+          href: "/today",
+          action: "Adjust tomorrow",
+        },
+        frequentlyDeferred.length
+          ? {
+              text: `${frequentlyDeferred[0].title} has been deferred ${frequentlyDeferred[0].deferral?.deferCount ?? 0} times. Break it down or give it a smaller time block.`,
+              href: `/today?task=${encodeURIComponent(frequentlyDeferred[0].id)}`,
+              action: "Review task",
+            }
+          : {
+              text: "No active task has crossed the repeated-deferral warning threshold.",
+              href: "/weekly",
+              action: "Review the week",
+            },
+        goalWithoutAction
+          ? {
+              text: `${goalWithoutAction.title} has no active next action. Add one task before the goal disappears behind other work.`,
+              href: `/goals?goal=${encodeURIComponent(goalWithoutAction.id)}`,
+              action: "Add goal action",
+            }
+          : {
+              text: goals.length
+                ? "Every active goal currently has a visible next action."
+                : "Create a measurable goal to unlock goal-balance analysis.",
+              href: "/goals",
+              action: goals.length ? "Review goals" : "Create a goal",
+            },
+        {
+          text:
+            guitarTotal && guitarTechniqueMinutes / guitarTotal < 0.4
+              ? "Repertoire dominates guitar practice. Protect one technique-only session next week."
+              : "Guitar practice includes a healthy amount of technique work.",
+          href: "/guitar",
+          action: "Open Guitar Studio",
+        },
+      ]
+    : [
+        {
+          text: "Add your first task, goal, habit, or practice session. Analytics will explain patterns only after real activity exists.",
+          href: "/today?add=true",
+          action: "Add first task",
+        },
+      ];
 
   return (
     <PageShell title="Analytics">
@@ -265,20 +317,32 @@ export default function AnalyticsPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {insights.map((insight, index) => (
               <div
-                key={insight}
-                className="rounded-2xl border border-border bg-surface p-4"
+                key={insight.text}
+                className="flex flex-col rounded-2xl border border-border bg-surface p-4"
               >
                 <span className="text-xs font-black uppercase tracking-wider text-accent">
                   Signal {index + 1}
                 </span>
-                <p className="mt-2 text-sm leading-6">{insight}</p>
+                <p className="mt-2 flex-1 text-sm leading-6">{insight.text}</p>
+                <Link
+                  href={insight.href}
+                  className="mt-4 inline-flex text-xs font-black text-accent underline underline-offset-4"
+                >
+                  {insight.action}
+                </Link>
               </div>
             ))}
           </CardContent>
         </Card>
+        {tasks.length > 0 && tasks.length < 5 && (
+          <p className="rounded-2xl border border-border bg-surface p-4 text-xs leading-5 text-muted">
+            Early signal: complete at least five tasks before treating these
+            patterns as reliable trends.
+          </p>
+        )}
       </div>
     </PageShell>
   );

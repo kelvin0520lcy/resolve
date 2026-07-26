@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import {
+  Archive,
+  CalendarDays,
   Database,
+  Download,
+  FileSpreadsheet,
   RefreshCw,
   RotateCcw,
   Save,
   ShieldCheck,
+  Trash2,
+  Upload,
 } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
@@ -24,8 +30,9 @@ import {
   fieldClassName,
 } from "@/components/ui/resolve";
 import { useResolve } from "@/contexts/resolve-context";
-import { isDateKey } from "@/lib/date";
+import { isDateKey, offsetDate } from "@/lib/date";
 import type { Semester } from "@/types";
+import type { RecoverySnapshot } from "@/features/workspace/lib/recovery";
 
 export default function SettingsPage() {
   const {
@@ -35,6 +42,17 @@ export default function SettingsPage() {
     syncError,
     lastSyncedAt,
     syncWorkspaceNow,
+    workspaceSize,
+    syncMetrics,
+    preferences,
+    updateWorkspacePreferences,
+    exportWorkspace,
+    exportTasksCsv,
+    exportCalendarIcs,
+    importWorkspace,
+    listRecoverySnapshots,
+    deleteRecoverySnapshot,
+    archiveSemester,
     updateSemester,
     resetWorkspace,
   } = useResolve();
@@ -42,11 +60,94 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [dataError, setDataError] = useState("");
+  const [pendingImport, setPendingImport] = useState<{
+    value: unknown;
+    tasks: number;
+    goals: number;
+    modules: number;
+    habits: number;
+  } | null>(null);
+  const [recoverySnapshots, setRecoverySnapshots] = useState<
+    RecoverySnapshot[]
+  >([]);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveError, setArchiveError] = useState("");
+  const [nextSemesterName, setNextSemesterName] = useState("Next semester");
+  const [nextAcademicYear, setNextAcademicYear] = useState(
+    semester.academicYear,
+  );
+  const [nextStartDate, setNextStartDate] = useState(offsetDate(1));
+  const [nextEndDate, setNextEndDate] = useState(offsetDate(113));
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setDraft(semester));
     return () => window.cancelAnimationFrame(frame);
   }, [semester]);
+
+  useEffect(() => {
+    void listRecoverySnapshots()
+      .then(setRecoverySnapshots)
+      .catch(() => setRecoverySnapshots([]));
+  }, [listRecoverySnapshots]);
+
+  async function importFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setDataError("");
+    try {
+      const value = JSON.parse(await file.text()) as unknown;
+      const envelope =
+        value && typeof value === "object" && !Array.isArray(value)
+          ? (value as { data?: unknown })
+          : undefined;
+      const payload =
+        envelope && "data" in envelope ? envelope.data : value;
+      const record =
+        payload && typeof payload === "object" && !Array.isArray(payload)
+          ? (payload as Record<string, unknown>)
+          : {};
+      const count = (key: string) =>
+        Array.isArray(record[key]) ? record[key].length : 0;
+      setPendingImport({
+        value,
+        tasks: count("tasks"),
+        goals: count("goals"),
+        modules: count("modules"),
+        habits: count("habits"),
+      });
+    } catch (caught: unknown) {
+      setDataError(
+        caught instanceof Error
+          ? caught.message
+          : "That backup could not be imported.",
+      );
+    }
+  }
+
+  async function startNextSemester() {
+    setArchiveError("");
+    try {
+      await archiveSemester({
+        id: `semester-${crypto.randomUUID()}`,
+        userId: semester.userId,
+        name: nextSemesterName.trim(),
+        academicYear: nextAcademicYear.trim(),
+        startDate: nextStartDate,
+        endDate: nextEndDate,
+        resolutions: [],
+        status: "active",
+      });
+      setArchiveOpen(false);
+    } catch (caught: unknown) {
+      setArchiveError(
+        caught instanceof Error
+          ? caught.message
+          : "The semester could not be archived safely.",
+      );
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -300,6 +401,10 @@ export default function SettingsPage() {
                           ? "Saving your latest changes…"
                           : syncStatus === "connecting"
                             ? "Connecting to your workspace…"
+                            : syncStatus === "migrating"
+                              ? "Creating a recovery copy and upgrading safely…"
+                              : syncStatus === "conflict"
+                                ? "A field changed on another device and needs review."
                             : syncStatus === "offline"
                               ? "Offline. Changes remain available in this browser."
                               : syncStatus === "error"
@@ -323,6 +428,10 @@ export default function SettingsPage() {
                       ? "Saving to Firestore"
                       : syncStatus === "connecting"
                         ? "Connecting"
+                        : syncStatus === "migrating"
+                          ? "Migrating safely"
+                          : syncStatus === "conflict"
+                            ? "Conflict review required"
                         : syncStatus === "demo"
                           ? "Firebase not connected"
                           : "Using browser backup"}
@@ -350,6 +459,301 @@ export default function SettingsPage() {
                       }`}
                     />
                     Check and sync now
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Planning defaults</CardTitle>
+                <CardDescription>
+                  Capacity warnings and exact-time blocks use these settings.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <label className="block text-xs font-bold">
+                  Workspace time zone
+                  <input
+                    className={`${fieldClassName} mt-2`}
+                    value={preferences.timeZone}
+                    onChange={(event) =>
+                      updateWorkspacePreferences({
+                        timeZone: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="block text-xs font-bold">
+                  Daily planning capacity (minutes)
+                  <input
+                    className={`${fieldClassName} mt-2`}
+                    type="number"
+                    min="30"
+                    max="1440"
+                    step="15"
+                    value={preferences.dailyCapacityMinutes}
+                    onChange={(event) =>
+                      updateWorkspacePreferences({
+                        dailyCapacityMinutes: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+                <label className="flex items-start gap-3 rounded-xl border border-border p-3 text-xs font-bold">
+                  <input
+                    className="mt-0.5"
+                    type="checkbox"
+                    checked={preferences.autoNextAction}
+                    onChange={(event) =>
+                      updateWorkspacePreferences({
+                        autoNextAction: event.target.checked,
+                        hiddenRecommendationDate: undefined,
+                      })
+                    }
+                  />
+                  <span>
+                    Recommend a next action
+                    <span className="mt-1 block font-medium leading-5 text-muted">
+                      Recommendations are explainable and can always be pinned,
+                      hidden, or ignored.
+                    </span>
+                  </span>
+                </label>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Backup and transfer</CardTitle>
+                <CardDescription>
+                  Imports are validated and receive a recovery snapshot first.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-xl border border-border bg-surface p-3 text-xs">
+                  <p className="font-black">
+                    {workspaceSize.percentage}% of safe workspace budget
+                  </p>
+                  <p className="mt-1 capitalize text-muted">
+                    {workspaceSize.state.replace("_", " ")} · estimated{" "}
+                    {Math.ceil(workspaceSize.estimatedFirestoreBytes / 1024)} KiB
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center text-[10px] text-muted">
+                  <div className="rounded-xl border border-border p-2">
+                    <strong className="block text-base text-foreground">
+                      {syncMetrics.reads}
+                    </strong>
+                    cloud reads
+                  </div>
+                  <div className="rounded-xl border border-border p-2">
+                    <strong className="block text-base text-foreground">
+                      {syncMetrics.writes}
+                    </strong>
+                    cloud writes
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={exportWorkspace}
+                >
+                  <Download className="h-4 w-4" />
+                  Export JSON backup
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={exportTasksCsv}
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Export tasks CSV
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={exportCalendarIcs}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Export calendar (.ics)
+                </Button>
+                <label className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-3 text-xs font-black text-white">
+                  <Upload className="h-4 w-4" />
+                  Import validated backup
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept="application/json,.json"
+                    onChange={(event) => void importFile(event)}
+                  />
+                </label>
+                {dataError && (
+                  <p className="text-xs leading-5 text-danger" role="alert">
+                    {dataError}
+                  </p>
+                )}
+                {pendingImport && (
+                  <div
+                    className="rounded-xl border border-warning/40 bg-warning/5 p-3"
+                    role="dialog"
+                    aria-label="Confirm workspace import"
+                  >
+                    <p className="text-xs font-black">
+                      Replace the active workspace?
+                    </p>
+                    <p className="mt-1 text-[11px] leading-5 text-muted">
+                      Found {pendingImport.tasks} tasks, {pendingImport.goals}{" "}
+                      goals, {pendingImport.modules} modules, and{" "}
+                      {pendingImport.habits} habits. A recovery copy of your
+                      current workspace will be created first.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const candidate = pendingImport.value;
+                          setPendingImport(null);
+                          void importWorkspace(candidate).catch(
+                            (caught: unknown) =>
+                              setDataError(
+                                caught instanceof Error
+                                  ? caught.message
+                                  : "That backup could not be imported.",
+                              ),
+                          );
+                        }}
+                      >
+                        Import and replace
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setPendingImport(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {recoverySnapshots.length > 0 && (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-muted">
+                      Recovery copies on this device
+                    </p>
+                    {recoverySnapshots.map((snapshot) => (
+                      <div
+                        key={snapshot.id}
+                        className="flex items-center gap-2 rounded-xl border border-border p-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold capitalize">
+                            {snapshot.reason} · schema {snapshot.schemaVersion}
+                          </p>
+                          <p className="text-[10px] text-muted">
+                            {new Date(snapshot.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`Remove recovery snapshot from ${snapshot.createdAt}`}
+                          onClick={() =>
+                            void deleteRecoverySnapshot(snapshot.id).then(() =>
+                              setRecoverySnapshots((current) =>
+                                current.filter((item) => item.id !== snapshot.id),
+                              ),
+                            )
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-warning/30">
+              <CardHeader>
+                <CardTitle>Semester lifecycle</CardTitle>
+                <CardDescription>
+                  Archive the complete workspace separately before starting
+                  with a clean semester.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {archiveOpen ? (
+                  <div className="space-y-3">
+                    <input
+                      className={fieldClassName}
+                      aria-label="Next semester name"
+                      value={nextSemesterName}
+                      onChange={(event) => setNextSemesterName(event.target.value)}
+                    />
+                    <input
+                      className={fieldClassName}
+                      aria-label="Next academic year"
+                      value={nextAcademicYear}
+                      onChange={(event) => setNextAcademicYear(event.target.value)}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="text-[10px] font-bold">
+                        Starts
+                        <input
+                          className={`${fieldClassName} mt-1`}
+                          type="date"
+                          value={nextStartDate}
+                          onChange={(event) => setNextStartDate(event.target.value)}
+                        />
+                      </label>
+                      <label className="text-[10px] font-bold">
+                        Ends
+                        <input
+                          className={`${fieldClassName} mt-1`}
+                          type="date"
+                          min={nextStartDate}
+                          value={nextEndDate}
+                          onChange={(event) => setNextEndDate(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => void startNextSemester()}
+                        disabled={
+                          !nextSemesterName.trim() ||
+                          nextEndDate <= nextStartDate
+                        }
+                      >
+                        Archive and start
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setArchiveOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    {archiveError && (
+                      <p className="text-xs text-danger">{archiveError}</p>
+                    )}
+                  </div>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => setArchiveOpen(true)}
+                  >
+                    <Archive className="h-4 w-4" />
+                    Close this semester
                   </Button>
                 )}
               </CardContent>

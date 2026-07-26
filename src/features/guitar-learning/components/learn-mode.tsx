@@ -79,6 +79,8 @@ export function GuitarLearnMode({
   updateState,
   goals,
   sessions,
+  lessonTaskIds = [],
+  onCreateLessonTask,
   onOpenTool,
   initialLessonId,
   initialLessonStage,
@@ -89,6 +91,8 @@ export function GuitarLearnMode({
   updateState: UpdateLearningState;
   goals: Goal[];
   sessions: GuitarPracticeSession[];
+  lessonTaskIds?: string[];
+  onCreateLessonTask?: (lessonId: string, lessonTitle: string) => void;
   onOpenTool: (toolId: GuitarToolId) => void;
   initialLessonId?: string;
   initialLessonStage?: number;
@@ -227,6 +231,23 @@ export function GuitarLearnMode({
                       <Play className="h-4 w-4" />
                       Start lesson
                     </Button>
+                    {onCreateLessonTask && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={lessonTaskIds.includes(recommendedLesson.id)}
+                        onClick={() =>
+                          onCreateLessonTask(
+                            recommendedLesson.id,
+                            recommendedLesson.title,
+                          )
+                        }
+                      >
+                        {lessonTaskIds.includes(recommendedLesson.id)
+                          ? "Practice task added"
+                          : "Add practice task"}
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="secondary"

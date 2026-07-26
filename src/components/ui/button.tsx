@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { forwardRef, type ButtonHTMLAttributes } from "react";
 
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-xl border-2 text-sm font-black uppercase tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex min-w-0 max-w-full items-center justify-center gap-2 whitespace-normal rounded-xl border-2 text-center text-sm font-black uppercase leading-tight tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -18,10 +18,10 @@ export const buttonVariants = cva(
           "border-[#180f1d] bg-danger text-white shadow-[4px_4px_0_#180f1d] hover:bg-danger/90",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-8 rounded-lg px-3 text-xs",
-        lg: "h-12 rounded-2xl px-6 text-base",
-        icon: "h-10 w-10",
+        default: "min-h-10 px-4 py-2",
+        sm: "min-h-8 rounded-lg px-3 py-1.5 text-xs",
+        lg: "min-h-12 rounded-2xl px-6 py-2.5 text-base",
+        icon: "h-10 w-10 shrink-0",
       },
     },
     defaultVariants: {

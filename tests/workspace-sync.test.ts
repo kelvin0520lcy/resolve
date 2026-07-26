@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   getDocFromServer: vi.fn(),
   setDoc: vi.fn(async () => {}),
   serverTimestamp: vi.fn(() => "server-time"),
+  transactionGet: vi.fn(),
+  transactionSet: vi.fn(),
 }));
 
 vi.mock("firebase/firestore", () => ({
@@ -13,6 +15,17 @@ vi.mock("firebase/firestore", () => ({
   getDocFromServer: mocks.getDocFromServer,
   setDoc: mocks.setDoc,
   serverTimestamp: mocks.serverTimestamp,
+  runTransaction: async (
+    _database: unknown,
+    callback: (transaction: {
+      get: typeof mocks.transactionGet;
+      set: typeof mocks.transactionSet;
+    }) => unknown,
+  ) =>
+    callback({
+      get: mocks.transactionGet,
+      set: mocks.transactionSet,
+    }),
 }));
 
 vi.mock("@/lib/firebase/config", () => ({
@@ -23,14 +36,19 @@ import {
   getWorkspaceSchemaCompatibility,
   loadWorkspace,
   saveWorkspace,
+  syncWorkspaceTransaction,
   WORKSPACE_COLLECTION,
   WORKSPACE_SCHEMA_VERSION,
 } from "@/lib/firebase/workspace";
+import { createEmptyData } from "@/contexts/resolve-context";
+import { buildWorkspacePatches } from "@/features/workspace/lib/patches";
 
 beforeEach(() => {
   mocks.getDocFromServer.mockReset();
   mocks.setDoc.mockClear();
   mocks.serverTimestamp.mockClear();
+  mocks.transactionGet.mockReset();
+  mocks.transactionSet.mockReset();
 });
 
 describe("Firestore workspace sync", () => {
@@ -57,6 +75,8 @@ describe("Firestore workspace sync", () => {
       {
         userId: "user-1",
         schemaVersion: WORKSPACE_SCHEMA_VERSION,
+        revision: 1,
+        updatedByClientId: "legacy-client",
         data: { title: "Semester" },
         updatedAt: "server-time",
       },
@@ -89,6 +109,8 @@ describe("Firestore workspace sync", () => {
       snapshot: {
         data: { tasks: [] },
         schemaVersion: WORKSPACE_SCHEMA_VERSION,
+        revision: 0,
+        updatedByClientId: undefined,
       },
     });
   });
@@ -102,5 +124,50 @@ describe("Firestore workspace sync", () => {
     await expect(loadWorkspace("user-1")).rejects.toThrow(
       "workspace document is malformed",
     );
+  });
+
+  it("uses one transaction read and one write to merge a coalesced flush", async () => {
+    const base = createEmptyData("user-1");
+    base.tasks.push({
+      id: "task-1",
+      userId: "user-1",
+      semesterId: base.semester.id,
+      title: "Original",
+      category: "personal",
+      priority: "medium",
+      status: "planned",
+      createdAt: "",
+      updatedAt: "",
+    });
+    const local = structuredClone(base);
+    local.tasks[0].title = "Local title";
+    const remote = structuredClone(base);
+    remote.tasks[0].scheduledDate = "2026-08-01";
+    const patches = buildWorkspacePatches(base, local, "device-a", "now");
+    mocks.transactionGet.mockResolvedValue({
+      exists: () => true,
+      data: () => ({
+        userId: "user-1",
+        schemaVersion: WORKSPACE_SCHEMA_VERSION,
+        revision: 2,
+        data: remote,
+      }),
+    });
+
+    const result = await syncWorkspaceTransaction({
+      userId: "user-1",
+      localData: local,
+      baseRevision: 1,
+      patches,
+      clientId: "device-a",
+    });
+
+    expect(mocks.transactionGet).toHaveBeenCalledTimes(1);
+    expect(mocks.transactionSet).toHaveBeenCalledTimes(1);
+    expect(result.revision).toBe(3);
+    expect(result.data.tasks[0]).toMatchObject({
+      title: "Local title",
+      scheduledDate: "2026-08-01",
+    });
   });
 });

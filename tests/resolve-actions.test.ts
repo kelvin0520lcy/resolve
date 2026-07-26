@@ -364,7 +364,7 @@ describe("empty data and storage normalization", () => {
 });
 
 describe("task actions", () => {
-  it("adds a trimmed, clamped task with safe date defaults", () => {
+  it("adds a trimmed, clamped backlog task without inventing a schedule", () => {
     const data = createActionFixture("test-user");
     const next = addTaskToData(
       data,
@@ -383,7 +383,7 @@ describe("task actions", () => {
       id: "new-id",
       title: "Rehearse chorus",
       estimatedMinutes: 720,
-      scheduledDate: "2026-07-24",
+      scheduledDate: undefined,
       deadline: "2026-07-31",
       status: "planned",
     });
@@ -499,6 +499,29 @@ describe("task actions", () => {
         },
       ),
     ).toBe(data);
+  });
+
+  it("supports explicit task workflow states for focus and cancellation", () => {
+    const data = createActionFixture("test-user");
+    const task = data.tasks.find((item) => item.id === "task-review")!;
+    const inProgress = updateTaskInData(
+      data,
+      task.id,
+      { ...task, status: "in_progress" },
+      META.timestamp,
+    );
+    expect(
+      inProgress.tasks.find((item) => item.id === task.id)?.status,
+    ).toBe("in_progress");
+    const cancelled = updateTaskInData(
+      inProgress,
+      task.id,
+      { ...task, status: "cancelled" },
+      META.timestamp,
+    );
+    expect(
+      cancelled.tasks.find((item) => item.id === task.id)?.status,
+    ).toBe("cancelled");
   });
 });
 
@@ -1328,6 +1351,15 @@ describe("top-level record removal", () => {
       milestoneId: undefined,
       updatedAt: META.timestamp,
     });
+    const removedWithTasks = removeGoalFromData(
+      linked,
+      "goal-career",
+      META.timestamp,
+      "delete",
+    );
+    expect(
+      removedWithTasks.tasks.some((task) => task.id === linked.tasks[0].id),
+    ).toBe(false);
     expect(removeGoalFromData(data, "missing")).toBe(data);
   });
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -13,7 +14,7 @@ import { GoalBreakdown } from "@/components/goals/goal-breakdown";
 import { PageShell } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
+import { LinkedRecordDeleteButton } from "@/components/ui/linked-record-delete-button";
 import {
   Card,
   CardContent,
@@ -36,6 +37,7 @@ import type { Goal, GoalCategory } from "@/types";
 export default function GoalsPage() {
   const {
     goals,
+    tasks,
     milestones,
     addGoal,
     updateGoal,
@@ -45,6 +47,7 @@ export default function GoalsPage() {
     toggleMilestone,
     removeMilestone,
     setGoalCompleted,
+    setMilestoneCompletionMode,
   } = useResolve();
   const [showForm, setShowForm] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
@@ -53,6 +56,40 @@ export default function GoalsPage() {
   const [category, setCategory] = useState<GoalCategory>("academics");
   const [priority, setPriority] = useState<Goal["priority"]>("medium");
   const [deadline, setDeadline] = useState(offsetDate(60));
+
+  useEffect(() => {
+    let frame = 0;
+    const openLinkedGoal = (href = window.location.href) => {
+      const goalId = new URL(href, window.location.origin).searchParams.get(
+        "goal",
+      );
+      if (!goalId) return;
+      frame = window.requestAnimationFrame(() =>
+        document
+          .getElementById(`goal-${goalId}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      );
+    };
+    const handleRecord = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (href?.startsWith("/goals")) openLinkedGoal(href);
+    };
+    openLinkedGoal();
+    window.addEventListener("resolve:open-record", handleRecord);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resolve:open-record", handleRecord);
+    };
+  }, [goals.length]);
+  const activeTaskByGoal = new Map(
+    tasks
+      .filter(
+        (task) =>
+          task.goalId &&
+          !["completed", "cancelled", "skipped"].includes(task.status),
+      )
+      .map((task) => [task.goalId!, task]),
+  );
 
   function resetForm() {
     setTitle("");
@@ -231,7 +268,11 @@ export default function GoalsPage() {
         {goals.length ? (
           <div className="grid gap-5 lg:grid-cols-2">
             {goals.map((goal) => (
-              <Card key={goal.id} className="overflow-hidden">
+              <Card
+                key={goal.id}
+                id={`goal-${goal.id}`}
+                className="scroll-mt-24 overflow-hidden"
+              >
                 <div
                   className="h-1.5"
                   style={{
@@ -242,7 +283,7 @@ export default function GoalsPage() {
                   }}
                 />
                 <CardHeader>
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <CategoryBadge category={goal.category} />
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <Badge
@@ -267,10 +308,18 @@ export default function GoalsPage() {
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
                       </Button>
-                      <ConfirmDeleteButton
+                      <LinkedRecordDeleteButton
                         itemLabel={`goal ${goal.title}`}
-                        onConfirm={() => removeGoal(goal.id)}
-                        className="flex-wrap justify-end"
+                        linkedTaskCount={tasks.filter(
+                          (task) =>
+                            task.goalId === goal.id ||
+                            milestones.some(
+                              (milestone) =>
+                                milestone.goalId === goal.id &&
+                                task.milestoneId === milestone.id,
+                            ),
+                        ).length}
+                        onConfirm={(policy) => removeGoal(goal.id, policy)}
                       />
                     </div>
                   </div>
@@ -294,6 +343,38 @@ export default function GoalsPage() {
                       </p>
                     )}
                   </div>
+                  {goal.status !== "completed" && (
+                    <div className="mt-3 rounded-xl border border-accent/25 bg-accent/5 p-3">
+                      {activeTaskByGoal.get(goal.id) ? (
+                        <>
+                          <p className="text-[10px] font-black uppercase tracking-wider text-accent">
+                            Visible next action
+                          </p>
+                          <p className="mt-1 break-words text-sm font-bold">
+                            {activeTaskByGoal.get(goal.id)!.title}
+                          </p>
+                        </>
+                      ) : (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-black">
+                              This goal needs a concrete next action
+                            </p>
+                            <p className="mt-1 text-xs text-muted">
+                              Create one shared task; it will also appear in
+                              Today and Weekly Plan.
+                            </p>
+                          </div>
+                          <Link
+                            href={`/today?add=true&goal=${encodeURIComponent(goal.id)}`}
+                            className="inline-flex min-h-9 max-w-full items-center rounded-xl bg-accent px-3 py-2 text-center text-xs font-black leading-tight text-white"
+                          >
+                            Create task
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <GoalBreakdown
                     goal={goal}
                     milestones={milestones.filter(
@@ -304,6 +385,7 @@ export default function GoalsPage() {
                     toggleMilestone={toggleMilestone}
                     removeMilestone={removeMilestone}
                     setGoalCompleted={setGoalCompleted}
+                    setMilestoneCompletionMode={setMilestoneCompletionMode}
                   />
                 </CardContent>
               </Card>
