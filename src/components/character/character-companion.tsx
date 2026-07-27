@@ -67,14 +67,15 @@ export function CharacterCompanion({
                 {EXPRESSION_LABEL[state.expression]}
               </span>
               <span className="text-[9px] font-black uppercase tracking-widest text-accent">
-                {theme.name} cut-in
+                <span lang="ja">{theme.name}</span>
+                <span className="ml-1 text-muted">/ {theme.nameEn}</span>
               </span>
             </div>
             <motion.p
               key={state.dialogue}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-sm font-medium leading-6"
+              className="whitespace-pre-line text-sm font-medium leading-6"
             >
               “{state.dialogue}”
             </motion.p>
@@ -123,9 +124,9 @@ export function CharacterCompanion({
             key={state.dialogue}
             initial={{ opacity: 0, x: -14 }}
             animate={{ opacity: 1, x: 0 }}
-            className="manga-panel rotate-[-0.6deg] rounded-2xl p-4 sm:p-5"
-          >
-            <p className="font-display text-xl leading-tight tracking-wide sm:text-2xl">
+              className="manga-panel rotate-[-0.6deg] rounded-2xl p-4 sm:p-5"
+            >
+            <p className="whitespace-pre-line font-display text-xl leading-tight tracking-wide sm:text-2xl">
               “{state.dialogue}”
             </p>
             <div className="mt-3 flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.18em] text-[#6d5d72]">

@@ -13,13 +13,13 @@ export const CHARACTER_TASK_CATEGORIES: Record<
 
 const EMPTY_COPY: Record<Exclude<PageThemeKey, "ensemble">, string> = {
   nijika:
-    "No urgent setlist yet. Let’s choose one small action and give the day a steady count-in.",
+    "急ぎのセットリストはまだなし！小さな行動を一つ選んで、今日をカウントインしよう。\nNo urgent setlist yet! Pick one small action and give the day a steady count-in.",
   bocchi:
-    "The practice room is suspiciously quiet. A tiny rehearsal still counts as character development.",
+    "あっ……練習室が静かすぎます。ち、小さな練習でも、キャラ成長には入るので……。\nU-um… the practice room is suspiciously quiet. A tiny rehearsal still counts as character development.",
   ryo:
-    "There is no useful data yet. Add one concrete action; otherwise the graph is merely decorative.",
+    "有用なデータがない。具体的な行動を一つ追加して。でないとグラフは飾り。\nThere is no useful data. Add one concrete action; otherwise the graph is decoration.",
   kita:
-    "The spotlight is ready, but it needs a next move. Pick one action that future-you can be proud of.",
+    "スポットライト準備よしっ！未来の自分が誇れる一歩を、一つ選ぼう！\nThe spotlight is ready! Pick one next move that future-you can be proud of!",
 };
 
 const RELATED_COPY: Record<
@@ -27,13 +27,13 @@ const RELATED_COPY: Record<
   (title: string) => string
 > = {
   nijika: (title) =>
-    `Count-in ready: “${title}” fits this rhythm. Let’s keep the band moving one beat at a time.`,
+    `カウントイン準備よし！「${title}」は今日のリズムにぴったり。一拍ずつ進もう！\nCount-in ready! “${title}” fits today's rhythm. Let's move one beat at a time.`,
   bocchi: (title) =>
-    `Practice-room mission: “${title}”. We can survive it by rehearsing the smallest possible first step.`,
+    `あっ……練習室ミッションは「${title}」です。い、いちばん小さい一歩からなら、生還できるかも……。\nU-um… the practice-room mission is “${title}”. We might survive by rehearsing the smallest first step.`,
   ryo: (title) =>
-    `Highest-value move detected: “${title}”. Efficient, measurable, and almost worth pausing the bass line.`,
+    `価値の高い行動を検出：「${title}」。効率的で測定可能。ベースを止める価値は、たぶんある。\nHighest-value move detected: “${title}”. Efficient, measurable, and probably worth pausing the bass line.`,
   kita: (title) =>
-    `Spotlight action selected: “${title}”. One confident step now gives the future montage something to work with.`,
+    `スポットライト行動は「${title}」！今の一歩が、未来のモンタージュをキラキラにするよ！\nSpotlight action selected: “${title}”! One bold step gives the future montage something to shine with!`,
 };
 
 const REFRAMED_COPY: Record<
@@ -41,13 +41,13 @@ const REFRAMED_COPY: Record<
   (title: string) => string
 > = {
   nijika: (title) =>
-    `“${title}” is not usually my section, but every good band needs someone to set the tempo. Let’s schedule the first beat.`,
+    `「${title}」はいつもの担当じゃないけど、テンポを決める人は必要だよね！最初の一拍を予定に入れよう。\n“${title}” is not my usual section, but every band needs a tempo. Let's schedule the first beat!`,
   bocchi: (title) =>
-    `“${title}” is outside the practice-room script… so let’s treat it like a scary song and learn only the opening bar.`,
+    `あっ……「${title}」は練習室の台本外です。こ、怖い曲だと思って、最初の一小節だけ覚えましょう……。\nU-um… “${title}” is outside the practice-room script. Let's treat it like a scary song and learn only the opening bar.`,
   ryo: (title) =>
-    `“${title}” is not my usual category. Still, reducing it to one measurable move makes it acceptable.`,
+    `「${title}」は普段のカテゴリじゃない。でも測れる一手まで削れば、許容範囲。\n“${title}” is not my usual category. Reduce it to one measurable move and it becomes acceptable.`,
   kita: (title) =>
-    `“${title}” is a different kind of stage, but confidence transfers. Let’s turn it into one visible next action.`,
+    `「${title}」は違うステージだけど、自信は持っていけるよ！見える次の一歩に変えよう！\n“${title}” is a different stage, but confidence travels! Let's turn it into one visible next action!`,
 };
 
 function nextIncompleteTask(tasks: Task[]) {

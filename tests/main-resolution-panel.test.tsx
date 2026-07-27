@@ -8,9 +8,12 @@ import type { SemesterResolution } from "@/types";
 const quote: MotivationQuote = {
   id: "nijika-test",
   member: "nijika",
-  memberName: "Nijika",
+  memberName: "伊地知虹夏",
+  memberNameEn: "Nijika Ijichi",
   trait: "rhythm",
+  traitJa: "リズム",
   text: "Find the count and come back in.",
+  textJa: "カウントを見つけて、もう一度入ろう！",
 };
 
 const resolutions: SemesterResolution[] = [

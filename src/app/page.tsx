@@ -53,15 +53,21 @@ export default function LandingPage() {
       <header className="absolute inset-x-0 top-0 z-30 mx-auto flex max-w-[1440px] items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
         <Link href="/" className="group">
           <div className="flex items-center gap-3">
-            <div className="sticker flex h-11 w-11 -rotate-6 items-center justify-center rounded-xl bg-accent">
-              <Music2 className="h-5 w-5 text-white" />
+            <div className="sticker relative h-11 w-11 -rotate-6 overflow-hidden rounded-xl border-2 border-[#18121f] bg-[#fff6df]">
+              <Image
+                src="/brand/resolve-mark.png"
+                alt=""
+                fill
+                sizes="44px"
+                className="object-cover"
+              />
             </div>
             <div>
               <p className="font-display text-3xl leading-none tracking-wider">
                 RESOLVE<span className="text-accent">!</span>
               </p>
               <p className="text-[9px] font-black uppercase tracking-[0.25em] text-white/50">
-                Semester live house · public beta
+                学期ライブハウス / Semester live house · public beta
               </p>
             </div>
           </div>
@@ -115,7 +121,7 @@ export default function LandingPage() {
                     <span />
                     <span />
                   </span>
-                  Now airing · your semester
+                  放送中 / Now airing · your semester
                 </span>
                 <span className="rounded-full border border-white/15 bg-black/30 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white/60 backdrop-blur">
                   S1 · EP01
@@ -182,10 +188,13 @@ export default function LandingPage() {
           <div className="absolute bottom-5 right-5 z-10 hidden max-w-[270px] rotate-1 lg:block">
             <div className="manga-panel rounded-2xl p-4">
               <p className="text-[9px] font-black uppercase tracking-widest text-accent">
-                Bocchi.exe · frame 001
+                ぼっち.exe · frame 001
               </p>
-              <p className="font-display mt-2 text-lg leading-tight">
-                “Social battery missing. Guitar cable still connected.”
+              <p className="font-display mt-2 text-lg leading-tight" lang="ja">
+                「あっ……社会性バッテリーは行方不明。でもギターのケーブルは、まだつながってます……。」
+              </p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-[#66586d]">
+                “U-um… social battery missing. Guitar cable still connected…”
               </p>
             </div>
           </div>
@@ -278,22 +287,22 @@ export default function LandingPage() {
                 [
                   "/illustrations/bocchi-lag-reaction-v3.png",
                   "Bocchi lagging with her soul escaping",
-                  "Bocchi · practice",
+                  "後藤ひとり（ぼっち） · 練習 / Practice",
                 ],
                 [
                   "/illustrations/nijika-planning-v3.png",
                   "Nijika organizing an overflowing band planner",
-                  "Nijika · rhythm",
+                  "伊地知虹夏 · リズム / Rhythm",
                 ],
                 [
                   "/illustrations/ryo-analytics-v3.png",
                   "Ryo studying analytics beside an empty wallet",
-                  "Ryo · data",
+                  "山田リョウ · 分析 / Data",
                 ],
                 [
                   "/illustrations/kita-aura-v3.png",
                   "Kita shining with an overpowered cheerful aura",
-                  "Kita · momentum",
+                  "喜多郁代 · 勢い / Momentum",
                 ],
               ].map(([src, alt, label]) => (
                 <div
@@ -325,15 +334,16 @@ export default function LandingPage() {
                 EVERY PAGE GETS ITS OWN BANDMATE.
               </h2>
               <p className="mt-4 max-w-lg text-sm leading-6 text-muted">
-                Anxious practice with Bocchi, sunny planning with Nijika,
-                deadpan analysis with Ryo, and high-voltage goals with Kita.
+                Nervous-but-brave practice with 後藤ひとり, sunny planning
+                with 伊地知虹夏, deadpan analysis with 山田リョウ, and
+                high-voltage goals with 喜多郁代.
               </p>
               <div className="mt-7 grid gap-4 sm:grid-cols-2">
                 {[
-                  [ListChecks, "Nijika · today, week & habits"],
-                  [Guitar, "Bocchi · guitar & reflection"],
-                  [CheckCircle2, "Ryo · study, stats & controls"],
-                  [Sparkles, "Kita · goals, career & timeline"],
+                  [ListChecks, "伊地知虹夏 / Nijika · today, week & habits"],
+                  [Guitar, "後藤ひとり / Bocchi · guitar & reflection"],
+                  [CheckCircle2, "山田リョウ / Ryo · study, stats & controls"],
+                  [Sparkles, "喜多郁代 / Kita · goals, career & timeline"],
                 ].map(([Icon, text]) => {
                   const ItemIcon = Icon as typeof CheckCircle2;
                   return (

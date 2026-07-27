@@ -645,8 +645,8 @@ export default function ReflectionsPage() {
               state={{
                 expression: reflections.length ? "proud" : "encouraging",
                 dialogue: reflections.length
-                  ? "You turned the day into something we can learn from. That counts."
-                  : "No performance review here. Just tell the truth about the day.",
+                  ? "あっ……今日を、ちゃんと次に使える形にできました。それ、すごいことだと思います。\nU-um… you turned today into something the next day can learn from. I think that really counts."
+                  : "あっ……採点じゃないので。その……今日のことを、正直に少しだけ書けば大丈夫です。\nU-um… this is not a performance review. Just tell a small truth about today.",
                 scene: "bedroom",
                 triggerReason: "reflection",
               }}

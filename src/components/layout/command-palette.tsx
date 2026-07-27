@@ -196,7 +196,13 @@ export function CommandPalette() {
           <Button
             size="sm"
             variant={mode === "search" ? "default" : "ghost"}
+            className={
+              mode === "search"
+                ? undefined
+                : "border-[#18121f]/20 bg-white/55 text-[#18121f] hover:border-[#18121f]/45 hover:bg-[#18121f]/5"
+            }
             onClick={() => setMode("search")}
+            aria-pressed={mode === "search"}
           >
             <Search className="h-3.5 w-3.5" />
             Search
@@ -204,7 +210,13 @@ export function CommandPalette() {
           <Button
             size="sm"
             variant={mode === "capture" ? "default" : "ghost"}
+            className={
+              mode === "capture"
+                ? undefined
+                : "border-[#18121f]/20 bg-white/55 text-[#18121f] hover:border-[#18121f]/45 hover:bg-[#18121f]/5"
+            }
             onClick={() => setMode("capture")}
+            aria-pressed={mode === "capture"}
           >
             <Plus className="h-3.5 w-3.5" />
             Quick capture

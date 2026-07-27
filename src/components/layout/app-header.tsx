@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
-import { Command, LogOut, MessageCircle, Settings, Sparkles } from "lucide-react";
+import { Command, LogOut, MessageCircle, Settings } from "lucide-react";
 import type { PageTheme } from "@/lib/page-themes";
 import { useOptionalResolve } from "@/contexts/resolve-context";
 
@@ -77,13 +77,24 @@ export function AppHeader({
   return (
     <header className="app-header sticky top-0 z-40 flex items-center justify-between border-b-2 border-border bg-background/85 px-4 py-2.5 backdrop-blur-xl lg:px-8">
       <div className="flex items-center gap-3">
-        <div className="theme-mark sticker hidden h-10 w-10 -rotate-3 items-center justify-center rounded-xl bg-accent text-white sm:flex">
-          <Sparkles className="h-5 w-5" />
+        <div className="theme-mark sticker relative hidden h-10 w-10 -rotate-3 overflow-hidden rounded-xl border-2 border-[#18121f] bg-[#fff6df] sm:block">
+          <Image
+            src="/brand/resolve-mark.png"
+            alt=""
+            fill
+            sizes="40px"
+            className="object-cover"
+          />
         </div>
         <div>
           <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.22em] text-accent">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-            {theme.role}
+            <span>
+              <span lang="ja">{theme.roleJa}</span>
+              <span className="ml-1.5 hidden text-foreground/65 xl:inline">
+                / {theme.role}
+              </span>
+            </span>
             <span className="equalizer text-accent" aria-hidden="true">
               <span />
               <span />
@@ -108,9 +119,9 @@ export function AppHeader({
               }),
             )
           }
-          className="hidden h-10 items-center gap-2 rounded-xl border-2 border-border bg-surface-elevated px-3 text-xs font-black text-muted transition hover:border-accent hover:text-accent md:flex"
+          className="hidden h-10 items-center gap-2 rounded-xl border-2 border-border bg-surface-elevated px-3 text-xs font-black text-foreground shadow-[2px_2px_0_rgba(0,0,0,0.32)] transition hover:-translate-y-0.5 hover:border-accent hover:text-accent md:flex"
         >
-          <Command className="h-4 w-4" />
+          <Command className="h-4 w-4 text-accent" />
           Search
           <kbd className="rounded-md border border-border px-1.5 py-0.5 text-[9px]">
             ⌘K
@@ -122,7 +133,7 @@ export function AppHeader({
             onClick={() => setReactionOpen((open) => !open)}
             className="character-reactor group flex items-center gap-2 rounded-2xl border-2 border-border bg-surface-elevated p-1.5 pr-2 text-left shadow-[3px_3px_0_rgba(0,0,0,0.4)] transition hover:-translate-y-0.5 hover:border-accent"
             aria-expanded={reactionOpen}
-            aria-label={`Hear ${theme.name}'s reaction`}
+            aria-label={`Hear ${theme.nameEn}'s reaction`}
           >
             <motion.span
               key={theme.key}
@@ -140,10 +151,13 @@ export function AppHeader({
             </motion.span>
             <span className="hidden max-w-32 sm:block">
               <span className="block text-[8px] font-black uppercase tracking-[0.16em] text-accent">
-                Tap for reaction
+                ひとこと / Reaction
               </span>
-              <span className="block truncate text-[10px] font-bold text-foreground">
-                {theme.status}
+              <span
+                className="block truncate text-[10px] font-bold text-foreground"
+                lang="ja"
+              >
+                {theme.statusJa}
               </span>
             </span>
             <MessageCircle className="h-3.5 w-3.5 text-muted" />
@@ -159,9 +173,15 @@ export function AppHeader({
                 role="status"
               >
                 <p className="text-[9px] font-black uppercase tracking-[0.2em] text-accent">
-                  {theme.name} reaction cut
+                  <span lang="ja">{theme.name}</span>
+                  <span className="ml-1.5 text-foreground/55">
+                    / {theme.nameEn}
+                  </span>
                 </p>
-                <p className="mt-2 text-sm font-bold leading-5">
+                <p className="mt-2 text-sm font-bold leading-6" lang="ja">
+                  「{theme.reactionJa}」
+                </p>
+                <p className="mt-2 border-t border-[#18121f]/15 pt-2 text-xs font-semibold leading-5 text-[#5f5267]">
                   “{theme.reaction}”
                 </p>
                 {theme.key === "bocchi" && (

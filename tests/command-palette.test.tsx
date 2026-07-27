@@ -43,6 +43,24 @@ vi.mock("@/contexts/resolve-context", () => ({
 import { CommandPalette } from "@/components/layout/command-palette";
 
 describe("global command palette", () => {
+  it("keeps both mode controls visible before hover", async () => {
+    const user = userEvent.setup();
+    render(<CommandPalette />);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("resolve:command", { detail: { mode: "search" } }),
+      );
+    });
+
+    const search = await screen.findByRole("button", { name: "Search" });
+    const capture = screen.getByRole("button", { name: "Quick capture" });
+    expect(capture).toHaveClass("text-[#18121f]");
+
+    await user.click(capture);
+    expect(search).toHaveClass("text-[#18121f]");
+  });
+
   it("dispatches the exact deep link for a selected search record", async () => {
     const user = userEvent.setup();
     const opened = vi.fn();

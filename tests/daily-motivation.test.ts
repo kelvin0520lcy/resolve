@@ -17,10 +17,21 @@ describe("daily character motivation", () => {
       MOTIVATION_QUOTES.every(
         (quote) =>
           quote.text.length > 45 &&
+          quote.textJa.length > 15 &&
           quote.memberName.length > 0 &&
-          quote.trait.length > 0,
+          quote.memberNameEn.length > 0 &&
+          quote.trait.length > 0 &&
+          quote.traitJa.length > 0,
       ),
     ).toBe(true);
+    expect(
+      MOTIVATION_QUOTES.filter(
+        (quote) =>
+          quote.member === "bocchi" &&
+          (quote.textJa.includes("……") ||
+            /[あみだごこ]-?[、っ]/.test(quote.textJa)),
+      ).length,
+    ).toBeGreaterThanOrEqual(8);
   });
 
   it("returns the same quote for a user throughout one day", () => {

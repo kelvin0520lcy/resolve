@@ -48,7 +48,7 @@ describe("character arc navigation components", () => {
   it("shows only coherent sibling pages inside a character route", () => {
     render(<CharacterArcBar pathname="/today" />);
     expect(
-      screen.getByRole("region", { name: "Nijika character arc" }),
+      screen.getByRole("region", { name: "Nijika Ijichi character arc" }),
     ).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Pages in this arc" });
     expect(nav).toHaveTextContent("Today");
@@ -60,16 +60,24 @@ describe("character arc navigation components", () => {
   it("groups the desktop sidebar under named character sections", () => {
     render(<Sidebar />);
     expect(
-      screen.getByRole("region", { name: "Nijika’s Rhythm Desk" }),
+      screen.getByRole("region", {
+        name: "虹夏のリズムデスク / Nijika’s Rhythm Desk",
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("region", { name: "Bocchi’s Practice Room" }),
+      screen.getByRole("region", {
+        name: "ぼっちの練習室 / Bocchi’s Practice Room",
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("region", { name: "Ryo’s Control Room" }),
+      screen.getByRole("region", {
+        name: "リョウの管制室 / Ryo’s Control Room",
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("region", { name: "Kita’s Spotlight" }),
+      screen.getByRole("region", {
+        name: "喜多のスポットライト / Kita’s Spotlight",
+      }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
       "href",
@@ -116,13 +124,13 @@ describe("interactive anime header", () => {
     const user = userEvent.setup();
     render(<AppHeader title="Today" theme={PAGE_THEMES.nijika} />);
     const trigger = screen.getByRole("button", {
-      name: "Hear Nijika's reaction",
+      name: "Hear Nijika Ijichi's reaction",
     });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     await user.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "your week has a tempo",
+      "Your week has a tempo",
     );
     await user.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "false");
@@ -132,7 +140,7 @@ describe("interactive anime header", () => {
     const user = userEvent.setup();
     render(<AppHeader title="Today" theme={PAGE_THEMES.nijika} />);
     const trigger = screen.getByRole("button", {
-      name: "Hear Nijika's reaction",
+      name: "Hear Nijika Ijichi's reaction",
     });
     await user.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");

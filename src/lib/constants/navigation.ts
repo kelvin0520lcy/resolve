@@ -26,7 +26,9 @@ export type NavItem = {
 export type NavArc = {
   key: Exclude<PageThemeKey, "ensemble">;
   title: string;
+  titleEn: string;
   subtitle: string;
+  subtitleEn: string;
   chapter: string;
   items: NavItem[];
 };
@@ -49,8 +51,10 @@ export const SETTINGS_NAV: NavItem = {
 export const NAV_ARCS: NavArc[] = [
   {
     key: "nijika",
-    title: "Nijika’s Rhythm Desk",
-    subtitle: "Plan the beat and keep the band moving",
+    title: "虹夏のリズムデスク",
+    titleEn: "Nijika’s Rhythm Desk",
+    subtitle: "テンポを整えて、みんなを前へ",
+    subtitleEn: "Plan the beat and keep the band moving",
     chapter: "Arc 01",
     items: [
       {
@@ -76,8 +80,10 @@ export const NAV_ARCS: NavArc[] = [
   },
   {
     key: "bocchi",
-    title: "Bocchi’s Practice Room",
-    subtitle: "Practice, process, and survive the inner monologue",
+    title: "ぼっちの練習室",
+    titleEn: "Bocchi’s Practice Room",
+    subtitle: "練習して、悩んで、心の声を生き抜く",
+    subtitleEn: "Practice, process, and survive the inner monologue",
     chapter: "Arc 02",
     items: [
       {
@@ -97,8 +103,10 @@ export const NAV_ARCS: NavArc[] = [
   },
   {
     key: "ryo",
-    title: "Ryo’s Control Room",
-    subtitle: "Study the system, inspect the data, touch nothing",
+    title: "リョウの管制室",
+    titleEn: "Ryo’s Control Room",
+    subtitle: "仕組みを読み、データを見る。余計なものは触らない",
+    subtitleEn: "Study the system, inspect the data, touch nothing",
     chapter: "Arc 03",
     items: [
       {
@@ -118,8 +126,10 @@ export const NAV_ARCS: NavArc[] = [
   },
   {
     key: "kita",
-    title: "Kita’s Spotlight",
-    subtitle: "Aim forward and turn intention into momentum",
+    title: "喜多のスポットライト",
+    titleEn: "Kita’s Spotlight",
+    subtitle: "前を向いて、決意を勢いに変える",
+    subtitleEn: "Aim forward and turn intention into momentum",
     chapter: "Arc 04",
     items: [
       {

@@ -40,7 +40,7 @@ export function PageIntro({
       </div>
       <div className="relative z-10 max-w-2xl">
         <p className="tape-label mb-3 inline-flex -rotate-1 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em]">
-          Episode log · {eyebrow}
+          エピソード記録 / Episode log · {eyebrow}
         </p>
         <h1 className="font-display relative text-3xl leading-none tracking-wide sm:text-4xl">
           {title}

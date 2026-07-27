@@ -3,9 +3,13 @@ export type PageThemeKey = "ensemble" | "bocchi" | "nijika" | "ryo" | "kita";
 export type PageTheme = {
   key: PageThemeKey;
   name: string;
+  nameEn: string;
   role: string;
+  roleJa: string;
   status: string;
+  statusJa: string;
   reaction: string;
+  reactionJa: string;
   image: string;
   imageAlt: string;
   cutInImage?: string;
@@ -21,10 +25,14 @@ export type PageIllustration = {
 export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
   ensemble: {
     key: "ensemble",
-    name: "Kessoku Band",
+    name: "結束バンド",
+    nameEn: "Kessoku Band",
     role: "Full-band mode",
+    roleJa: "全員集合モード",
     status: "Four personalities, one semester",
+    statusJa: "四人四色、ひとつの学期",
     reaction: "Kessoku Band status: somehow still operational.",
+    reactionJa: "結束バンドの状態：なんだかんだ、今日も稼働中！",
     image: "/illustrations/kessoku-ensemble-hero-v3.png",
     imageAlt: "Kessoku Band performing while Bocchi buffers on stage",
     cutInImage: "/illustrations/kessoku-intermission-v4.png",
@@ -33,10 +41,16 @@ export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
   },
   bocchi: {
     key: "bocchi",
-    name: "Bocchi",
+    name: "後藤ひとり（ぼっち）",
+    nameEn: "Hitori Gotoh · Bocchi",
     role: "Practice room · inner world",
+    roleJa: "練習室 · 心の中",
     status: "Bocchi.exe is responding… probably",
-    reaction: "SYSTEM ERROR: social battery not found. Soul evacuation in progress.",
+    statusJa: "ぼっち.exe 応答中……たぶん",
+    reaction:
+      "U-um… SYSTEM ERROR: social battery not found. Soul evacuation in progress…",
+    reactionJa:
+      "あっ……システムエラー：社会性バッテリーが見つかりません。魂、退避します……。",
     image: "/illustrations/bocchi-lag-reaction-v3.png",
     imageAlt: "Bocchi lagging as her soul floats out",
     cutInImage: "/illustrations/cut-in-bocchi-v2.webp",
@@ -45,10 +59,16 @@ export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
   },
   nijika: {
     key: "nijika",
-    name: "Nijika",
+    name: "伊地知虹夏",
+    nameEn: "Nijika Ijichi",
     role: "Band leader · daily rhythm",
+    roleJa: "バンドリーダー · 毎日のリズム",
     status: "Count in, keep moving",
-    reaction: "One, two, three, four—your week has a tempo. I made tabs for it!",
+    statusJa: "カウントして、前へ！",
+    reaction:
+      "One, two, three, four! Your week has a tempo—and yes, I made tabs for it!",
+    reactionJa:
+      "ワン、ツー、スリー、フォー！一週間にもテンポがあるよ。もちろんタブ分けもしたからね！",
     image: "/illustrations/nijika-planning-v3.png",
     imageAlt: "Nijika cheerfully organizing the band with a giant planner",
     cutInImage: "/illustrations/cut-in-nijika-v2.webp",
@@ -57,10 +77,16 @@ export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
   },
   ryo: {
     key: "ryo",
-    name: "Ryo",
+    name: "山田リョウ",
+    nameEn: "Ryo Yamada",
     role: "Control room · study & stats",
+    roleJa: "コントロールルーム · 勉強と分析",
     status: "Metrics stable · wallet critical",
-    reaction: "The data is stable. My wallet is not. Please admire the graph.",
+    statusJa: "数値は安定 · 財布は危険",
+    reaction:
+      "The data is stable. My wallet is not. Admire the graph; it cost less.",
+    reactionJa:
+      "データは安定。財布は不安定。グラフなら無料だから、眺めていけば。",
     image: "/illustrations/ryo-analytics-v3.png",
     imageAlt: "Ryo reviewing analytics beside an empty wallet",
     cutInImage: "/illustrations/cut-in-ryo-v2.webp",
@@ -69,10 +95,16 @@ export const PAGE_THEMES: Record<PageThemeKey, PageTheme> = {
   },
   kita: {
     key: "kita",
-    name: "Kita",
+    name: "喜多郁代",
+    nameEn: "Ikuyo Kita",
     role: "Spotlight · goals & career",
+    roleJa: "スポットライト · 目標とキャリア",
     status: "Kita-aura output: 120%",
-    reaction: "Kita-aura output: 120%. Sunglasses recommended. Let’s make it happen!",
+    statusJa: "喜多オーラ出力：120％",
+    reaction:
+      "Kita-aura at 120%! Sunglasses on—let’s make this next step shine!",
+    reactionJa:
+      "喜多オーラ、120％！サングラス準備よしっ。次の一歩もキラキラにしよう！",
     image: "/illustrations/kita-aura-v3.png",
     imageAlt: "Kita radiating an overpowered sparkling aura",
     cutInImage: "/illustrations/cut-in-kita-v2.webp",

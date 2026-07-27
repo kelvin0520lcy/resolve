@@ -1144,7 +1144,7 @@ export default function TodayPage() {
                 {!todayHabits.length && (
                   <EmptyState
                     title="No habits scheduled today"
-                    description="Create or review your schedule on Nijika’s Habits page."
+                    description="Create or review your schedule on 虹夏の Habits page."
                   />
                 )}
               </CardContent>

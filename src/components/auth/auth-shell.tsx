@@ -17,8 +17,22 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         <div className="absolute inset-0 bg-gradient-to-r from-[#080610]/50 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#080610] via-transparent to-[#080610]/60" />
         <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-8">
-          <Link href="/" className="font-display text-3xl tracking-wider text-white">
-            RESOLVE<span className="text-accent">!</span>
+          <Link
+            href="/"
+            className="flex items-center gap-3 font-display text-3xl tracking-wider text-white"
+          >
+            <span className="relative h-10 w-10 overflow-hidden rounded-xl border-2 border-[#18121f] bg-[#fff6df]">
+              <Image
+                src="/brand/resolve-mark.png"
+                alt=""
+                fill
+                sizes="40px"
+                className="object-cover"
+              />
+            </span>
+            <span>
+              RESOLVE<span className="text-accent">!</span>
+            </span>
           </Link>
           <span className="tape-label flex items-center gap-2 px-3 py-1 text-[9px] font-black uppercase tracking-widest">
             <Sparkles className="h-3 w-3" />
@@ -49,7 +63,18 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             href="/"
             className="mb-6 flex items-center justify-center gap-2 font-display text-3xl tracking-wider lg:hidden"
           >
-            RESOLVE<span className="text-accent">!</span>
+            <span className="relative h-10 w-10 overflow-hidden rounded-xl border-2 border-[#18121f] bg-[#fff6df]">
+              <Image
+                src="/brand/resolve-mark.png"
+                alt=""
+                fill
+                sizes="40px"
+                className="object-cover"
+              />
+            </span>
+            <span>
+              RESOLVE<span className="text-accent">!</span>
+            </span>
           </Link>
           {children}
           <div className="mt-5 text-center text-[11px] leading-5 text-muted">

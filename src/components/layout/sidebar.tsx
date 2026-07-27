@@ -29,7 +29,7 @@ export function Sidebar() {
         <Link href="/dashboard" className="group relative block">
           <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] text-warning">
             <Radio className="h-3 w-3" />
-            Semester live house
+            学期ライブハウス / Semester live house
           </div>
           <h1 className="font-display text-4xl leading-none tracking-wider text-white transition group-hover:text-accent">
             RESOLVE<span className="text-accent">!</span>
@@ -46,7 +46,7 @@ export function Sidebar() {
           aria-label="Common pages"
         >
           <p className="px-2 pb-1 pt-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-muted">
-            Common · whole band
+            共通 / Common · whole band
           </p>
           {[DASHBOARD_NAV, SETTINGS_NAV].map(
             ({ href, label, description, icon: Icon }) => {
@@ -83,12 +83,12 @@ export function Sidebar() {
                   ? "border-accent/55 bg-accent/8"
                   : "border-border/60 bg-black/10"
               }`}
-              aria-label={arc.title}
+              aria-label={`${arc.title} / ${arc.titleEn}`}
             >
               <Link
                 href={arc.items[0].href}
                 className="mb-1.5 flex items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-surface-muted"
-                aria-label={`Open ${arc.title}`}
+                aria-label={`Open ${arc.titleEn}`}
               >
                 <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-accent/50 bg-surface">
                   <Image
@@ -103,8 +103,11 @@ export function Sidebar() {
                   <p className="truncate text-[9px] font-black uppercase tracking-[0.14em] text-accent">
                     {arc.chapter} · {arcTheme.name}
                   </p>
-                  <p className="truncate text-[10px] font-bold text-foreground/85">
-                    {arc.subtitle}
+                  <p className="truncate text-[10px] font-bold text-foreground/90">
+                    {arc.title}
+                  </p>
+                  <p className="truncate text-[9px] text-muted">
+                    {arc.titleEn}
                   </p>
                 </div>
               </Link>
@@ -146,9 +149,12 @@ export function Sidebar() {
           </div>
           <div>
             <p className="text-[9px] font-black uppercase tracking-widest text-accent">
-              {theme.name} mode
+              <span lang="ja">{theme.name}</span>
+              <span className="ml-1 text-foreground/55">/ {theme.nameEn}</span>
             </p>
-            <p className="text-xs font-bold">{theme.status}</p>
+            <p className="text-xs font-bold" lang="ja">
+              {theme.statusJa}
+            </p>
           </div>
         </div>
       </div>

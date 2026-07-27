@@ -19,7 +19,7 @@ export function CharacterArcBar({ pathname }: { pathname: string }) {
   return (
     <section
       className="arc-strip comic-card mb-6 w-full max-w-full overflow-hidden rounded-2xl border-2 border-border bg-surface/92"
-      aria-label={`${theme.name} character arc`}
+      aria-label={`${theme.nameEn} character arc`}
     >
       <div className="flex min-w-0 flex-col items-stretch sm:min-w-max sm:flex-row xl:min-w-0">
         <div className="flex min-w-0 items-center gap-3 border-b-2 border-border bg-surface-elevated px-3 py-2.5 sm:min-w-56 sm:border-b-0 sm:border-r-2">
@@ -32,11 +32,16 @@ export function CharacterArcBar({ pathname }: { pathname: string }) {
               className="object-cover object-top"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[8px] font-black uppercase tracking-[0.18em] text-accent">
               {currentArc.chapter} · character route
             </p>
-            <p className="text-sm font-black">{currentArc.title}</p>
+            <p className="truncate text-sm font-black" lang="ja">
+              {currentArc.title}
+            </p>
+            <p className="truncate text-[9px] font-semibold text-muted">
+              {currentArc.titleEn}
+            </p>
           </div>
         </div>
 

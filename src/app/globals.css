@@ -34,7 +34,8 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-lavender-100: var(--lavender);
-  --font-sans: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  --font-sans: "Avenir Next", Avenir, "Hiragino Sans", "Yu Gothic UI",
+    "Yu Gothic", "Noto Sans JP", "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
@@ -57,7 +58,8 @@ body {
     var(--background);
   background-size: auto, auto, 36px 36px, auto;
   color: var(--foreground);
-  font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+  font-family: "Avenir Next", Avenir, "Hiragino Sans", "Yu Gothic UI",
+    "Yu Gothic", "Noto Sans JP", "Segoe UI", system-ui, sans-serif;
 }
 
 body::before {
@@ -122,7 +124,9 @@ textarea {
 }
 
 .font-display {
-  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", "Avenir Next Condensed", sans-serif;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", "Avenir Next Condensed",
+    sans-serif;
   letter-spacing: 0.025em;
 }
 

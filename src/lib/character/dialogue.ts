@@ -12,44 +12,44 @@ export type DialogueContext = {
 
 const DIALOGUE: Record<CharacterExpression, string[]> = {
   neutral: [
-    "Another episode begins. What's the plan today?",
-    "Ready when you are. Let's make this week count.",
+    "よしっ、新しい一話の始まり！今日はどんなセットリストにする？\nOkay, a new episode begins! What is today's setlist?",
+    "準備できたらカウントするよ。この一週間をちゃんと鳴らそう！\nI will count us in when you are ready. Let's make this week sound!",
   ],
   happy: [
-    "You finished everything early? I was not emotionally prepared for this.",
-    "All tasks done! Time for a victory pose.",
+    "えっ、もう全部終わったの！？こっちの心の準備がまだなんだけど！\nWait, you finished everything already!? I was not emotionally prepared for this!",
+    "全タスク完了！はい、勝利ポーズ！\nAll tasks complete! Okay—victory pose!",
   ],
   proud: [
-    "Four guitar sessions this week — the alternate-picking arc is moving.",
-    "That streak is looking solid. Keep the momentum going.",
+    "今週もちゃんと続いてる！そのリズム、かなり頼もしくなってきたよ。\nYou kept it going this week! That rhythm is becoming seriously reliable.",
+    "その連続記録、いいビートだね！無理せず次の一拍へ！\nThat streak has a great beat! Keep it moving without overplaying!",
   ],
   excited: [
-    "A milestone completed! This calls for dramatic background music.",
-    "New personal best! I'm genuinely impressed.",
+    "マイルストーン達成！ここ、絶対に劇伴が入るところ！\nMilestone complete! This is absolutely where the dramatic soundtrack starts!",
+    "自己ベスト更新！すごい、本当にすごいよ！\nNew personal best! That is amazing—seriously!",
   ],
   nervous: [
-    "Five deadlines next week. Maybe not the best time for another side project?",
-    "Your deadline is tomorrow. This may be the part where dramatic background music starts.",
+    "来週は締切が多いね。新しい寄り道は、今ある曲を整えてからにしよっか。\nNext week has a lot of deadlines. Let's finish arranging the current song before adding a side project.",
+    "締切は明日！大丈夫、まず一拍目から一緒に数えよう。\nThe deadline is tomorrow! It is okay—let's count the first beat together.",
   ],
   tired: [
-    "Long week detected. Rest is part of the training arc too.",
-    "You've been pushing hard. Consider a lighter day tomorrow.",
+    "長い一週間だったね。休符だって、ちゃんと曲の一部だよ。\nThat was a long week. A rest is still part of the song.",
+    "ずっと頑張ってたよ。明日は少し軽いセットにしてもいいんじゃない？\nYou have been pushing hard. How about a lighter set tomorrow?",
   ],
   overwhelmed: [
-    "You scheduled eleven hours on Wednesday. Are we training for a productivity tournament?",
-    "This workload looks unrealistic. Let's redistribute some tasks.",
+    "水曜日に十一時間！？それ、練習じゃなくて耐久ライブだよ！分けよう、今すぐ！\nEleven hours on Wednesday!? That is an endurance concert, not practice. Let's split it up!",
+    "この量はテンポが速すぎるよ。続けられる配置に戻そう！\nThis workload is way over tempo. Let's rearrange it into something playable!",
   ],
   concerned: [
-    "The algorithm practice task looks suspiciously untouched.",
-    "A few goals haven't had any action this week.",
+    "未着手のタスクがこっちを見てるね……まず一つ、最初の一拍だけ進めよう。\nThat untouched task is staring at us… let's move just its first beat.",
+    "今週まだ音が出てない目標があるよ。次の行動を一つ決めよう！\nA few goals have not made a sound this week. Let's choose one next action!",
   ],
   encouraging: [
-    "One missed day does not ruin the entire training arc.",
-    "Rough week, but every comeback story starts somewhere.",
+    "一日外しても、曲全体は壊れないよ。次のカウントから戻れば大丈夫！\nOne missed day does not ruin the song. Come back in on the next count!",
+    "大変な週だったね。でも再スタートの一拍は、ここから作れるよ！\nIt was a rough week, but the comeback can start on this beat!",
   ],
   celebrating: [
-    "SEMESTER GOAL COMPLETE! Encore performance incoming!",
-    "Perfect habit week! You earned this celebration scene.",
+    "学期目標、達成ーっ！アンコールの準備して！\nSEMESTER GOAL COMPLETE! Get ready for the encore!",
+    "習慣パーフェクト週間！今日は全力でお祝いカット！\nPerfect habit week! You earned the full celebration scene!",
   ],
 };
 
@@ -112,7 +112,8 @@ export function resolveCharacterState(ctx: DialogueContext): CharacterState {
   if (ctx.hourOfDay < 10) {
     return {
       expression: "neutral",
-      dialogue: "Good morning! Let's check what's on today's setlist.",
+      dialogue:
+        "おはよう！今日のセットリスト、一緒に確認しよっか。\nGood morning! Let's check today's setlist together.",
       scene: "bedroom",
       triggerReason: "morning_greeting",
     };

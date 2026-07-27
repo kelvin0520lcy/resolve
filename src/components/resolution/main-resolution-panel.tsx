@@ -258,15 +258,24 @@ export function MainResolutionPanel({
             <div className="flex items-center justify-between gap-3">
               <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-accent">
                 <Sparkles className="h-3.5 w-3.5" />
-                Today · {quote.memberName}
+                <span lang="ja">今日 · {quote.memberName}</span>
+                <span className="text-white/55">/ {quote.memberNameEn}</span>
               </p>
-              <span className="text-[9px] font-black uppercase tracking-wider text-white/50">
-                {quote.trait}
+              <span className="text-right text-[9px] font-black tracking-wider text-white/50">
+                <span lang="ja">{quote.traitJa}</span>
+                <span className="ml-1 uppercase">/ {quote.trait}</span>
               </span>
             </div>
             <div className="mt-3 flex gap-3">
               <Quote className="h-5 w-5 shrink-0 text-accent" />
-              <p className="text-sm font-semibold leading-6">{quote.text}</p>
+              <div>
+                <p className="text-sm font-semibold leading-6" lang="ja">
+                  {quote.textJa}
+                </p>
+                <p className="mt-2 border-t border-white/10 pt-2 text-xs font-medium leading-5 text-white/65">
+                  {quote.text}
+                </p>
+              </div>
             </div>
           </div>
         </div>
