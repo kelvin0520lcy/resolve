@@ -130,10 +130,10 @@ export function EmptyState({
 }
 
 export const fieldClassName =
-  "h-11 w-full rounded-xl border-2 border-border bg-surface px-3 text-sm shadow-[3px_3px_0_rgba(0,0,0,0.2)] outline-none transition focus:-translate-y-0.5 focus:border-accent focus:ring-2 focus:ring-accent/15";
+  "h-11 w-full rounded-xl border-2 border-border bg-surface px-3 text-sm text-foreground shadow-[3px_3px_0_rgba(0,0,0,0.2)] outline-none transition placeholder:text-muted focus:-translate-y-0.5 focus:border-accent focus:ring-2 focus:ring-accent/15";
 
 export const alignedFieldLabelClassName =
   "grid h-full content-start grid-rows-[minmax(2.5rem,auto)_auto] gap-2 text-sm font-bold";
 
 export const textAreaClassName =
-  "min-h-24 w-full resize-y rounded-xl border-2 border-border bg-surface px-3 py-2 text-sm shadow-[3px_3px_0_rgba(0,0,0,0.2)] outline-none transition placeholder:text-muted focus:-translate-y-0.5 focus:border-accent focus:ring-2 focus:ring-accent/15";
+  "min-h-24 w-full resize-y rounded-xl border-2 border-border bg-surface px-3 py-2 text-sm text-foreground shadow-[3px_3px_0_rgba(0,0,0,0.2)] outline-none transition placeholder:text-muted focus:-translate-y-0.5 focus:border-accent focus:ring-2 focus:ring-accent/15";

@@ -16,13 +16,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ListTodo,
-  Pencil,
   Save,
   X,
 } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
-import { ConfirmDeleteButton } from "@/components/ui/confirm-delete-button";
 import {
   Card,
   CardContent,
@@ -31,7 +29,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  CategoryBadge,
   MetricCard,
   PageIntro,
   alignedFieldLabelClassName,
@@ -45,6 +42,7 @@ import {
 import { formatDate } from "@/lib/utils";
 import type { Task } from "@/types";
 import { WeeklyEventEditor } from "@/components/weekly/weekly-event-editor";
+import { WeeklyScheduleBoard } from "@/components/weekly/weekly-schedule-board";
 import { expandEvents } from "@/features/workspace/lib/events";
 import { getDailyCapacitySummary } from "@/features/workspace/lib/analytics";
 import { getScheduleConflicts } from "@/features/workspace/lib/scheduling";
@@ -744,142 +742,15 @@ export default function WeeklyPage() {
           </Card>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
-          {dates.map((date) => {
-            const dayTasks = tasksByDate.get(date) ?? [];
-            const dayEvents = eventsByDate.get(date) ?? [];
-            const dayMinutes = dayTasks.reduce(
-              (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
-              0,
-            );
-            const dayEventMinutes = dayEvents.reduce(
-              (sum, event) => sum + (event.durationMinutes ?? 0),
-              0,
-            );
-            const isToday = date === offsetDate(0);
-            return (
-              <Card
-                key={date}
-                className={
-                  isToday
-                    ? "border-accent shadow-md shadow-accent/10"
-                    : undefined
-                }
-              >
-                <CardHeader className="p-4 pb-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wider text-muted">
-                        {new Date(`${date}T12:00:00`).toLocaleDateString(
-                          "en-SG",
-                          { weekday: "short" },
-                        )}
-                      </p>
-                      <CardTitle className="text-xl">
-                        {new Date(`${date}T12:00:00`).getDate()}
-                      </CardTitle>
-                    </div>
-                    {isToday && (
-                      <span className="h-2 w-2 rounded-full bg-accent" />
-                    )}
-                  </div>
-                  <CardDescription>
-                    {dayMinutes + dayEventMinutes
-                      ? `${dayMinutes + dayEventMinutes} min`
-                      : "Open"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2 p-3">
-                  {dayEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      data-workspace-event={event.eventId}
-                      className="rounded-xl border border-warning/30 bg-warning/5 p-3"
-                    >
-                      <p className="text-[9px] font-black uppercase tracking-wider text-warning">
-                        Fixed event
-                      </p>
-                      <p className="mt-1 break-words text-xs font-bold leading-5">
-                        {event.title}
-                      </p>
-                      <p className="mt-1 text-[10px] text-muted">
-                        {event.startTime ? `${event.startTime} · ` : ""}
-                        {event.durationMinutes
-                          ? `${event.durationMinutes} min`
-                          : "Duration not set"}
-                        {event.continuesFromPreviousDay
-                          ? " · continued from previous day"
-                          : event.continuesIntoNextDay
-                            ? " · continues tomorrow"
-                            : ""}
-                      </p>
-                    </div>
-                  ))}
-                  {dayTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="rounded-xl border border-border bg-surface p-3"
-                    >
-                      <div className="flex min-w-0 flex-wrap items-start gap-2">
-                        <CategoryBadge category={task.category} />
-                        <div className="flex w-full min-w-0 flex-wrap justify-end gap-1">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => startEditingTask(task)}
-                            aria-label={`Edit task ${task.title}`}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Edit
-                          </Button>
-                          <ConfirmDeleteButton
-                            itemLabel={`task ${task.title}`}
-                            onConfirm={() => removeTask(task.id)}
-                            className="flex-wrap justify-end"
-                          />
-                        </div>
-                      </div>
-                      <p className="mt-2 break-words text-xs font-bold leading-5">
-                        {task.title}
-                      </p>
-                      <p className="mt-1 text-[10px] text-muted">
-                        {getTaskEstimatedMinutes(task) !== undefined
-                          ? `${getTaskEstimatedMinutes(task)} min`
-                          : "Estimate needed for capacity"}
-                      </p>
-                      <label className="mt-2 block text-[10px] font-black uppercase tracking-wider text-muted">
-                        Move to day
-                        <select
-                          className="mt-1 w-full rounded-lg border border-border bg-surface-muted px-2 py-1 text-[11px] font-medium normal-case tracking-normal text-foreground outline-none"
-                          value={getTaskScheduleDate(task)}
-                          onChange={(event) =>
-                            moveTask(task.id, event.target.value)
-                          }
-                        >
-                          {dates.map((optionDate) => (
-                            <option key={optionDate} value={optionDate}>
-                              {new Date(
-                                `${optionDate}T12:00:00`,
-                              ).toLocaleDateString("en-SG", {
-                                weekday: "short",
-                              })}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                  ))}
-                  {!dayTasks.length && !dayEvents.length && (
-                    <p className="py-5 text-center text-xs text-muted">
-                      Recovery space
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <WeeklyScheduleBoard
+          dates={dates}
+          tasksByDate={tasksByDate}
+          eventsByDate={eventsByDate}
+          today={offsetDate(0)}
+          onEditTask={startEditingTask}
+          onMoveTask={moveTask}
+          onRemoveTask={removeTask}
+        />
       </div>
     </PageShell>
   );

@@ -9,10 +9,12 @@ export function ConfirmDeleteButton({
   itemLabel,
   onConfirm,
   className,
+  triggerClassName,
 }: {
   itemLabel: string;
   onConfirm: () => void;
   className?: string;
+  triggerClassName?: string;
 }) {
   const [confirming, setConfirming] = useState(false);
 
@@ -57,6 +59,7 @@ export function ConfirmDeleteButton({
       className={cn(
         "h-9 w-9 shrink-0 text-muted hover:border-danger/40 hover:bg-danger/10 hover:text-danger",
         className,
+        triggerClassName,
       )}
       onClick={() => setConfirming(true)}
       aria-label={`Remove ${itemLabel}`}

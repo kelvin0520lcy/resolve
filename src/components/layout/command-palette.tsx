@@ -8,6 +8,7 @@ import { useResolve } from "@/contexts/resolve-context";
 import { parseQuickCapture } from "@/features/workspace/lib/quick-capture";
 import { fieldClassName } from "@/components/ui/resolve";
 import { useDialogFocus } from "@/hooks/use-dialog-focus";
+import { QuickCaptureGuide } from "@/components/layout/quick-capture-guide";
 
 type SearchRecord = {
   id: string;
@@ -187,6 +188,11 @@ export function CommandPalette() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             aria-label={mode === "search" ? "Search workspace" : "Describe a task"}
+            placeholder={
+              mode === "search"
+                ? "Search tasks, goals, modules, events, or lessons"
+                : "Task name + optional cues, e.g. Review calculus tomorrow 45m"
+            }
           />
           <Button size="icon" variant="ghost" onClick={close} aria-label="Close">
             <X className="h-4 w-4" />
@@ -255,26 +261,27 @@ export function CommandPalette() {
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-xs leading-5 text-muted">
-                Try: “Review calculus tomorrow 45m high priority #academics”.
-                Resolve previews every rule before creating anything.
-              </p>
-              <label className="text-xs font-black uppercase tracking-wider text-muted">
-                Task title
+              <QuickCaptureGuide onUseExample={setQuery} />
+              <label className="text-xs font-black uppercase tracking-wider text-[#675a71]">
+                Task title preview
                 <input
                   className={`${fieldClassName} mt-2`}
                   value={capture.title}
                   readOnly
+                  placeholder="Your cleaned-up task title appears here"
                 />
               </label>
-              <div className="rounded-2xl border border-border bg-surface p-4">
+              <div className="rounded-2xl border border-border bg-surface p-4 text-foreground">
                 <p className="text-[10px] font-black uppercase tracking-wider text-accent">
-                  Understood
+                  Resolve understood
                 </p>
-                <p className="mt-2 text-sm leading-6">
+                <p className="mt-2 text-sm font-medium leading-6 text-foreground">
                   {capture.understood.length
                     ? capture.understood.join(" · ")
                     : "Backlog task · medium priority · personal"}
+                </p>
+                <p className="mt-2 text-[10px] leading-4 text-muted">
+                  Nothing is saved until you press Create this task.
                 </p>
               </div>
               <Button
