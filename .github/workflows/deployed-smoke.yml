@@ -35,7 +35,7 @@ jobs:
         run: npm run test:e2e:deployed
       - name: Upload browser failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deployed-smoke-failure-artifacts
           path: |
