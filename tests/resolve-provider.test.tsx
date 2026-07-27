@@ -33,7 +33,7 @@ const syncMocks = vi.hoisted(() => ({
   syncWorkspaceTransaction: vi.fn(),
   upgradeWorkspaceTransaction: vi.fn(),
   saveCloudRecoverySnapshot: vi.fn(async () => undefined),
-  saveCloudSemesterArchive: vi.fn(async () => undefined),
+  saveCloudSemesterArchive: vi.fn(async () => ({ created: true })),
   saveRecoverySnapshot: vi.fn(async () => undefined),
 }));
 

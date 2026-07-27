@@ -77,7 +77,9 @@ shows the current state and offers an explicit sync check.
 ```bash
 npm run lint
 npm test
+npm run test:rules # requires Java 21 for the Firestore emulator
 npm run build
+npm run test:e2e:production
 ```
 
 ## Firebase setup
@@ -86,9 +88,20 @@ npm run build
 2. Enable **Authentication** (Email/Password + Google)
 3. Create a **Firestore** database
 4. Copy web app config into `.env.local`
-5. Deploy security rules and the workspace index exemptions:
+5. Create a Firebase service account and set its complete JSON as the
+   server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret. This powers trusted,
+   recursive account deletion; never expose it through a `NEXT_PUBLIC_` name.
+6. Deploy security rules and the workspace index exemptions:
    `firebase deploy --only firestore:rules,firestore:indexes`
 
 The index exemptions keep the large workspace map and server timestamp out of
 Firestore indexes because the app reads the workspace by document ID and never
 queries those fields.
+
+## Render deployment
+
+Use `npm ci && npm run build` as the build command and `npm run start` as the
+start command. Add every variable from `.env.example` in Render’s Environment
+panel. Keep `FIREBASE_SERVICE_ACCOUNT_JSON` secret and server-only. Render
+provides `RENDER_GIT_COMMIT`, which Resolve exposes through `/api/version` and
+shows in Settings for deployment diagnosis.

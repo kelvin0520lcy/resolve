@@ -41,7 +41,7 @@ import {
   getDerivedDeadlines,
   getTaskEstimatedMinutes,
   getTaskScheduleDate,
-  isDeadlineComplete,
+  isDeadlineActive,
 } from "@/features/workspace/lib/deadlines";
 import { rankNextActions } from "@/features/workspace/lib/recommendations";
 import { getDailyMotivation } from "@/lib/daily-motivation";
@@ -84,13 +84,13 @@ export default function DashboardPage() {
     .filter(
       (deadline) =>
         getDeadlineDateKey(deadline.deadline) >= today &&
-        !isDeadlineComplete(deadline),
+        isDeadlineActive(deadline),
     )
     .slice(0, 3);
   const overdue = getDerivedDeadlines(workspace).filter(
     (deadline) =>
       getDeadlineDateKey(deadline.deadline) < today &&
-      !isDeadlineComplete(deadline),
+      isDeadlineActive(deadline),
   ).length;
   const weekMinutes = tasks
     .filter(

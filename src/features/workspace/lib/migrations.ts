@@ -1,5 +1,5 @@
 import type { ResolveData } from "@/features/workspace/types";
-import { isDateKey } from "@/lib/date";
+import { isDateKey, isValidTimeZone } from "@/lib/date";
 
 export const CURRENT_WORKSPACE_SCHEMA_VERSION = 6;
 
@@ -414,15 +414,6 @@ export function validateWorkspacePayloadShape(
     typeof candidate === "string" &&
     candidate.trim().length > 0 &&
     !Number.isNaN(Date.parse(candidate));
-  const validTimeZone = (candidate: unknown) => {
-    if (typeof candidate !== "string" || !candidate.trim()) return false;
-    try {
-      new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format();
-      return true;
-    } catch {
-      return false;
-    }
-  };
   const validDeadline = (candidate: unknown) => {
     const deadline = object(candidate);
     if (!deadline) return false;
@@ -430,7 +421,7 @@ export function validateWorkspacePayloadShape(
       ? isDateKey(deadline.date)
       : deadline.kind === "dateTime" &&
           validTimestamp(deadline.at) &&
-          validTimeZone(deadline.timeZone);
+          isValidTimeZone(deadline.timeZone);
   };
   const hasText = (record: JsonObject, key: string) =>
     typeof record[key] === "string" &&
@@ -716,7 +707,7 @@ export function validateWorkspacePayloadShape(
         (schedule.estimatedMinutes !== undefined &&
           (typeof schedule.estimatedMinutes !== "number" ||
             !Number.isFinite(schedule.estimatedMinutes))) ||
-        !validTimeZone(schedule.timeZone))
+        !isValidTimeZone(schedule.timeZone))
     ) {
       errors.push(`Task ${task.id} has an invalid schedule.`);
     }
@@ -725,6 +716,20 @@ export function validateWorkspacePayloadShape(
       (typeof task.goalId !== "string" || !goalIds.has(task.goalId))
     ) {
       errors.push(`Task ${task.id} refers to a missing goal.`);
+    }
+    if (
+      task.moduleId !== undefined &&
+      (typeof task.moduleId !== "string" || !moduleIds.has(task.moduleId))
+    ) {
+      errors.push(`Task ${task.id} refers to a missing module.`);
+    }
+    if (
+      task.assessmentId !== undefined &&
+      (typeof task.assessmentId !== "string" ||
+        !assessmentModuleById.has(task.assessmentId) ||
+        assessmentModuleById.get(task.assessmentId) !== task.moduleId)
+    ) {
+      errors.push(`Task ${task.id} refers to a missing assessment.`);
     }
     const milestone =
       typeof task.milestoneId === "string"
@@ -767,7 +772,7 @@ export function validateWorkspacePayloadShape(
     ) {
       errors.push(`Event ${event.id} has an invalid duration.`);
     }
-    if (event.timeZone !== undefined && !validTimeZone(event.timeZone)) {
+    if (event.timeZone !== undefined && !isValidTimeZone(event.timeZone)) {
       errors.push(`Event ${event.id} has an invalid timezone.`);
     }
     const recurrence = object(event.recurrence);
@@ -804,7 +809,7 @@ export function validateWorkspacePayloadShape(
     if (!(allowMissingLegacyFields && root.preferences === undefined)) {
       errors.push("preferences must be an object.");
     }
-  } else if (!validTimeZone(preferences.timeZone)) {
+  } else if (!isValidTimeZone(preferences.timeZone)) {
     errors.push("preferences.timeZone must be a valid timezone.");
   } else if (
     preferences.pinnedTaskId !== undefined &&

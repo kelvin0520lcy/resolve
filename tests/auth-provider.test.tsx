@@ -18,10 +18,9 @@ const authMocks = vi.hoisted(() => ({
   next: null as ((user: Record<string, unknown> | null) => void) | null,
   error: null as ((error: Error) => void) | null,
   unsubscribe: vi.fn(),
-  deleteUser: vi.fn(),
-  deleteCloudAccountData: vi.fn(),
-  restoreCloudAccountData: vi.fn(),
   deleteLocalAccountData: vi.fn(),
+  getIdToken: vi.fn(),
+  fetch: vi.fn(),
 }));
 
 vi.mock("firebase/auth", () => ({
@@ -43,12 +42,6 @@ vi.mock("firebase/auth", () => ({
   GoogleAuthProvider: class GoogleAuthProvider {},
   sendPasswordResetEmail: vi.fn(),
   updateProfile: vi.fn(),
-  deleteUser: authMocks.deleteUser,
-}));
-
-vi.mock("@/lib/firebase/workspace", () => ({
-  deleteCloudAccountData: authMocks.deleteCloudAccountData,
-  restoreCloudAccountData: authMocks.restoreCloudAccountData,
 }));
 
 vi.mock("@/features/workspace/lib/recovery", () => ({
@@ -97,19 +90,22 @@ beforeEach(() => {
   authMocks.next = null;
   authMocks.error = null;
   authMocks.unsubscribe.mockClear();
-  authMocks.deleteUser.mockReset();
-  authMocks.deleteCloudAccountData.mockReset();
-  authMocks.restoreCloudAccountData.mockReset();
   authMocks.deleteLocalAccountData.mockReset();
-  authMocks.deleteCloudAccountData.mockResolvedValue({
-    recovery: [],
-    archives: [],
-  });
-  authMocks.restoreCloudAccountData.mockResolvedValue(undefined);
+  authMocks.getIdToken.mockReset();
+  authMocks.fetch.mockReset();
+  authMocks.getIdToken.mockResolvedValue("fresh-token");
+  authMocks.fetch.mockResolvedValue(
+    new Response(JSON.stringify({ deleted: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }),
+  );
   authMocks.deleteLocalAccountData.mockResolvedValue(undefined);
+  vi.stubGlobal("fetch", authMocks.fetch);
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
@@ -184,8 +180,8 @@ describe("AuthProvider mobile bootstrap recovery", () => {
       email: "delete@example.com",
       photoURL: null,
       metadata: { lastSignInTime: new Date().toISOString() },
+      getIdToken: authMocks.getIdToken,
     };
-    authMocks.deleteUser.mockResolvedValue(undefined);
     render(
       <AuthProvider>
         <DeleteAccountHarness />
@@ -200,27 +196,29 @@ describe("AuthProvider mobile bootstrap recovery", () => {
     });
     expect(screen.getByText("deleted")).toBeInTheDocument();
 
-    expect(authMocks.deleteCloudAccountData).toHaveBeenCalledWith("delete-user");
-    expect(authMocks.deleteUser).toHaveBeenCalledWith(authMocks.currentUser);
+    expect(authMocks.getIdToken).toHaveBeenCalledWith(true);
+    expect(authMocks.fetch).toHaveBeenCalledWith("/api/account/delete", {
+      method: "POST",
+      headers: { authorization: "Bearer fresh-token" },
+    });
     expect(authMocks.deleteLocalAccountData).toHaveBeenCalledWith("delete-user");
-    expect(authMocks.restoreCloudAccountData).not.toHaveBeenCalled();
   });
 
-  it("restores cloud records when authentication deletion fails", async () => {
-    const backup = {
-      workspace: { data: { tasks: [] } },
-      recovery: [],
-      archives: [],
-    };
+  it("preserves local records when trusted deletion does not finish", async () => {
     authMocks.currentUser = {
       uid: "restore-user",
       displayName: "Restore User",
       email: "restore@example.com",
       photoURL: null,
       metadata: { lastSignInTime: new Date().toISOString() },
+      getIdToken: authMocks.getIdToken,
     };
-    authMocks.deleteCloudAccountData.mockResolvedValue(backup);
-    authMocks.deleteUser.mockRejectedValue(new Error("requires recent login"));
+    authMocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Deletion is still pending." }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      }),
+    );
     render(
       <AuthProvider>
         <DeleteAccountHarness />
@@ -235,10 +233,6 @@ describe("AuthProvider mobile bootstrap recovery", () => {
     });
     expect(screen.getByText("failed")).toBeInTheDocument();
 
-    expect(authMocks.restoreCloudAccountData).toHaveBeenCalledWith(
-      "restore-user",
-      backup,
-    );
     expect(authMocks.deleteLocalAccountData).not.toHaveBeenCalled();
   });
 });

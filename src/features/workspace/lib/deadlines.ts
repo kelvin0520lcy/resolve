@@ -17,8 +17,19 @@ export type DerivedDeadline = {
   title: string;
   deadline: DeadlineValue;
   status: string;
+  state: "active" | "done" | "dismissed";
   context?: string;
 };
+
+function deadlineState(status: string): DerivedDeadline["state"] {
+  if (["completed", "submitted", "graded", "closed"].includes(status)) {
+    return "done";
+  }
+  if (["cancelled", "skipped", "abandoned", "paused"].includes(status)) {
+    return "dismissed";
+  }
+  return "active";
+}
 
 export function dateDeadline(date: string): DeadlineValue {
   return { kind: "date", date };
@@ -47,10 +58,26 @@ export function getDeadlineDateKey(deadline: DeadlineValue) {
       }).format(new Date(deadline.at));
 }
 
-export function getDeadlineSortKey(deadline: DeadlineValue) {
-  return deadline.kind === "date"
-    ? `${deadline.date}T23:59:59.999`
-    : deadline.at;
+export function getDeadlineSortKey(
+  deadline: DeadlineValue,
+  dateOnlyTimeZone = "UTC",
+) {
+  if (deadline.kind === "dateTime") return Date.parse(deadline.at);
+  try {
+    return (
+      Date.parse(
+        zonedLocalDateTimeToIso(
+          deadline.date,
+          "23:59",
+          dateOnlyTimeZone,
+        ),
+      ) + 59_999
+    );
+  } catch {
+    // A historical timezone can skip a whole local date. Keep sorting stable
+    // without changing the date-only value stored for display/editing.
+    return Date.parse(`${deadline.date}T23:59:59.999Z`);
+  }
 }
 
 export function formatDeadline(
@@ -120,7 +147,42 @@ export function zonedLocalDateTimeToIso(
   };
   let instant = target - offsetAt(target);
   instant = target - offsetAt(instant);
-  return new Date(instant).toISOString();
+  const result = new Date(instant);
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(result)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  if (
+    `${parts.year}-${parts.month}-${parts.day}` !== date ||
+    `${parts.hour}:${parts.minute}` !== time
+  ) {
+    throw new Error(
+      "That local time does not exist in the selected time zone because of a clock change.",
+    );
+  }
+  const localSignature = `${date}T${time}`;
+  const signatureAt = (candidate: number) => {
+    const candidateParts = Object.fromEntries(
+      formatter
+        .formatToParts(new Date(candidate))
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, part.value]),
+    );
+    return `${candidateParts.year}-${candidateParts.month}-${candidateParts.day}T${candidateParts.hour}:${candidateParts.minute}`;
+  };
+  const isAmbiguous = [30, 60, 90, 120].some(
+    (minutes) =>
+      signatureAt(instant - minutes * 60_000) === localSignature ||
+      signatureAt(instant + minutes * 60_000) === localSignature,
+  );
+  if (isAmbiguous) {
+    throw new Error(
+      "That local time occurs twice because of a clock change. Choose a time outside the repeated interval.",
+    );
+  }
+  return result.toISOString();
 }
 
 export function getDeadlineLocalTime(deadline: DeadlineValue) {
@@ -148,6 +210,7 @@ export function getDerivedDeadlines(data: ResolveData): DerivedDeadline[] {
       title: task.title,
       deadline,
       status: task.status,
+      state: deadlineState(task.status),
       context: "Task",
     });
   }
@@ -164,6 +227,7 @@ export function getDerivedDeadlines(data: ResolveData): DerivedDeadline[] {
       title: goal.title,
       deadline,
       status: goal.status,
+      state: deadlineState(goal.status),
       context: "Goal",
     });
   }
@@ -181,6 +245,7 @@ export function getDerivedDeadlines(data: ResolveData): DerivedDeadline[] {
       title: milestone.title,
       deadline,
       status: milestone.completed ? "completed" : "active",
+      state: milestone.completed ? "done" : "active",
       context: "Goal breakdown",
     });
   }
@@ -197,6 +262,7 @@ export function getDerivedDeadlines(data: ResolveData): DerivedDeadline[] {
         title: assessment.title,
         deadline,
         status: assessment.status,
+        state: deadlineState(assessment.status),
         context: `${moduleRecord.code} assessment`,
       });
     }
@@ -217,6 +283,7 @@ export function getDerivedDeadlines(data: ResolveData): DerivedDeadline[] {
       title: application.nextAction,
       deadline,
       status: application.stage,
+      state: deadlineState(application.stage),
       context: `${application.company} · ${application.role}`,
     });
   }
@@ -231,20 +298,23 @@ export function getDerivedDeadlines(data: ResolveData): DerivedDeadline[] {
       title: event.title,
       deadline: dateDeadline(event.date),
       status: "scheduled",
+      state: "active",
       context: "Fixed event",
     });
   }
 
   return records.sort((a, b) => {
-    const due = getDeadlineSortKey(a.deadline).localeCompare(
-      getDeadlineSortKey(b.deadline),
-    );
+    const due =
+      getDeadlineSortKey(a.deadline, data.preferences.timeZone) -
+      getDeadlineSortKey(b.deadline, data.preferences.timeZone);
     return due || a.id.localeCompare(b.id);
   });
 }
 
 export function isDeadlineComplete(deadline: DerivedDeadline) {
-  return ["completed", "submitted", "graded", "closed"].includes(
-    deadline.status,
-  );
+  return deadline.state === "done";
+}
+
+export function isDeadlineActive(deadline: DerivedDeadline) {
+  return deadline.state === "active";
 }

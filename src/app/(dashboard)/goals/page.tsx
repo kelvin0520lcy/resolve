@@ -276,7 +276,7 @@ export default function GoalsPage() {
                     value={deadline}
                     onChange={(event) => setDeadline(event.target.value)}
                     type="date"
-                    min={offsetDate(0)}
+                    min={editingGoalId ? undefined : offsetDate(0)}
                     required
                   />
                 </label>

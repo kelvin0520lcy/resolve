@@ -268,8 +268,37 @@ describe("editable user-created records", () => {
       expect.objectContaining({
         title: "Review tutorial notes",
         priority: "medium",
+        scheduledDate: "2026-07-25",
+        schedule: expect.objectContaining({ date: "2026-07-25" }),
       }),
     );
+  });
+
+  it("allows an overdue task to be edited without changing its deadline", async () => {
+    const user = userEvent.setup();
+    const originalDeadline = workspace.tasks[0].deadline;
+    workspace.tasks[0].deadline = "2026-07-20";
+    try {
+      render(<TodayPage />);
+      await user.click(
+        screen.getByRole("button", { name: "Edit task Review lecture notes" }),
+      );
+      expect(
+        screen.getByLabelText(/^Deadline \(optional\)$/),
+      ).not.toHaveAttribute("min");
+      await user.click(
+        screen.getByRole("button", { name: "Save task changes" }),
+      );
+      expect(spies.updateTask).toHaveBeenCalledWith(
+        "task-1",
+        expect.objectContaining({
+          deadline: "2026-07-20",
+          scheduledDate: "2026-07-25",
+        }),
+      );
+    } finally {
+      workspace.tasks[0].deadline = originalDeadline;
+    }
   });
 
   it("starts, pauses, and completes a focused task without leaving Today", async () => {
@@ -348,6 +377,37 @@ describe("editable user-created records", () => {
     expect(
       screen.getByRole("button", { name: "Start focus" }),
     ).toBeInTheDocument();
+  });
+
+  it("does not discard a running focus session when another task is inspected", async () => {
+    const user = userEvent.setup();
+    const secondTask = {
+      ...workspace.tasks[0],
+      id: "task-2",
+      title: "Inspect another task",
+    };
+    workspace.tasks.push(secondTask);
+    const confirmation = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      render(<TodayPage />);
+      await user.click(screen.getAllByRole("button", { name: "Focus" })[0]);
+      window.dispatchEvent(
+        new CustomEvent("resolve:open-record", {
+          detail: { href: "/today?task=task-2" },
+        }),
+      );
+
+      await waitFor(() => expect(confirmation).toHaveBeenCalled());
+      expect(
+        screen.getByRole("dialog", { name: "Review lecture notes" }),
+      ).toBeInTheDocument();
+      expect(window.localStorage.getItem("resolve-focus-session-v1")).toContain(
+        '"taskId":"task-1"',
+      );
+    } finally {
+      workspace.tasks.pop();
+      confirmation.mockRestore();
+    }
   });
 
   it("lets the user choose a unique daily top-three task", async () => {

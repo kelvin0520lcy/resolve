@@ -77,6 +77,11 @@ export type WorkspaceSyncMetrics = {
   conflictedFlushes: number;
   patchesFlushed: number;
   noOpFlushes: number;
+  retryScheduled: number;
+  retryExecuted: number;
+  retrySkipped: number;
+  retrySucceeded: number;
+  retryFailed: number;
 };
 
 type LocalSyncMetadata = {
@@ -98,10 +103,26 @@ const EMPTY_METRICS: WorkspaceSyncMetrics = {
   conflictedFlushes: 0,
   patchesFlushed: 0,
   noOpFlushes: 0,
+  retryScheduled: 0,
+  retryExecuted: 0,
+  retrySkipped: 0,
+  retrySucceeded: 0,
+  retryFailed: 0,
 };
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function recordWorkspacePerformance(operation: string, duration: number) {
+  try {
+    performance.measure(`resolve:workspace:${operation}`, {
+      start: performance.now() - duration,
+      duration,
+    });
+  } catch {
+    // Performance measurement is diagnostic and must never block a mutation.
+  }
 }
 
 function readJson<T>(key: string): T | undefined {
@@ -145,6 +166,47 @@ function writeJson(key: string, value: unknown) {
   } catch {
     return false;
   }
+}
+
+export function detectWorkspaceImportVersion(
+  value: unknown,
+  timeZone: string,
+) {
+  const envelope =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as { data?: unknown; schemaVersion?: unknown })
+      : undefined;
+  const payload = envelope && "data" in envelope ? envelope.data : value;
+  if (typeof envelope?.schemaVersion === "number") {
+    return { payload, sourceVersion: envelope.schemaVersion };
+  }
+  if (validateWorkspacePayloadShape(payload).valid) {
+    return {
+      payload,
+      sourceVersion: CURRENT_WORKSPACE_SCHEMA_VERSION,
+    };
+  }
+  for (
+    let candidate = CURRENT_WORKSPACE_SCHEMA_VERSION - 1;
+    candidate >= 0;
+    candidate -= 1
+  ) {
+    try {
+      const migrated = migrateWorkspaceData(payload, candidate, timeZone);
+      if (
+        validateWorkspacePayloadShape(migrated.data, {
+          allowMissingLegacyFields: true,
+        }).valid
+      ) {
+        return { payload, sourceVersion: candidate };
+      }
+    } catch {
+      // Try the next known schema; validation still gates acceptance.
+    }
+  }
+  throw new Error(
+    "This versionless backup does not match any supported Resolve schema.",
+  );
 }
 
 function readMetadata(key: string): LocalSyncMetadata {
@@ -219,9 +281,10 @@ export function useWorkspaceSync({
   const recoveryRequiredRef = useRef(false);
   const recoveryPayloadRef = useRef<unknown>(undefined);
   const recoveryRawTextRef = useRef<string | null>(null);
-  const retryTimerRef = useRef<number | null>(null);
   const autoRetryTimerRef = useRef<number | null>(null);
   const retryAttemptRef = useRef(0);
+  const retryImmediatelyRef = useRef(false);
+  const persistedDataRef = useRef<ResolveData | null>(null);
 
   const workspaceSize = useMemo<WorkspaceSizeReport>(
     () => estimateWorkspaceSize(data),
@@ -299,10 +362,18 @@ export function useWorkspaceSync({
       if (recoveryRequiredRef.current) return;
       const current = dataRef.current;
       if (current === next) return;
+      const mutationStartedAt = performance.now();
+      const sizeStartedAt = performance.now();
+      const currentSize = estimateWorkspaceSize(current);
+      const nextSize = estimateWorkspaceSize(next);
+      recordWorkspacePerformance(
+        "size-estimation",
+        performance.now() - sizeStartedAt,
+      );
       if (
         !canApplyWorkspaceMutation(
-          estimateWorkspaceSize(current),
-          estimateWorkspaceSize(next),
+          currentSize,
+          nextSize,
         )
       ) {
         setStatus("error");
@@ -311,6 +382,7 @@ export function useWorkspaceSync({
         );
         return;
       }
+      const localWriteStartedAt = performance.now();
       if (!writeJson(storageKey, next)) {
         setStatus("error");
         setError(
@@ -318,6 +390,11 @@ export function useWorkspaceSync({
         );
         return;
       }
+      persistedDataRef.current = next;
+      recordWorkspacePerformance(
+        "local-write",
+        performance.now() - localWriteStartedAt,
+      );
       if (undo) {
         undoRef.current = { before: clone(current), after: clone(next) };
         setCanUndo(true);
@@ -329,10 +406,15 @@ export function useWorkspaceSync({
           setCanUndo(false);
         }, UNDO_WINDOW_MS);
       }
+      const patchStartedAt = performance.now();
       const patches = buildWorkspacePatches(
         baseDataRef.current,
         next,
         coordinatorRef.current?.tabId ?? "local-tab",
+      );
+      recordWorkspacePerformance(
+        "patch-build",
+        performance.now() - patchStartedAt,
       );
       dataRef.current = next;
       setData(next);
@@ -346,6 +428,10 @@ export function useWorkspaceSync({
           });
         }
       }
+      recordWorkspacePerformance(
+        "mutation-total",
+        performance.now() - mutationStartedAt,
+      );
     },
     [enabled, persistMetadata, storageKey],
   );
@@ -880,7 +966,14 @@ export function useWorkspaceSync({
   ]);
 
   useEffect(() => {
-    if (hydrated && !recoveryRequiredRef.current) writeJson(storageKey, data);
+    if (
+      hydrated &&
+      !recoveryRequiredRef.current &&
+      persistedDataRef.current !== data &&
+      writeJson(storageKey, data)
+    ) {
+      persistedDataRef.current = data;
+    }
   }, [data, hydrated, storageKey]);
 
   useEffect(() => {
@@ -932,49 +1025,30 @@ export function useWorkspaceSync({
 
   useEffect(() => {
     if (!enabled || !hydrated || recoveryRequired) return;
-    const retryDelays = [5_000, 15_000, 30_000, 60_000];
-    const clearRetry = () => {
-      if (retryTimerRef.current !== null) {
-        window.clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = null;
-      }
-    };
-    const retryDirtyWorkspace = () => {
-      clearRetry();
-      if (!navigator.onLine || !dirtyRef.current) return;
+    const handleOnline = () => {
+      retryAttemptRef.current = 0;
       if (!isLeaderRef.current) {
+        updateMetrics({ retrySkipped: 1 });
         coordinatorRef.current?.requestSync();
         return;
       }
-      void flushToCloud().finally(() => {
-        if (!dirtyRef.current || !navigator.onLine) {
-          retryAttemptRef.current = 0;
-          return;
-        }
-        const delay =
-          retryDelays[
-            Math.min(retryAttemptRef.current, retryDelays.length - 1)
-          ];
-        retryAttemptRef.current += 1;
-        retryTimerRef.current = window.setTimeout(retryDirtyWorkspace, delay);
-      });
-    };
-    const handleOnline = () => {
-      retryAttemptRef.current = 0;
-      retryDirtyWorkspace();
+      retryImmediatelyRef.current = true;
+      setRetryGeneration((generation) => generation + 1);
     };
     const handleOffline = () => {
-      clearRetry();
+      if (autoRetryTimerRef.current !== null) {
+        window.clearTimeout(autoRetryTimerRef.current);
+        autoRetryTimerRef.current = null;
+      }
       if (dirtyRef.current) setStatus("offline");
     };
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     return () => {
-      clearRetry();
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [enabled, flushToCloud, hydrated, recoveryRequired]);
+  }, [enabled, hydrated, recoveryRequired, updateMetrics]);
 
   useEffect(() => {
     if (
@@ -989,12 +1063,24 @@ export function useWorkspaceSync({
       return;
     }
     const retryDelays = [5_000, 15_000, 30_000, 60_000];
-    const delay =
-      retryDelays[Math.min(retryAttemptRef.current, retryDelays.length - 1)];
-    retryAttemptRef.current += 1;
+    const delay = retryImmediatelyRef.current
+      ? 0
+      : retryDelays[
+          Math.min(retryAttemptRef.current, retryDelays.length - 1)
+        ];
+    retryImmediatelyRef.current = false;
+    if (delay > 0) retryAttemptRef.current += 1;
+    updateMetrics({ retryScheduled: 1 });
     autoRetryTimerRef.current = window.setTimeout(() => {
       autoRetryTimerRef.current = null;
-      void flushToCloud();
+      updateMetrics({ retryExecuted: 1 });
+      void flushToCloud().finally(() => {
+        updateMetrics(
+          dirtyRef.current
+            ? { retryFailed: 1 }
+            : { retrySucceeded: 1 },
+        );
+      });
     }, delay);
     return () => {
       if (autoRetryTimerRef.current !== null) {
@@ -1009,6 +1095,7 @@ export function useWorkspaceSync({
     isLeader,
     recoveryRequired,
     retryGeneration,
+    updateMetrics,
   ]);
 
   useEffect(
@@ -1061,24 +1148,19 @@ export function useWorkspaceSync({
         identity,
       );
       await saveRecoverySnapshot(backup);
-      const envelope =
-        value && typeof value === "object" && !Array.isArray(value)
-          ? (value as { data?: unknown; schemaVersion?: unknown })
-          : undefined;
-      const payload =
-        envelope && "data" in envelope ? envelope.data : value;
-      const sourceVersion =
-        typeof envelope?.schemaVersion === "number"
-          ? envelope.schemaVersion
-          : CURRENT_WORKSPACE_SCHEMA_VERSION;
+      const { payload, sourceVersion: detectedVersion } =
+        detectWorkspaceImportVersion(
+          value,
+          dataRef.current.preferences.timeZone,
+        );
       const migrated = migrateWorkspaceData(
         payload,
-        sourceVersion,
+        detectedVersion,
         dataRef.current.preferences.timeZone,
       );
       const payloadShape = validateWorkspacePayloadShape(migrated.data, {
         allowMissingLegacyFields:
-          sourceVersion < CURRENT_WORKSPACE_SCHEMA_VERSION,
+          detectedVersion < CURRENT_WORKSPACE_SCHEMA_VERSION,
       });
       if (!payloadShape.valid) {
         throw new Error(payloadShape.errors.join(" "));
@@ -1262,8 +1344,11 @@ export function useWorkspaceSync({
       );
       await saveRecoverySnapshot(snapshot);
       if (enabled) {
-        await saveCloudSemesterArchive(identity, dataRef.current);
-        updateMetrics({ writes: 1 });
+        const result = await saveCloudSemesterArchive(
+          identity,
+          dataRef.current,
+        );
+        if (result.created) updateMetrics({ writes: 1 });
       }
       setLocalData(next);
     },

@@ -26,7 +26,12 @@ export function useDialogFocus<T extends HTMLElement>(
     const frame = window.requestAnimationFrame(() => {
       const elements =
         containerRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
-      elements?.[0]?.focus();
+      if (elements?.[0]) {
+        elements[0].focus();
+      } else if (containerRef.current) {
+        containerRef.current.tabIndex = -1;
+        containerRef.current.focus();
+      }
     });
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && onCloseRef.current) {
@@ -38,7 +43,11 @@ export function useDialogFocus<T extends HTMLElement>(
       const elements = Array.from(
         containerRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [],
       ).filter((element) => !element.hidden);
-      if (!elements.length) return;
+      if (!elements.length) {
+        event.preventDefault();
+        containerRef.current?.focus();
+        return;
+      }
       const first = elements[0];
       const last = elements[elements.length - 1];
       if (event.shiftKey && document.activeElement === first) {

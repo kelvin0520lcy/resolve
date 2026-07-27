@@ -1,4 +1,10 @@
-import { getWeekDateKeys, isDateKey, offsetDate, parseLocalDate } from "@/lib/date";
+import {
+  getWeekDateKeys,
+  isDateKey,
+  isValidTimeZone,
+  offsetDate,
+  parseLocalDate,
+} from "@/lib/date";
 import type { ResolveData } from "@/features/workspace/types";
 import {
   getTaskDeadline,
@@ -34,6 +40,8 @@ export type NewTaskInput = Pick<Task, "title" | "category" | "priority"> &
       | "estimatedMinutes"
       | "goalId"
       | "milestoneId"
+      | "moduleId"
+      | "assessmentId"
       | "prerequisiteTaskIds"
       | "requiredForMilestone"
       | "origin"
@@ -197,6 +205,26 @@ function taskDeadline(
   );
 }
 
+function validTaskSchedule(
+  schedule: Partial<NonNullable<Task["schedule"]>> | undefined,
+) {
+  if (!schedule) return true;
+  return (
+    (schedule.date === undefined || isDateKey(schedule.date)) &&
+    (schedule.startTime === undefined ||
+      /^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.startTime)) &&
+    (schedule.timeZone === undefined || isValidTimeZone(schedule.timeZone))
+  );
+}
+
+function validTaskDeadline(deadline: Task["deadlineInfo"]) {
+  if (!deadline) return true;
+  return deadline.kind === "date"
+    ? isDateKey(deadline.date)
+    : !Number.isNaN(Date.parse(deadline.at)) &&
+        isValidTimeZone(deadline.timeZone);
+}
+
 function hasOwn(value: object, key: PropertyKey) {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
@@ -247,7 +275,13 @@ export function addTaskToData(
   meta: MutationMeta,
 ): ResolveData {
   const cleanTitle = task.title.trim();
-  if (!cleanTitle) return current;
+  if (
+    !cleanTitle ||
+    !validTaskSchedule(task.schedule) ||
+    !validTaskDeadline(taskDeadline(task))
+  ) {
+    return current;
+  }
   const timestamp = mutationTime(meta);
   const scheduleDate = isDateKey(task.schedule?.date)
     ? task.schedule.date
@@ -266,6 +300,21 @@ export function addTaskToData(
     requestedMilestone && requestedMilestone.goalId === goalId
       ? requestedMilestone.id
       : undefined;
+  const assessmentModule = current.modules.find((moduleRecord) =>
+    moduleRecord.assessments.some(
+      (assessment) => assessment.id === task.assessmentId,
+    ),
+  );
+  const moduleId =
+    assessmentModule?.id ??
+    (current.modules.some(
+      (moduleRecord) => moduleRecord.id === task.moduleId,
+    )
+      ? task.moduleId
+      : undefined);
+  const assessmentId = assessmentModule
+    ? task.assessmentId
+    : undefined;
   const schedule = scheduleDate
     ? {
         date: scheduleDate,
@@ -296,6 +345,8 @@ export function addTaskToData(
         estimatedMinutes,
         goalId,
         milestoneId,
+        moduleId,
+        assessmentId,
         prerequisiteTaskIds: (task.prerequisiteTaskIds ?? []).filter((id) =>
           current.tasks.some((candidate) => candidate.id === id),
         ),
@@ -321,7 +372,15 @@ export function updateTaskInData(
   const cleanTitle = hasOwn(changes, "title")
     ? changes.title?.trim() ?? ""
     : existing?.title ?? "";
-  if (!existing || !cleanTitle) return current;
+  if (
+    !existing ||
+    !cleanTitle ||
+    !validTaskSchedule(changes.schedule) ||
+    (hasOwn(changes, "deadlineInfo") &&
+      !validTaskDeadline(changes.deadlineInfo))
+  ) {
+    return current;
+  }
   const changesSchedule = hasOwn(changes, "schedule");
   const changesScheduledDate = hasOwn(changes, "scheduledDate");
   const changesEstimate =
@@ -376,6 +435,26 @@ export function updateTaskInData(
     requestedMilestone && requestedMilestone.goalId === goalId
       ? requestedMilestone.id
       : undefined;
+  const requestedAssessmentId = hasOwn(changes, "assessmentId")
+    ? changes.assessmentId
+    : existing.assessmentId;
+  const assessmentModule = current.modules.find((moduleRecord) =>
+    moduleRecord.assessments.some(
+      (assessment) => assessment.id === requestedAssessmentId,
+    ),
+  );
+  const requestedModuleId = hasOwn(changes, "moduleId")
+    ? changes.moduleId
+    : existing.moduleId;
+  const moduleId =
+    assessmentModule?.id ??
+    (current.modules.some(
+      (moduleRecord) => moduleRecord.id === requestedModuleId,
+    )
+      ? requestedModuleId
+      : undefined);
+  const assessmentId =
+    assessmentModule?.id === moduleId ? requestedAssessmentId : undefined;
 
   const next: ResolveData = {
     ...current,
@@ -412,6 +491,8 @@ export function updateTaskInData(
             estimatedMinutes,
             goalId,
             milestoneId,
+            moduleId,
+            assessmentId,
             prerequisiteTaskIds: hasOwn(changes, "prerequisiteTaskIds")
               ? (changes.prerequisiteTaskIds ?? []).filter(
                   (id) =>
@@ -1183,9 +1264,10 @@ export function removeModuleFromData(
     target.assessments.map((assessment) => assessment.id),
   );
   const isLinked = (task: Task) =>
-    task.origin?.kind === "assessment-preparation" &&
-    (task.origin.moduleId === moduleId ||
-      assessmentIds.has(task.origin.assessmentId));
+    task.moduleId === moduleId ||
+    (task.origin?.kind === "assessment-preparation" &&
+      (task.origin.moduleId === moduleId ||
+        assessmentIds.has(task.origin.assessmentId)));
   return {
     ...current,
     modules: current.modules.filter((module) => module.id !== moduleId),
@@ -1197,7 +1279,13 @@ export function removeModuleFromData(
         ? current.tasks.filter((task) => !isLinked(task))
         : current.tasks.map((task) =>
             isLinked(task)
-              ? { ...task, origin: undefined, updatedAt: timestamp }
+              ? {
+                  ...task,
+                  moduleId: undefined,
+                  assessmentId: undefined,
+                  origin: undefined,
+                  updatedAt: timestamp,
+                }
               : task,
           ),
   };
@@ -1548,14 +1636,21 @@ export function removeAssessmentFromData(
         ? current.tasks.filter(
             (task) =>
               !(
-                task.origin?.kind === "assessment-preparation" &&
-                task.origin.assessmentId === assessmentId
+                task.assessmentId === assessmentId ||
+                (task.origin?.kind === "assessment-preparation" &&
+                  task.origin.assessmentId === assessmentId)
               ),
           )
         : current.tasks.map((task) =>
-            task.origin?.kind === "assessment-preparation" &&
-            task.origin.assessmentId === assessmentId
-              ? { ...task, origin: undefined, updatedAt: timestamp }
+            task.assessmentId === assessmentId ||
+            (task.origin?.kind === "assessment-preparation" &&
+              task.origin.assessmentId === assessmentId)
+              ? {
+                  ...task,
+                  assessmentId: undefined,
+                  origin: undefined,
+                  updatedAt: timestamp,
+                }
               : task,
           ),
   };
@@ -2192,7 +2287,13 @@ export function updatePrioritiesInData(
 }
 
 function validEventInput(event: NewEventInput) {
-  if (!event.title.trim() || !isDateKey(event.date)) return false;
+  if (
+    !event.title.trim() ||
+    !isDateKey(event.date) ||
+    !isValidTimeZone(event.timeZone)
+  ) {
+    return false;
+  }
   if (
     event.startTime &&
     !/^([01]\d|2[0-3]):[0-5]\d$/.test(event.startTime)
@@ -2297,7 +2398,7 @@ export function updateWorkspacePreferencesInData(
     preferences: {
       ...current.preferences,
       timeZone:
-        typeof changes.timeZone === "string" && changes.timeZone
+        isValidTimeZone(changes.timeZone)
           ? changes.timeZone
           : current.preferences.timeZone,
       dailyCapacityMinutes: Number.isFinite(changes.dailyCapacityMinutes)
@@ -2390,6 +2491,7 @@ export function startNewSemesterInData(
     guitarSessions: [],
     reflections: [],
     modules: [],
+    moduleStudyLogs: [],
     algorithmLogs: [],
     applications: [],
     events: [],

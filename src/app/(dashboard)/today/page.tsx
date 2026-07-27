@@ -86,6 +86,7 @@ export default function TodayPage() {
     moveTask,
     goals,
     milestones,
+    modules,
     preferences,
     events = [],
     setTaskDailyPriority,
@@ -97,12 +98,16 @@ export default function TodayPage() {
   const [category, setCategory] = useState<GoalCategory>("academics");
   const [priority, setPriority] = useState<Task["priority"]>("medium");
   const [minutes, setMinutes] = useState("45");
+  const [plannedDate, setPlannedDate] = useState(today);
   const [deadline, setDeadline] = useState("");
   const [deadlineTime, setDeadlineTime] = useState("");
   const [startTime, setStartTime] = useState("");
   const [goalId, setGoalId] = useState("");
   const [milestoneId, setMilestoneId] = useState("");
+  const [moduleId, setModuleId] = useState("");
+  const [assessmentId, setAssessmentId] = useState("");
   const [requiredForMilestone, setRequiredForMilestone] = useState(false);
+  const [taskFormError, setTaskFormError] = useState("");
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
   const [focusRunning, setFocusRunning] = useState(false);
   const [focusAccumulatedSeconds, setFocusAccumulatedSeconds] = useState(0);
@@ -137,6 +142,24 @@ export default function TodayPage() {
         );
         if (!requestedTask) return;
         const shouldStart = search.get("start") === "true";
+        if (
+          focusedTaskId &&
+          focusedTaskId !== requestedTaskId &&
+          (focusRunning || focusAccumulatedSeconds > 0) &&
+          !window.confirm(
+            "A focus session is already active. Switch tasks and discard its current timer?",
+          )
+        ) {
+          search.delete("task");
+          search.delete("start");
+          const nextSearch = search.toString();
+          window.history.replaceState(
+            window.history.state,
+            "",
+            `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`,
+          );
+          return;
+        }
         if (!shouldStart && focusedTaskId !== requestedTaskId) {
           window.localStorage.removeItem(FOCUS_SESSION_KEY);
           setFocusAccumulatedSeconds(0);
@@ -196,7 +219,13 @@ export default function TodayPage() {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resolve:open-record", handleRecord);
     };
-  }, [focusedTaskId, tasks, updateTask]);
+  }, [
+    focusAccumulatedSeconds,
+    focusedTaskId,
+    focusRunning,
+    tasks,
+    updateTask,
+  ]);
 
   useEffect(() => {
     if (!focusedTaskId || !focusRunning) return;
@@ -287,15 +316,17 @@ export default function TodayPage() {
         log.habitId === habit.id && log.date === today && log.completed,
     ),
   ).length;
-  let habitStreak = 0;
-  for (let day = 0; day < 365; day += 1) {
-    const date = offsetDate(-day);
-    if (habitLogs.some((log) => log.date === date && log.completed)) {
-      habitStreak += 1;
-    } else {
-      break;
-    }
-  }
+  const habitTarget = habits.reduce(
+    (sum, habit) => sum + getHabitTargetCount(habit, weekDates),
+    0,
+  );
+  const habitCompletions = habits.reduce(
+    (sum, habit) =>
+      sum + getHabitCompletionCount(habit, habitLogs, weekDates),
+    0,
+  );
+  const habitStreak =
+    habitTarget > 0 && habitCompletions >= habitTarget ? 1 : 0;
   const state = {
     ...resolveCharacterState({
     tasksCompletedToday: complete,
@@ -313,22 +344,13 @@ export default function TodayPage() {
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!title.trim()) return;
-    const changes = {
-      title: title.trim(),
-      category,
-      priority,
-      scheduledDate: today,
-      schedule: {
-        date: today,
-        startTime: startTime || undefined,
-        estimatedMinutes: Number(minutes) || undefined,
-        timeZone: planningPreferences.timeZone,
-      },
-      deadline: deadline || undefined,
-      deadlineInfo: deadline
+    setTaskFormError("");
+    let deadlineInfo: Task["deadlineInfo"];
+    try {
+      deadlineInfo = deadline
         ? deadlineTime
           ? {
-              kind: "dateTime" as const,
+              kind: "dateTime",
               at: zonedLocalDateTimeToIso(
                 deadline,
                 deadlineTime,
@@ -336,11 +358,36 @@ export default function TodayPage() {
               ),
               timeZone: planningPreferences.timeZone,
             }
-          : { kind: "date" as const, date: deadline }
+          : { kind: "date", date: deadline }
+        : undefined;
+    } catch (caught) {
+      setTaskFormError(
+        caught instanceof Error
+          ? caught.message
+          : "The deadline time is invalid in this time zone.",
+      );
+      return;
+    }
+    const changes = {
+      title: title.trim(),
+      category,
+      priority,
+      scheduledDate: plannedDate || undefined,
+      schedule: plannedDate
+        ? {
+            date: plannedDate,
+            startTime: startTime || undefined,
+            estimatedMinutes: Number(minutes) || undefined,
+            timeZone: planningPreferences.timeZone,
+          }
         : undefined,
+      deadline: deadline || undefined,
+      deadlineInfo,
       estimatedMinutes: Number(minutes) || undefined,
       goalId: goalId || undefined,
       milestoneId: milestoneId || undefined,
+      moduleId: moduleId || undefined,
+      assessmentId: assessmentId || undefined,
       requiredForMilestone,
     } as const;
     if (editingTaskId) {
@@ -357,12 +404,16 @@ export default function TodayPage() {
     setCategory("academics");
     setPriority("medium");
     setMinutes("45");
+    setPlannedDate(today);
     setDeadline("");
     setDeadlineTime("");
     setStartTime("");
     setGoalId("");
     setMilestoneId("");
+    setModuleId("");
+    setAssessmentId("");
     setRequiredForMilestone(false);
+    setTaskFormError("");
     setEditingTaskId(null);
     setShowAdd(false);
   }
@@ -373,6 +424,7 @@ export default function TodayPage() {
     setCategory(task.category as GoalCategory);
     setPriority(task.priority);
     setMinutes(String(getTaskEstimatedMinutes(task) ?? 30));
+    setPlannedDate(getTaskScheduleDate(task) ?? "");
     const taskDeadline = getTaskDeadline(task);
     setDeadline(taskDeadline ? getDeadlineDateKey(taskDeadline) : "");
     setDeadlineTime(
@@ -381,6 +433,8 @@ export default function TodayPage() {
     setStartTime(task.schedule?.startTime ?? "");
     setGoalId(task.goalId ?? "");
     setMilestoneId(task.milestoneId ?? "");
+    setModuleId(task.moduleId ?? "");
+    setAssessmentId(task.assessmentId ?? "");
     setRequiredForMilestone(task.requiredForMilestone === true);
     setShowAdd(true);
     window.requestAnimationFrame(() => {
@@ -484,6 +538,20 @@ export default function TodayPage() {
                 className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
               >
                 <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Planned date{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (optional)
+                    </span>
+                  </span>
+                  <input
+                    className={fieldClassName}
+                    value={plannedDate}
+                    onChange={(event) => setPlannedDate(event.target.value)}
+                    type="date"
+                  />
+                </label>
+                <label className={alignedFieldLabelClassName}>
                   <span className="flex items-end">Task</span>
                   <input
                     className={fieldClassName}
@@ -557,7 +625,7 @@ export default function TodayPage() {
                     value={deadline}
                     onChange={(event) => setDeadline(event.target.value)}
                     type="date"
-                    min={today}
+                    min={editingTaskId ? undefined : today}
                   />
                 </label>
                 <label className={alignedFieldLabelClassName}>
@@ -605,6 +673,52 @@ export default function TodayPage() {
                   </select>
                 </label>
                 <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Academic module{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (optional)
+                    </span>
+                  </span>
+                  <select
+                    className={fieldClassName}
+                    value={moduleId}
+                    onChange={(event) => {
+                      setModuleId(event.target.value);
+                      setAssessmentId("");
+                    }}
+                  >
+                    <option value="">No linked module</option>
+                    {modules.map((moduleRecord) => (
+                      <option key={moduleRecord.id} value={moduleRecord.id}>
+                        {moduleRecord.code} · {moduleRecord.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
+                  <span className="flex items-end">
+                    Assessment{" "}
+                    <span className="ml-1 font-medium text-muted">
+                      (optional)
+                    </span>
+                  </span>
+                  <select
+                    className={fieldClassName}
+                    value={assessmentId}
+                    disabled={!moduleId}
+                    onChange={(event) => setAssessmentId(event.target.value)}
+                  >
+                    <option value="">No linked assessment</option>
+                    {modules
+                      .find((moduleRecord) => moduleRecord.id === moduleId)
+                      ?.assessments.map((assessment) => (
+                        <option key={assessment.id} value={assessment.id}>
+                          {assessment.title}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className={alignedFieldLabelClassName}>
                   <span className="flex items-end">Goal breakdown</span>
                   <select
                     className={fieldClassName}
@@ -642,6 +756,14 @@ export default function TodayPage() {
                 <Button type="submit" className="self-end">
                   {editingTaskId ? "Save task changes" : "Add to today"}
                 </Button>
+                {taskFormError && (
+                  <p
+                    className="text-sm font-semibold text-danger md:col-span-2"
+                    role="alert"
+                  >
+                    {taskFormError}
+                  </p>
+                )}
               </form>
             </CardContent>
           </Card>

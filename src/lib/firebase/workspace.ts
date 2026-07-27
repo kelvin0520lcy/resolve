@@ -7,7 +7,6 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
-  writeBatch,
 } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import {
@@ -19,6 +18,7 @@ import {
   CURRENT_WORKSPACE_SCHEMA_VERSION,
 } from "@/features/workspace/lib/migrations";
 import type { RecoverySnapshot } from "@/features/workspace/lib/recovery";
+import { hashWorkspace } from "@/features/workspace/lib/recovery";
 import type { ResolveData } from "@/features/workspace/types";
 
 export const WORKSPACE_COLLECTION = "workspaces";
@@ -273,109 +273,39 @@ export async function saveCloudSemesterArchive(
   userId: string,
   data: ResolveData,
 ) {
+  const database = getFirebaseDb();
   const reference = doc(
-    getFirebaseDb(),
+    database,
     WORKSPACE_COLLECTION,
     userId,
     "semesterArchives",
     data.semester.id,
   );
-  await setDoc(reference, {
-    userId,
-    schemaVersion: WORKSPACE_SCHEMA_VERSION,
-    semesterId: data.semester.id,
-    semesterName: data.semester.name,
-    archivedAt: serverTimestamp(),
-    data: serializable(data),
+  const archivedData = serializable(data);
+  const workspaceHash = hashWorkspace(archivedData);
+  return runTransaction(database, async (transaction) => {
+    const existing = await transaction.get(reference);
+    if (existing.exists()) {
+      const value = existing.data();
+      const existingHash =
+        typeof value.workspaceHash === "string"
+          ? value.workspaceHash
+          : hashWorkspace(value.data);
+      if (existingHash === workspaceHash) return { created: false };
+      throw new Error(
+        "This semester ID already has a different archive. Export a backup before retrying.",
+      );
+    }
+    transaction.set(reference, {
+      userId,
+      schemaVersion: WORKSPACE_SCHEMA_VERSION,
+      archiveVersion: 1,
+      semesterId: data.semester.id,
+      semesterName: data.semester.name,
+      workspaceHash,
+      archivedAt: serverTimestamp(),
+      data: archivedData,
+    });
+    return { created: true };
   });
-}
-
-export type CloudAccountDataBackup = {
-  workspace?: Record<string, unknown>;
-  profile?: Record<string, unknown>;
-  recovery: Array<{ id: string; data: Record<string, unknown> }>;
-  archives: Array<{ id: string; data: Record<string, unknown> }>;
-};
-
-export async function deleteCloudAccountData(
-  userId: string,
-): Promise<CloudAccountDataBackup> {
-  const database = getFirebaseDb();
-  const workspaceReference = doc(database, WORKSPACE_COLLECTION, userId);
-  const profileReference = doc(database, "users", userId);
-  const [workspace, profile, recovery, archives] = await Promise.all([
-    getDocFromServer(workspaceReference),
-    getDocFromServer(profileReference),
-    getDocs(recoveryCollection(userId)),
-    getDocs(
-      collection(
-        database,
-        WORKSPACE_COLLECTION,
-        userId,
-        "semesterArchives",
-      ),
-    ),
-  ]);
-  const deleteOperationCount = recovery.size + archives.size + 2;
-  if (deleteOperationCount > 500) {
-    throw new Error(
-      "This account has too many cloud archive documents to delete safely in one operation. Remove older archives and try again.",
-    );
-  }
-  const backup: CloudAccountDataBackup = {
-    workspace: workspace.exists()
-      ? (workspace.data() as Record<string, unknown>)
-      : undefined,
-    profile: profile.exists()
-      ? (profile.data() as Record<string, unknown>)
-      : undefined,
-    recovery: recovery.docs.map((snapshot) => ({
-      id: snapshot.id,
-      data: snapshot.data() as Record<string, unknown>,
-    })),
-    archives: archives.docs.map((archive) => ({
-      id: archive.id,
-      data: archive.data() as Record<string, unknown>,
-    })),
-  };
-  const batch = writeBatch(database);
-  recovery.docs.forEach((snapshot) => batch.delete(snapshot.ref));
-  archives.docs.forEach((archive) => batch.delete(archive.ref));
-  batch.delete(workspaceReference);
-  batch.delete(profileReference);
-  await batch.commit();
-  return backup;
-}
-
-export async function restoreCloudAccountData(
-  userId: string,
-  backup: CloudAccountDataBackup,
-) {
-  const database = getFirebaseDb();
-  const batch = writeBatch(database);
-  if (backup.workspace) {
-    batch.set(
-      doc(database, WORKSPACE_COLLECTION, userId),
-      backup.workspace,
-    );
-  }
-  if (backup.profile) {
-    batch.set(doc(database, "users", userId), backup.profile);
-  }
-  backup.recovery.forEach((snapshot) => {
-    batch.set(doc(recoveryCollection(userId), snapshot.id), snapshot.data);
-  });
-  backup.archives.forEach((archive) => {
-    batch.set(
-      doc(
-        database,
-        WORKSPACE_COLLECTION,
-        userId,
-        "semesterArchives",
-        archive.id,
-      ),
-      archive.data,
-    );
-  });
-  await batch.commit();
 }

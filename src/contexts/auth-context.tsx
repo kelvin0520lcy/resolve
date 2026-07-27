@@ -17,7 +17,6 @@ import {
   GoogleAuthProvider,
   sendPasswordResetEmail,
   updateProfile,
-  deleteUser,
   type User as FirebaseUser,
 } from "firebase/auth";
 import {
@@ -25,10 +24,6 @@ import {
   isFirebaseConfigured,
 } from "@/lib/firebase/config";
 import type { User } from "@/types";
-import {
-  deleteCloudAccountData,
-  restoreCloudAccountData,
-} from "@/lib/firebase/workspace";
 import { deleteLocalAccountData } from "@/features/workspace/lib/recovery";
 
 type AuthContextValue = {
@@ -171,19 +166,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             "For security, sign out and sign in again before deleting the account.",
           );
         }
-        const backup = await deleteCloudAccountData(activeUser.uid);
-        try {
-          await deleteUser(activeUser);
-        } catch (caught) {
-          try {
-            await restoreCloudAccountData(activeUser.uid, backup);
-          } catch {
-            throw new Error(
-              "Account deletion stopped, but Resolve could not automatically restore the cloud copy. Do not retry until you have exported your local workspace.",
-              { cause: caught },
-            );
-          }
-          throw caught;
+        const token = await activeUser.getIdToken(true);
+        const response = await fetch("/api/account/delete", {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+          },
+        });
+        const result = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(
+            result.error || "The account could not be deleted safely.",
+          );
         }
         await deleteLocalAccountData(activeUser.uid);
         setFirebaseUser(null);

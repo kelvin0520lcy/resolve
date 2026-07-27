@@ -1,6 +1,7 @@
 import { CURRENT_WORKSPACE_SCHEMA_VERSION } from "@/features/workspace/lib/migrations";
 import {
   getDerivedDeadlines,
+  isDeadlineActive,
   getTaskEstimatedMinutes,
   getTaskScheduleDate,
 } from "@/features/workspace/lib/deadlines";
@@ -322,6 +323,7 @@ export function workspaceToIcs(data: ResolveData) {
   }
 
   for (const deadline of getDerivedDeadlines(data)) {
+    if (!isDeadlineActive(deadline)) continue;
     addEvent([
       `UID:deadline-${deadline.id}@resolve`,
       `SUMMARY:${icsText(`Due: ${deadline.title}`)}`,

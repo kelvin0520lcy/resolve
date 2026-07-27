@@ -7,9 +7,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -36,7 +33,9 @@ import {
 } from "@/contexts/resolve-context";
 import {
   getTasksInRange,
-  getTrackedMinutesByCategory,
+  getActualMinutesByCategory,
+  getAverageGoalProgress,
+  getPlannedMinutesByCategory,
   type DateRange,
 } from "@/features/workspace/lib/analytics";
 import { parseLocalDate, toDateKey } from "@/lib/date";
@@ -111,16 +110,18 @@ export default function AnalyticsPage() {
         : 0,
     };
   });
-  const trackedMinutes = getTrackedMinutesByCategory(
+  const plannedByCategory = getPlannedMinutesByCategory(tasks, range);
+  const actualByCategory = getActualMinutesByCategory(
     tasks,
     guitarSessions,
     range,
   );
   const categoryTime = GOAL_CATEGORIES.map((category) => ({
     name: category.label,
-    value: trackedMinutes[category.id] ?? 0,
+    planned: plannedByCategory[category.id] ?? 0,
+    actual: actualByCategory[category.id] ?? 0,
     color: category.color,
-  })).filter((item) => item.value > 0);
+  })).filter((item) => item.planned > 0 || item.actual > 0);
   const plannedMinutes = periodTasks.reduce(
     (sum, task) => sum + (getTaskEstimatedMinutes(task) ?? 0),
     0,
@@ -132,35 +133,7 @@ export default function AnalyticsPage() {
     (sum, task) => sum + (task.actualMinutes ?? 0),
     0,
   );
-  const goalProgress = Math.round(
-    goals.reduce(
-      (sum, goal) => {
-        if (goal.status === "completed") return sum + 100;
-        const breakdown = milestones.filter(
-          (milestone) => milestone.goalId === goal.id,
-        );
-        const completed = breakdown.filter(
-          (milestone) => milestone.completed,
-        ).length;
-        if (breakdown.length) {
-          return sum + (completed / breakdown.length) * 100;
-        }
-        if (
-          goal.measurementType !== "manual" &&
-          goal.measurementType !== "milestone" &&
-          goal.targetValue !== undefined &&
-          goal.targetValue > 0
-        ) {
-          return (
-            sum +
-            Math.min(100, ((goal.currentValue ?? 0) / goal.targetValue) * 100)
-          );
-        }
-        return sum;
-      },
-      0,
-    ) / Math.max(goals.length, 1),
-  );
+  const goalProgress = getAverageGoalProgress(goals, milestones);
   const habitTarget = habits.reduce(
     (sum, habit) => sum + getHabitTargetCount(habit, rangeDates),
     0,
@@ -299,14 +272,18 @@ export default function AnalyticsPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <MetricCard
             label="Goal progress"
-            value={`${goalProgress}%`}
-            detail="average across semester goals"
+            value={goalProgress === undefined ? "N/A" : `${goalProgress}%`}
+            detail="average across active semester goals"
             icon={<Target className="h-5 w-5" />}
           />
           <MetricCard
             label="Habit consistency"
-            value={`${habitRate}%`}
-            detail={`${habitCompleted} of ${habitTarget} planned in this period`}
+            value={habitTarget ? `${habitRate}%` : "N/A"}
+            detail={
+              habitTarget
+                ? `${habitCompleted} of ${habitTarget} planned in this period`
+                : "No habit targets fall in this period"
+            }
             icon={<BarChart3 className="h-5 w-5" />}
           />
           <MetricCard
@@ -379,7 +356,7 @@ export default function AnalyticsPage() {
             <CardHeader>
               <CardTitle>Time by category</CardTitle>
               <CardDescription>
-                Estimated time is used when actual time is missing.
+                Planned estimates and actual logged time stay separate.
               </CardDescription>
             </CardHeader>
             <CardContent className="h-72">
@@ -388,41 +365,50 @@ export default function AnalyticsPage() {
                 <thead>
                   <tr>
                     <th>Category</th>
-                    <th>Minutes</th>
+                    <th>Planned minutes</th>
+                    <th>Actual minutes</th>
                   </tr>
                 </thead>
                 <tbody>
                   {categoryTime.map((item) => (
                     <tr key={item.name}>
                       <td>{item.name}</td>
-                      <td>{item.value}</td>
+                      <td>{item.planned}</td>
+                      <td>{item.actual}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               {categoryTime.length ? <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryTime}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={55}
-                    outerRadius={90}
-                    paddingAngle={3}
-                  >
-                    {categoryTime.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
+                <BarChart data={categoryTime}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="var(--border)"
+                  />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} unit="m" />
                   <Tooltip
-                    formatter={(value) => [`${value} min`, "Time"]}
+                    formatter={(value) => [`${value} min`]}
                     contentStyle={{
                       borderRadius: 12,
                       borderColor: "var(--border)",
                       background: "var(--surface-elevated)",
                     }}
                   />
-                </PieChart>
+                  <Bar
+                    dataKey="planned"
+                    name="Planned"
+                    fill="var(--accent)"
+                    radius={[6, 6, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="actual"
+                    name="Actual"
+                    fill="var(--success)"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
               </ResponsiveContainer> : (
                 <div className="flex h-full items-center">
                   <EmptyState

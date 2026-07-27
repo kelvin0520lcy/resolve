@@ -3,6 +3,7 @@ import {
   getTaskDeadline,
   getTaskEstimatedMinutes,
   getTaskScheduleDate,
+  zonedLocalDateTimeToIso,
 } from "@/features/workspace/lib/deadlines";
 import type { EventOccurrence } from "@/features/workspace/lib/events";
 import type { Task } from "@/types";
@@ -108,16 +109,41 @@ export function getScheduleConflicts(
   for (const task of activeTasks) {
     const scheduleDate = getTaskScheduleDate(task);
     const deadline = getTaskDeadline(task);
+    if (!scheduleDate || !deadline) continue;
+    let afterDeadline = scheduleDate > getDeadlineDateKey(deadline);
+    let message = `${task.title} is planned after its deadline.`;
     if (
-      scheduleDate &&
-      deadline &&
-      scheduleDate > getDeadlineDateKey(deadline)
+      !afterDeadline &&
+      deadline.kind === "dateTime" &&
+      scheduleDate === getDeadlineDateKey(deadline)
     ) {
+      if (!task.schedule?.startTime) {
+        afterDeadline = true;
+        message = `${task.title} is planned on its deadline day without a start time; add one to verify it finishes in time.`;
+      } else {
+        try {
+          const startsAt = zonedLocalDateTimeToIso(
+            scheduleDate,
+            task.schedule.startTime,
+            task.schedule.timeZone,
+          );
+          const duration = getTaskEstimatedMinutes(task) ?? 0;
+          afterDeadline =
+            Date.parse(startsAt) + duration * 60_000 >
+            Date.parse(deadline.at);
+          message = `${task.title} is planned to finish after its exact deadline.`;
+        } catch {
+          afterDeadline = true;
+          message = `${task.title} has an invalid local start time near a clock change.`;
+        }
+      }
+    }
+    if (afterDeadline) {
       conflicts.push({
         id: `after-deadline:${task.id}`,
         kind: "after_deadline",
         date: scheduleDate,
-        message: `${task.title} is planned after its deadline.`,
+        message,
         sourceIds: [task.id],
       });
     }

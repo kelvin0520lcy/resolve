@@ -1,5 +1,7 @@
 import type {
+  Goal,
   GuitarPracticeSession,
+  Milestone,
   ModuleStudyLog,
   Task,
   WorkspaceEvent,
@@ -100,15 +102,104 @@ export function getModuleStudyMinutes(
   const taskMinutes = tasks
     .filter(
       (task) =>
-        task.origin?.kind === "assessment-preparation" &&
-        task.origin.moduleId === moduleId &&
+        (task.moduleId === moduleId ||
+          (task.origin?.kind === "assessment-preparation" &&
+            task.origin.moduleId === moduleId)) &&
         task.status === "completed" &&
-        getTaskScheduleDate(task) !== undefined &&
-        getTaskScheduleDate(task)! >= range.startDate &&
-        getTaskScheduleDate(task)! <= range.endDate,
+        (task.completedAt?.slice(0, 10) ?? getTaskScheduleDate(task)) !==
+          undefined &&
+        (task.completedAt?.slice(0, 10) ?? getTaskScheduleDate(task))! >=
+          range.startDate &&
+        (task.completedAt?.slice(0, 10) ?? getTaskScheduleDate(task))! <=
+          range.endDate,
     )
     .reduce((sum, task) => sum + (task.actualMinutes ?? 0), 0);
   return manualMinutes + taskMinutes;
+}
+
+export function getPlannedMinutesByCategory(
+  tasks: Task[],
+  range?: DateRange,
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const task of range ? getTasksInRange(tasks, range) : tasks) {
+    totals[task.category] =
+      (totals[task.category] ?? 0) + (getTaskEstimatedMinutes(task) ?? 0);
+  }
+  return totals;
+}
+
+export function getActualMinutesByCategory(
+  tasks: Task[],
+  guitarSessions: GuitarPracticeSession[],
+  range?: DateRange,
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const task of tasks) {
+    if (["cancelled", "skipped"].includes(task.status)) continue;
+    const activityDate =
+      task.completedAt?.slice(0, 10) ?? getTaskScheduleDate(task);
+    if (
+      range &&
+      (!activityDate ||
+        activityDate < range.startDate ||
+        activityDate > range.endDate)
+    ) {
+      continue;
+    }
+    if (task.actualMinutes) {
+      totals[task.category] =
+        (totals[task.category] ?? 0) + task.actualMinutes;
+    }
+  }
+  for (const session of guitarSessions) {
+    if (
+      range &&
+      (session.date < range.startDate || session.date > range.endDate)
+    ) {
+      continue;
+    }
+    totals.guitar = (totals.guitar ?? 0) + session.durationMinutes;
+  }
+  return totals;
+}
+
+export function getAverageGoalProgress(
+  goals: Goal[],
+  milestones: Milestone[],
+) {
+  const relevantGoals = goals.filter(
+    (goal) => !["paused", "abandoned"].includes(goal.status),
+  );
+  if (!relevantGoals.length) return undefined;
+  const total = relevantGoals.reduce((sum, goal) => {
+    if (goal.status === "completed") return sum + 100;
+    if (goal.measurementType === "milestone") {
+      const breakdown = milestones.filter(
+        (milestone) => milestone.goalId === goal.id,
+      );
+      return (
+        sum +
+        (breakdown.length
+          ? (breakdown.filter((milestone) => milestone.completed).length /
+              breakdown.length) *
+            100
+          : 0)
+      );
+    }
+    if (
+      goal.measurementType !== "manual" &&
+      goal.targetValue !== undefined &&
+      goal.targetValue > 0
+    ) {
+      return (
+        sum +
+        Math.min(100, ((goal.currentValue ?? 0) / goal.targetValue) * 100)
+      );
+    }
+    return sum;
+  }, 0);
+  return Math.round(total / relevantGoals.length);
 }
 
 export function getTrackedMinutesByCategory(

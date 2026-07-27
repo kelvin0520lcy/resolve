@@ -79,7 +79,7 @@ export default function LandingPage() {
             </Link>
           </div>
           <Link href="/signup" className={buttonVariants({ size: "sm" })}>
-            Start the arc
+            Create account
           </Link>
         </div>
       </header>
@@ -142,7 +142,7 @@ export default function LandingPage() {
                   })}
                 >
                   <Play className="h-4 w-4 fill-current" />
-                  Start planning
+                  Create account
                   <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
                 </Link>
                 <Link
@@ -352,7 +352,7 @@ export default function LandingPage() {
                   className: "mt-9 self-start",
                 })}
               >
-                Start episode one
+                Create account
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>

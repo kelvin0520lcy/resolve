@@ -696,6 +696,12 @@ export function normalizeStoredData(
         milestoneIds.has(task.milestoneId)
           ? task.milestoneId
           : undefined,
+      moduleId:
+        typeof task.moduleId === "string" ? task.moduleId : undefined,
+      assessmentId:
+        typeof task.assessmentId === "string"
+          ? task.assessmentId
+          : undefined,
       createdAt:
         typeof task.createdAt === "string" ? task.createdAt : "",
       updatedAt:

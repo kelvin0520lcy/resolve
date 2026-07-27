@@ -31,9 +31,19 @@ import {
 } from "@/components/ui/resolve";
 import { useResolve } from "@/contexts/resolve-context";
 import { useAuth } from "@/contexts/auth-context";
-import { isDateKey, offsetDate } from "@/lib/date";
+import { isDateKey, isValidTimeZone, offsetDate } from "@/lib/date";
 import type { Semester } from "@/types";
 import type { RecoverySnapshot } from "@/features/workspace/lib/recovery";
+import { useDialogFocus } from "@/hooks/use-dialog-focus";
+
+type BuildInfo = {
+  version: string;
+  commit: string;
+  builtAt: string;
+  environment: string;
+  schemaVersion: number;
+  deploymentId: string;
+};
 
 export default function SettingsPage() {
   const { deleteAccount, isConfigured } = useAuth();
@@ -84,6 +94,13 @@ export default function SettingsPage() {
   );
   const [nextStartDate, setNextStartDate] = useState(offsetDate(1));
   const [nextEndDate, setNextEndDate] = useState(offsetDate(113));
+  const [timeZoneDraft, setTimeZoneDraft] = useState(preferences.timeZone);
+  const [timeZoneError, setTimeZoneError] = useState("");
+  const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
+  const importDialogRef = useDialogFocus<HTMLDivElement>(
+    Boolean(pendingImport),
+    () => setPendingImport(null),
+  );
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setDraft(semester));
@@ -95,6 +112,15 @@ export default function SettingsPage() {
       .then(setRecoverySnapshots)
       .catch(() => setRecoverySnapshots([]));
   }, [listRecoverySnapshots]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/version", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((value: BuildInfo | null) => setBuildInfo(value))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   async function importFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -481,14 +507,41 @@ export default function SettingsPage() {
                   Workspace time zone
                   <input
                     className={`${fieldClassName} mt-2`}
-                    value={preferences.timeZone}
-                    onChange={(event) =>
-                      updateWorkspacePreferences({
-                        timeZone: event.target.value,
-                      })
-                    }
+                    value={timeZoneDraft}
+                    onChange={(event) => {
+                      setTimeZoneDraft(event.target.value);
+                      setTimeZoneError("");
+                    }}
+                    aria-describedby="timezone-help timezone-error"
                   />
                 </label>
+                <p id="timezone-help" className="text-[11px] leading-5 text-muted">
+                  Use an IANA name such as Asia/Kuala_Lumpur or Europe/London.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    const candidate = timeZoneDraft.trim();
+                    if (!isValidTimeZone(candidate)) {
+                      setTimeZoneError(
+                        "Enter a valid IANA time zone before saving.",
+                      );
+                      return;
+                    }
+                    updateWorkspacePreferences({ timeZone: candidate });
+                    setTimeZoneDraft(candidate);
+                    setTimeZoneError("");
+                  }}
+                >
+                  Save time zone
+                </Button>
+                {timeZoneError && (
+                  <p id="timezone-error" className="text-xs text-danger" role="alert">
+                    {timeZoneError}
+                  </p>
+                )}
                 <label className="block text-xs font-bold">
                   Daily planning capacity (minutes)
                   <input
@@ -603,8 +656,13 @@ export default function SettingsPage() {
                 )}
                 {pendingImport && (
                   <div
-                    className="rounded-xl border border-warning/40 bg-warning/5 p-3"
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-[#17111f]/70 p-4 backdrop-blur-sm"
+                  >
+                  <div
+                    ref={importDialogRef}
+                    className="w-full max-w-md rounded-2xl border border-warning/40 bg-surface-elevated p-5 shadow-2xl"
                     role="dialog"
+                    aria-modal="true"
                     aria-label="Confirm workspace import"
                   >
                     <p className="text-xs font-black">
@@ -642,6 +700,7 @@ export default function SettingsPage() {
                         Cancel
                       </Button>
                     </div>
+                  </div>
                   </div>
                 )}
                 {recoverySnapshots.length > 0 && (
@@ -889,6 +948,14 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+        {buildInfo && (
+          <p className="text-center text-[10px] font-bold uppercase tracking-wider text-muted">
+            Resolve {buildInfo.version} · {buildInfo.environment} ·{" "}
+            {buildInfo.commit.slice(0, 8)} · built{" "}
+            {new Date(buildInfo.builtAt).toLocaleString()} · schema{" "}
+            {buildInfo.schemaVersion}
+          </p>
+        )}
       </div>
     </PageShell>
   );

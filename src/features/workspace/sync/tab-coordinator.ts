@@ -8,6 +8,7 @@ export type WorkspaceTabMessage<T = unknown> = {
   type: "workspace-change" | "sync-complete" | "sync-request";
   tabId: string;
   payload?: T;
+  messageId?: string;
 };
 
 const HEARTBEAT_MS = 2_000;
@@ -29,6 +30,7 @@ export class TabSyncCoordinator<T = unknown> {
   readonly tabId: string;
   private readonly channelName: string;
   private readonly leaseKey: string;
+  private readonly messageKey: string;
   private channel: BroadcastChannel | null = null;
   private timer: number | null = null;
   private stopped = true;
@@ -36,11 +38,14 @@ export class TabSyncCoordinator<T = unknown> {
   private leadershipHandler: (leader: boolean) => void = () => {};
   private messageHandler: (message: WorkspaceTabMessage<T>) => void = () => {};
   private leader = false;
+  private readonly seenMessageIds = new Set<string>();
+  private storageHandler: ((event: StorageEvent) => void) | null = null;
 
   constructor(identity: string, tabId = createTabId()) {
     this.tabId = tabId;
     this.channelName = `resolve-sync:${identity}`;
     this.leaseKey = `resolve-sync-leader:${identity}`;
+    this.messageKey = `resolve-sync-message:${identity}`;
   }
 
   start(
@@ -53,14 +58,39 @@ export class TabSyncCoordinator<T = unknown> {
     if (typeof BroadcastChannel !== "undefined") {
       this.channel = new BroadcastChannel(this.channelName);
       this.channel.onmessage = (event: MessageEvent<WorkspaceTabMessage<T>>) => {
-        if (event.data?.tabId !== this.tabId) this.messageHandler(event.data);
+        this.receive(event.data);
       };
+    } else {
+      this.storageHandler = (event) => {
+        if (event.key !== this.messageKey || !event.newValue) return;
+        try {
+          this.receive(
+            JSON.parse(event.newValue) as WorkspaceTabMessage<T>,
+          );
+        } catch {
+          // Ignore malformed messages from obsolete application versions.
+        }
+      };
+      window.addEventListener("storage", this.storageHandler);
     }
     this.scheduleElection(0);
   }
 
   publish(message: Omit<WorkspaceTabMessage<T>, "tabId">) {
-    this.channel?.postMessage({ ...message, tabId: this.tabId });
+    const envelope: WorkspaceTabMessage<T> = {
+      ...message,
+      tabId: this.tabId,
+      messageId: crypto.randomUUID(),
+    };
+    if (this.channel) {
+      this.channel.postMessage(envelope);
+      return;
+    }
+    try {
+      window.localStorage.setItem(this.messageKey, JSON.stringify(envelope));
+    } catch {
+      // Leadership already falls back to per-tab sync if storage is blocked.
+    }
   }
 
   requestSync() {
@@ -71,6 +101,19 @@ export class TabSyncCoordinator<T = unknown> {
     if (this.leader === leader) return;
     this.leader = leader;
     this.leadershipHandler(leader);
+  }
+
+  private receive(message: WorkspaceTabMessage<T>) {
+    if (!message || message.tabId === this.tabId) return;
+    if (message.messageId) {
+      if (this.seenMessageIds.has(message.messageId)) return;
+      this.seenMessageIds.add(message.messageId);
+      if (this.seenMessageIds.size > 100) {
+        const oldest = this.seenMessageIds.values().next().value;
+        if (oldest) this.seenMessageIds.delete(oldest);
+      }
+    }
+    this.messageHandler(message);
   }
 
   private scheduleElection(delay = HEARTBEAT_MS) {
@@ -139,7 +182,11 @@ export class TabSyncCoordinator<T = unknown> {
     if (this.stopped) return;
     try {
       if (typeof navigator !== "undefined" && navigator.locks) {
-        await this.electWithWebLocks();
+        try {
+          await this.electWithWebLocks();
+        } catch {
+          this.electWithLease();
+        }
       } else {
         this.electWithLease();
       }
@@ -167,5 +214,9 @@ export class TabSyncCoordinator<T = unknown> {
     this.setLeader(false);
     this.channel?.close();
     this.channel = null;
+    if (this.storageHandler) {
+      window.removeEventListener("storage", this.storageHandler);
+      this.storageHandler = null;
+    }
   }
 }

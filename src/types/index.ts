@@ -147,6 +147,8 @@ export type Task = {
   semesterId: string;
   goalId?: string;
   milestoneId?: string;
+  moduleId?: string;
+  assessmentId?: string;
   title: string;
   description?: string;
   category: string;
