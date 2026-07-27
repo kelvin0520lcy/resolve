@@ -1526,6 +1526,7 @@ describe("top-level record removal", () => {
               ...task,
               goalId: "goal-career",
               milestoneId: "milestone-1",
+              requiredForMilestone: true,
             }
           : task,
       ),
@@ -1537,6 +1538,7 @@ describe("top-level record removal", () => {
     expect(next.tasks[0]).toMatchObject({
       goalId: undefined,
       milestoneId: undefined,
+      requiredForMilestone: false,
       updatedAt: META.timestamp,
     });
     const removedWithTasks = removeGoalFromData(

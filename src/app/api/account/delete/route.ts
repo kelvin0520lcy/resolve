@@ -1,10 +1,11 @@
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const RECENT_AUTH_SECONDS = 5 * 60;
+export const DELETION_TOMBSTONE_RETENTION_MS = 2 * 60 * 60 * 1_000;
 
 function bearerToken(request: Request) {
   const authorization = request.headers.get("authorization");
@@ -75,10 +76,25 @@ export async function POST(request: Request) {
     await db.recursiveDelete(db.collection("workspaces").doc(decoded.uid));
     await db.collection("users").doc(decoded.uid).delete();
     await auth.deleteUser(decoded.uid);
-    // Authentication is the final irreversible step. Marker cleanup is best
-    // effort after that point: a stale marker is safe, while reporting failure
-    // would leave the client waiting on an account that no longer exists.
-    await marker.delete().catch(() => undefined);
+    // Keep the write-blocking marker after authentication is deleted. This
+    // closes the window in which another open tab could recreate cloud data
+    // using a client-side token that has not noticed the deletion yet.
+    // Firestore TTL may be configured against expiresAt; without TTL, the
+    // permanent tombstone is the safer failure mode.
+    await marker
+      .set(
+        {
+          userId: decoded.uid,
+          status: "deleted",
+          deletedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromMillis(
+            Date.now() + DELETION_TOMBSTONE_RETENTION_MS,
+          ),
+        },
+        { merge: true },
+      )
+      .catch(() => undefined);
 
     return Response.json({ deleted: true });
   } catch (caught) {

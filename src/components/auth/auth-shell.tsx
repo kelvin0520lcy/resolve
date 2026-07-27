@@ -52,6 +52,21 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             RESOLVE<span className="text-accent">!</span>
           </Link>
           {children}
+          <div className="mt-5 text-center text-[11px] leading-5 text-muted">
+            <p>
+              <Link href="/privacy" className="font-bold hover:text-accent">
+                Privacy
+              </Link>
+              {" · "}
+              <Link href="/terms" className="font-bold hover:text-accent">
+                Terms
+              </Link>
+            </p>
+            <p className="mt-2">
+              Unofficial, non-commercial fan project. Not affiliated with
+              Bocchi the Rock! or its rights holders.
+            </p>
+          </div>
         </div>
       </main>
     </div>

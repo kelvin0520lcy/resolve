@@ -280,7 +280,7 @@ test("all private pages render a populated workspace without runtime failures", 
   ] as const;
 
   for (const [route, expectedContent] of routesAndContent) {
-    const response = await page.goto(route, { waitUntil: "networkidle" });
+    const response = await page.goto(route, { waitUntil: "load" });
     expect(response?.status(), `${route} returned an HTTP error`).toBeLessThan(400);
     await expect(page.locator("body")).toContainText(expectedContent);
     const overflow = await page.evaluate(

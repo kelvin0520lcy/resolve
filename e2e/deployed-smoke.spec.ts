@@ -14,6 +14,23 @@ test("deployed landing page and build identity are healthy", async ({
   });
 
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Create account" }).first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
+  const createAccountLinks = page.getByRole("link", { name: "Create account" });
+  await expect(createAccountLinks.first()).toBeVisible();
+  const signInLinks = page.getByRole("link", { name: "Sign in" });
+  await expect(signInLinks.first()).toBeVisible();
+  expect(await createAccountLinks.evaluateAll((links) =>
+    links.map((link) => link.getAttribute("href")),
+  )).toEqual(["/signup", "/signup", "/signup"]);
+  expect(await signInLinks.evaluateAll((links) =>
+    links.map((link) => link.getAttribute("href")),
+  )).toEqual(["/login", "/login"]);
+
+  await expect(page.getByRole("link", { name: "Privacy" })).toHaveAttribute(
+    "href",
+    "/privacy",
+  );
+  await expect(page.getByRole("link", { name: "Terms" })).toHaveAttribute(
+    "href",
+    "/terms",
+  );
 });

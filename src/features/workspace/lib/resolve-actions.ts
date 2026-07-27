@@ -820,6 +820,7 @@ export function removeGoalFromData(
                   ...task,
                   goalId: undefined,
                   milestoneId: undefined,
+                  requiredForMilestone: false,
                   updatedAt: timestamp,
                 }
               : task,
@@ -2410,17 +2411,19 @@ export function updateWorkspacePreferencesInData(
       autoNextAction:
         changes.autoNextAction ?? current.preferences.autoNextAction,
       pinnedTaskId:
-        changes.pinnedTaskId === undefined
-          ? current.preferences.pinnedTaskId
-          : current.tasks.some((task) => task.id === changes.pinnedTaskId)
+        hasOwn(changes, "pinnedTaskId")
+          ? changes.pinnedTaskId &&
+            current.tasks.some((task) => task.id === changes.pinnedTaskId)
             ? changes.pinnedTaskId
-            : undefined,
+            : undefined
+          : current.preferences.pinnedTaskId,
       hiddenRecommendationDate:
-        changes.hiddenRecommendationDate === undefined
-          ? current.preferences.hiddenRecommendationDate
-          : isDateKey(changes.hiddenRecommendationDate)
+        hasOwn(changes, "hiddenRecommendationDate")
+          ? changes.hiddenRecommendationDate &&
+            isDateKey(changes.hiddenRecommendationDate)
             ? changes.hiddenRecommendationDate
-            : undefined,
+            : undefined
+          : current.preferences.hiddenRecommendationDate,
     },
   };
 }

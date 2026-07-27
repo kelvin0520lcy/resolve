@@ -20,6 +20,7 @@ const authMocks = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
   deleteLocalAccountData: vi.fn(),
   getIdToken: vi.fn(),
+  signOut: vi.fn(),
   fetch: vi.fn(),
 }));
 
@@ -37,7 +38,7 @@ vi.mock("firebase/auth", () => ({
   ),
   signInWithEmailAndPassword: vi.fn(),
   createUserWithEmailAndPassword: vi.fn(),
-  signOut: vi.fn(),
+  signOut: authMocks.signOut,
   signInWithPopup: vi.fn(),
   GoogleAuthProvider: class GoogleAuthProvider {},
   sendPasswordResetEmail: vi.fn(),
@@ -92,6 +93,7 @@ beforeEach(() => {
   authMocks.unsubscribe.mockClear();
   authMocks.deleteLocalAccountData.mockReset();
   authMocks.getIdToken.mockReset();
+  authMocks.signOut.mockReset();
   authMocks.fetch.mockReset();
   authMocks.getIdToken.mockResolvedValue("fresh-token");
   authMocks.fetch.mockResolvedValue(
@@ -101,6 +103,7 @@ beforeEach(() => {
     }),
   );
   authMocks.deleteLocalAccountData.mockResolvedValue(undefined);
+  authMocks.signOut.mockResolvedValue(undefined);
   vi.stubGlobal("fetch", authMocks.fetch);
 });
 
@@ -201,7 +204,37 @@ describe("AuthProvider mobile bootstrap recovery", () => {
       method: "POST",
       headers: { authorization: "Bearer fresh-token" },
     });
+    expect(authMocks.signOut).toHaveBeenCalled();
     expect(authMocks.deleteLocalAccountData).toHaveBeenCalledWith("delete-user");
+  });
+
+  it("still clears local data when the deleted Firebase session rejects sign-out", async () => {
+    authMocks.currentUser = {
+      uid: "already-deleted-user",
+      displayName: "Deleted User",
+      email: "deleted@example.com",
+      photoURL: null,
+      metadata: { lastSignInTime: new Date().toISOString() },
+      getIdToken: authMocks.getIdToken,
+    };
+    authMocks.signOut.mockRejectedValue(new Error("user-not-found"));
+    render(
+      <AuthProvider>
+        <DeleteAccountHarness />
+      </AuthProvider>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("deleted")).toBeInTheDocument();
+    expect(authMocks.deleteLocalAccountData).toHaveBeenCalledWith(
+      "already-deleted-user",
+    );
   });
 
   it("preserves local records when trusted deletion does not finish", async () => {

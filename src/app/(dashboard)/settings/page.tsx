@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import Link from "next/link";
 import {
   Archive,
   CalendarDays,
@@ -946,6 +947,36 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Privacy and terms</CardTitle>
+                <CardDescription>
+                  Review how your workspace is handled or contact the
+                  maintainer.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-xs leading-5 text-muted">
+                <div className="flex flex-wrap gap-3 font-bold">
+                  <Link href="/privacy" className="text-accent hover:underline">
+                    Privacy Policy
+                  </Link>
+                  <Link href="/terms" className="text-accent hover:underline">
+                    Terms of Use
+                  </Link>
+                  <a
+                    href="https://github.com/kelvin0520lcy/resolve/issues"
+                    className="text-accent hover:underline"
+                  >
+                    Contact
+                  </a>
+                </div>
+                <p>
+                  Resolve! is an unofficial, non-commercial fan project and is
+                  not affiliated with Bocchi the Rock! or its rights holders.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
         {buildInfo && (

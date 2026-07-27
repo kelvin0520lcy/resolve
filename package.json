@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc -p tsconfig.check.json --noEmit",
     "test": "vitest run",
     "test:rules": "env XDG_CONFIG_HOME=.firebase-config FIREBASE_CLI_DISABLE_UPDATE_CHECK=true firebase emulators:exec --only firestore \"vitest run tests/firestore-rules.test.ts\"",
     "test:watch": "vitest",

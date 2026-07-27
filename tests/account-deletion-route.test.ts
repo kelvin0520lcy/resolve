@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const adminMocks = vi.hoisted(() => {
   const marker = {
     set: vi.fn(),
-    delete: vi.fn(),
   };
   const workspace = { path: "workspaces/user-1" };
   const profile = { delete: vi.fn() };
@@ -31,7 +30,10 @@ vi.mock("@/lib/firebase/admin", () => ({
   }),
 }));
 
-import { POST } from "@/app/api/account/delete/route";
+import {
+  DELETION_TOMBSTONE_RETENTION_MS,
+  POST,
+} from "@/app/api/account/delete/route";
 
 function request(token = "token") {
   return new Request("http://localhost/api/account/delete", {
@@ -47,7 +49,6 @@ beforeEach(() => {
     auth_time: Math.floor(Date.now() / 1_000),
   });
   adminMocks.marker.set.mockResolvedValue(undefined);
-  adminMocks.marker.delete.mockResolvedValue(undefined);
   adminMocks.db.recursiveDelete.mockResolvedValue(undefined);
   adminMocks.profile.delete.mockResolvedValue(undefined);
   adminMocks.auth.deleteUser.mockResolvedValue(undefined);
@@ -81,17 +82,25 @@ describe("trusted account deletion", () => {
     expect(adminMocks.marker.set).not.toHaveBeenCalled();
   });
 
-  it("locks writes, recursively removes data, and then removes authentication", async () => {
+  it("locks writes, removes the account, and retains a deletion tombstone", async () => {
+    const startedAt = Date.now();
     const response = await POST(request());
 
     expect(response.status).toBe(200);
-    expect(adminMocks.marker.set).toHaveBeenCalled();
+    expect(adminMocks.marker.set).toHaveBeenCalledTimes(2);
     expect(adminMocks.db.recursiveDelete).toHaveBeenCalledWith(
       adminMocks.workspace,
     );
     expect(adminMocks.profile.delete).toHaveBeenCalled();
     expect(adminMocks.auth.deleteUser).toHaveBeenCalledWith("user-1");
-    expect(adminMocks.marker.delete).toHaveBeenCalled();
+    const finalMarker = adminMocks.marker.set.mock.calls[1]?.[0];
+    expect(finalMarker).toMatchObject({
+      userId: "user-1",
+      status: "deleted",
+    });
+    expect(finalMarker.expiresAt.toMillis()).toBeGreaterThanOrEqual(
+      startedAt + DELETION_TOMBSTONE_RETENTION_MS,
+    );
     expect(
       adminMocks.marker.set.mock.invocationCallOrder[0],
     ).toBeLessThan(adminMocks.db.recursiveDelete.mock.invocationCallOrder[0]);
@@ -106,15 +115,18 @@ describe("trusted account deletion", () => {
     const response = await POST(request());
 
     expect(response.status).toBe(500);
-    expect(adminMocks.marker.delete).not.toHaveBeenCalled();
+    expect(adminMocks.marker.set).toHaveBeenCalledTimes(1);
     expect(adminMocks.auth.deleteUser).not.toHaveBeenCalled();
   });
 
-  it("reports success when only post-auth marker cleanup fails", async () => {
-    adminMocks.marker.delete.mockRejectedValue(new Error("already gone"));
+  it("reports success when only the final tombstone update fails", async () => {
+    adminMocks.marker.set
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("write interrupted"));
 
     const response = await POST(request());
 
     expect(response.status).toBe(200);
+    expect(adminMocks.marker.set).toHaveBeenCalledTimes(2);
   });
 });

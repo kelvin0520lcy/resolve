@@ -181,6 +181,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             result.error || "The account could not be deleted safely.",
           );
         }
+        // The server has already removed the Firebase user, so sign-out can
+        // reject while clearing the now-stale browser session. Local cleanup
+        // must still continue after that expected failure.
+        await firebaseSignOut(getFirebaseAuth()).catch(() => undefined);
         await deleteLocalAccountData(activeUser.uid);
         setFirebaseUser(null);
         setUser(null);

@@ -103,6 +103,33 @@ describe("post-audit data integrity", () => {
     ).toBe(data);
   });
 
+  it("distinguishes omitted recommendation preferences from explicit clearing", () => {
+    const data = addTaskToData(
+      createEmptyData("user-1"),
+      {
+        title: "Pinned next action",
+        category: "personal",
+        priority: "medium",
+      },
+      META,
+    );
+    data.preferences.pinnedTaskId = META.id;
+    data.preferences.hiddenRecommendationDate = "2026-07-27";
+
+    const unchanged = updateWorkspacePreferencesInData(data, {
+      autoNextAction: false,
+    });
+    expect(unchanged.preferences.pinnedTaskId).toBe(META.id);
+    expect(unchanged.preferences.hiddenRecommendationDate).toBe("2026-07-27");
+
+    const cleared = updateWorkspacePreferencesInData(data, {
+      pinnedTaskId: undefined,
+      hiddenRecommendationDate: undefined,
+    });
+    expect(cleared.preferences.pinnedTaskId).toBeUndefined();
+    expect(cleared.preferences.hiddenRecommendationDate).toBeUndefined();
+  });
+
   it("rejects a nonexistent local time during a daylight-saving jump", () => {
     expect(() =>
       zonedLocalDateTimeToIso(

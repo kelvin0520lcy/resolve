@@ -5,6 +5,8 @@ const routes = [
   "/login",
   "/signup",
   "/reset-password",
+  "/privacy",
+  "/terms",
   "/dashboard",
   "/today",
   "/weekly",
@@ -55,7 +57,7 @@ function monitorRuntime(page: Page) {
 for (const route of routes) {
   test(`${route} loads without runtime or layout failures`, async ({ page }) => {
     const runtimeErrors = monitorRuntime(page);
-    const response = await page.goto(route, { waitUntil: "networkidle" });
+    const response = await page.goto(route, { waitUntil: "load" });
 
     expect(response, `No navigation response was returned for ${route}`).not.toBeNull();
     expect(response?.status(), `${route} returned an HTTP error`).toBeLessThan(400);

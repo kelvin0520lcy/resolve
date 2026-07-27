@@ -347,7 +347,7 @@ export default function LandingPage() {
                 })}
               </div>
               <Link
-                href="/dashboard"
+                href="/signup"
                 className={buttonVariants({
                   className: "mt-9 self-start",
                 })}
@@ -360,8 +360,28 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t-2 border-border px-5 py-8 text-center text-[10px] font-black uppercase tracking-[0.18em] text-muted">
-        Resolve! · made for the practice days nobody applauds
+      <footer className="border-t-2 border-border px-5 py-8 text-center text-[11px] leading-6 text-muted">
+        <p className="font-black uppercase tracking-[0.18em]">
+          Resolve! · made for the practice days nobody applauds
+        </p>
+        <p className="mx-auto mt-3 max-w-3xl">
+          Unofficial, non-commercial fan project. Not affiliated with, endorsed
+          by, or sponsored by Bocchi the Rock! or its rights holders.
+        </p>
+        <div className="mt-3 flex justify-center gap-4 font-bold">
+          <Link href="/privacy" className="hover:text-accent">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-accent">
+            Terms
+          </Link>
+          <a
+            href="https://github.com/kelvin0520lcy/resolve/issues"
+            className="hover:text-accent"
+          >
+            Contact
+          </a>
+        </div>
       </footer>
     </div>
   );
