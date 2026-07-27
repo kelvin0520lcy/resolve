@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { reportOperationalEvent } from "@/lib/monitoring/client-events";
 
 export default function ErrorPage({
   error,
@@ -11,6 +13,13 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   unstable_retry: () => void;
 }) {
+  useEffect(() => {
+    void reportOperationalEvent("client_runtime_error", {
+      errorName: error.name,
+      digest: error.digest,
+    });
+  }, [error]);
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <section
@@ -25,7 +34,7 @@ export default function ErrorPage({
         </p>
         <h1
           id="error-title"
-          className="font-display mt-2 text-4xl tracking-wide text-[#18121f]"
+          className="mt-2 font-display text-4xl tracking-wide text-[#18121f]"
         >
           This scene missed its cue
         </h1>

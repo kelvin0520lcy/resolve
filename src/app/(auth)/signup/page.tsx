@@ -30,7 +30,9 @@ export default function SignUpPage() {
 
   useEffect(() => {
     if (!loading && firebaseUser) {
-      router.replace("/dashboard");
+      router.replace(
+        firebaseUser.emailVerified ? "/dashboard" : "/verify-email",
+      );
     }
   }, [firebaseUser, loading, router]);
 
@@ -112,6 +114,23 @@ export default function SignUpPage() {
             )}
             <p className="text-xs text-muted">
               Use at least eight characters for your password.
+            </p>
+            <p className="text-xs leading-5 text-muted">
+              By creating an account, you agree to the{" "}
+              <Link
+                href="/terms"
+                className="font-semibold text-accent underline underline-offset-2"
+              >
+                Terms of Use
+              </Link>{" "}
+              and acknowledge the{" "}
+              <Link
+                href="/privacy"
+                className="font-semibold text-accent underline underline-offset-2"
+              >
+                Privacy Policy
+              </Link>
+              .
             </p>
             <Button
               type="submit"

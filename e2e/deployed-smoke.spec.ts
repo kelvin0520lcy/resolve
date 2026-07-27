@@ -18,6 +18,16 @@ test("deployed landing page and build identity are healthy", async ({
     expect(build.commit.startsWith(expectedCommit)).toBe(true);
   }
 
+  const health = await request.get("/api/health");
+  expect(health.ok()).toBe(true);
+  await expect(health.json()).resolves.toMatchObject({
+    status: "ok",
+    checks: {
+      configuration: true,
+      firebaseAdmin: true,
+    },
+  });
+
   await page.goto("/");
   await expect(page.getByText("Semester live house · public beta")).toBeVisible();
   const createAccountLinks = page.getByRole("link", { name: "Create account" });

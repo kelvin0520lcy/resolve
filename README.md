@@ -8,7 +8,7 @@ Anime-themed semester planning, progress tracking, and self-improvement web app.
 
 - **Next.js 16** (App Router, TypeScript)
 - **Tailwind CSS 4** with custom Resolve! design tokens
-- **Firebase** (Auth, Firestore, Storage)
+- **Firebase** (Auth, Firestore, App Check)
 - **Framer Motion**, **Recharts**, **React Hook Form**, **Zod**
 
 ## Getting started
@@ -52,7 +52,7 @@ src/
 
 The main semester loop is implemented:
 
-- Firebase email/password and Google authentication
+- Firebase email/password and Google authentication with verified-email gating
 - Account-gated dashboard routes
 - Semester setup and automatic episode/week calculations
 - Interactive goals, daily tasks, weekly scheduling, and priorities
@@ -87,12 +87,17 @@ npm run test:e2e:production
 1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
 2. Enable **Authentication** (Email/Password + Google)
 3. Create a **Firestore** database
-4. Copy web app config into `.env.local`
+4. Register the web app with Firebase App Check using a reCAPTCHA Enterprise
+   key, then copy the web app config and site key into `.env.local`
 5. Create a Firebase service account and set its complete JSON as the
    server-only `FIREBASE_SERVICE_ACCOUNT_JSON` secret. This powers trusted,
    recursive account deletion; never expose it through a `NEXT_PUBLIC_` name.
 6. Deploy security rules and the workspace index exemptions:
    `firebase deploy --only firestore:rules,firestore:indexes`
+
+Follow [the production operations runbook](docs/production-operations.md) to
+roll out App Check enforcement, email verification, monitoring, backups, and
+the final production checks safely.
 
 The index exemptions keep the large workspace map and server timestamp out of
 Firestore indexes because the app reads the workspace by document ID and never
@@ -104,4 +109,5 @@ Use `npm ci && npm run build` as the build command and `npm run start` as the
 start command. Add every variable from `.env.example` in Render’s Environment
 panel. Keep `FIREBASE_SERVICE_ACCOUNT_JSON` secret and server-only. Render
 provides `RENDER_GIT_COMMIT`, which Resolve exposes through `/api/version` and
-shows in Settings for deployment diagnosis.
+shows in Settings for deployment diagnosis. Configure `/api/health` as the
+Render health-check path.

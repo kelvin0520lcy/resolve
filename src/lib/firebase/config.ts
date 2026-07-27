@@ -1,13 +1,17 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import {
+  initializeAppCheck,
+  getToken as getAppCheckToken,
+  ReCaptchaEnterpriseProvider,
+  type AppCheck,
+} from "firebase/app-check";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
-import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
@@ -22,9 +26,45 @@ export function isFirebaseConfigured(): boolean {
 }
 
 let app: FirebaseApp | undefined;
+let appCheck: AppCheck | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
-let storage: FirebaseStorage | undefined;
+
+export function isFirebaseAppCheckConfigured(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY?.trim(),
+  );
+}
+
+function initializeFirebaseAppCheck(firebaseApp: FirebaseApp) {
+  if (
+    typeof window === "undefined" ||
+    appCheck ||
+    !isFirebaseAppCheckConfigured()
+  ) {
+    return;
+  }
+
+  const isLocalDevelopment = ["localhost", "127.0.0.1", "::1"].includes(
+    window.location.hostname,
+  );
+  if (isLocalDevelopment) {
+    // Firebase generates a local debug token in the browser console. Register
+    // that token in the Firebase console; never commit an approved token.
+    (
+      globalThis as typeof globalThis & {
+        FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string;
+      }
+    ).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
+
+  appCheck = initializeAppCheck(firebaseApp, {
+    provider: new ReCaptchaEnterpriseProvider(
+      process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY!,
+    ),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 function getFirebaseApp(): FirebaseApp {
   if (!isFirebaseConfigured()) {
@@ -35,6 +75,7 @@ function getFirebaseApp(): FirebaseApp {
   if (!app) {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
   }
+  initializeFirebaseAppCheck(app);
   return app;
 }
 
@@ -48,9 +89,10 @@ export function getFirebaseDb(): Firestore {
   return db;
 }
 
-export function getFirebaseStorage(): FirebaseStorage {
-  if (!storage) storage = getStorage(getFirebaseApp());
-  return storage;
+export async function getFirebaseAppCheckToken(): Promise<string | undefined> {
+  getFirebaseApp();
+  if (!appCheck) return undefined;
+  return (await getAppCheckToken(appCheck)).token;
 }
 
 export const COLLECTIONS = {

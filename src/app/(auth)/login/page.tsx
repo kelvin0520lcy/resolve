@@ -36,7 +36,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && firebaseUser) {
-      router.replace("/dashboard");
+      router.replace(
+        firebaseUser.emailVerified ? "/dashboard" : "/verify-email",
+      );
     }
   }, [firebaseUser, loading, router]);
 

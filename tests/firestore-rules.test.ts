@@ -42,8 +42,14 @@ emulatorDescribe("Firestore ownership and revision rules", () => {
     await environment.cleanup();
   });
 
+  function verifiedContext(userId: string) {
+    return environment.authenticatedContext(userId, {
+      email_verified: true,
+    });
+  }
+
   it("permits only sequential owner workspace revisions", async () => {
-    const database = environment.authenticatedContext("user-1").firestore();
+    const database = verifiedContext("user-1").firestore();
     const workspace = doc(database, "workspaces/user-1");
     const payload = {
       userId: "user-1",
@@ -86,10 +92,25 @@ emulatorDescribe("Firestore ownership and revision rules", () => {
     await assertFails(
       getDoc(
         doc(
-          environment.authenticatedContext("user-2").firestore(),
+          verifiedContext("user-2").firestore(),
           "workspaces/user-1",
         ),
       ),
+    );
+  });
+
+  it("denies cloud access until the account email is verified", async () => {
+    const database = environment
+      .authenticatedContext("user-1", { email_verified: false })
+      .firestore();
+    await assertFails(
+      setDoc(doc(database, "workspaces/user-1"), {
+        userId: "user-1",
+        schemaVersion: 6,
+        revision: 1,
+        updatedByClientId: "client-1",
+        data: { tasks: [] },
+      }),
     );
   });
 
@@ -100,7 +121,7 @@ emulatorDescribe("Firestore ownership and revision rules", () => {
         status: "deleting",
       });
     });
-    const database = environment.authenticatedContext("user-1").firestore();
+    const database = verifiedContext("user-1").firestore();
 
     await assertFails(
       setDoc(doc(database, "workspaces/user-1"), {
@@ -129,7 +150,7 @@ emulatorDescribe("Firestore ownership and revision rules", () => {
   });
 
   it("allows a valid archive create but never a client overwrite", async () => {
-    const database = environment.authenticatedContext("user-1").firestore();
+    const database = verifiedContext("user-1").firestore();
     const archive = doc(
       database,
       "workspaces/user-1/semesterArchives/semester-1",
@@ -150,7 +171,7 @@ emulatorDescribe("Firestore ownership and revision rules", () => {
   });
 
   it("allows valid owner recovery snapshots to be created and deleted", async () => {
-    const database = environment.authenticatedContext("user-1").firestore();
+    const database = verifiedContext("user-1").firestore();
     const snapshot = doc(
       database,
       "workspaces/user-1/recoverySnapshots/snapshot-1",

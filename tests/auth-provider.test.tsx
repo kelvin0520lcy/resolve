@@ -21,6 +21,11 @@ const authMocks = vi.hoisted(() => ({
   deleteLocalAccountData: vi.fn(),
   getIdToken: vi.fn(),
   signOut: vi.fn(),
+  createUser: vi.fn(),
+  updateProfile: vi.fn(),
+  sendEmailVerification: vi.fn(),
+  reload: vi.fn(),
+  getAppCheckToken: vi.fn(),
   fetch: vi.fn(),
 }));
 
@@ -37,12 +42,14 @@ vi.mock("firebase/auth", () => ({
     },
   ),
   signInWithEmailAndPassword: vi.fn(),
-  createUserWithEmailAndPassword: vi.fn(),
+  createUserWithEmailAndPassword: authMocks.createUser,
   signOut: authMocks.signOut,
   signInWithPopup: vi.fn(),
   GoogleAuthProvider: class GoogleAuthProvider {},
   sendPasswordResetEmail: vi.fn(),
-  updateProfile: vi.fn(),
+  sendEmailVerification: authMocks.sendEmailVerification,
+  reload: authMocks.reload,
+  updateProfile: authMocks.updateProfile,
 }));
 
 vi.mock("@/features/workspace/lib/recovery", () => ({
@@ -52,6 +59,7 @@ vi.mock("@/features/workspace/lib/recovery", () => ({
 vi.mock("@/lib/firebase/config", () => ({
   isFirebaseConfigured: () => authMocks.configured,
   getFirebaseAuth: () => ({ currentUser: authMocks.currentUser }),
+  getFirebaseAppCheckToken: authMocks.getAppCheckToken,
 }));
 
 function AuthStatus() {
@@ -84,6 +92,53 @@ function DeleteAccountHarness() {
   );
 }
 
+function VerificationHarness() {
+  const {
+    canUseCloud,
+    needsEmailVerification,
+    resendVerificationEmail,
+    refreshEmailVerification,
+  } = useAuth();
+  const [refreshResult, setRefreshResult] = useState("unchecked");
+  return (
+    <>
+      <output>
+        {canUseCloud ? "cloud-ready" : "cloud-locked"}:
+        {needsEmailVerification ? "verify-needed" : "verified"}
+      </output>
+      <button
+        type="button"
+        onClick={() => void resendVerificationEmail()}
+      >
+        Resend
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          void refreshEmailVerification().then((verified) =>
+            setRefreshResult(verified ? "refreshed" : "waiting"),
+          );
+        }}
+      >
+        Refresh verification
+      </button>
+      <output>{refreshResult}</output>
+    </>
+  );
+}
+
+function SignUpHarness() {
+  const { signUp } = useAuth();
+  return (
+    <button
+      type="button"
+      onClick={() => void signUp("new@example.com", "password", "New User")}
+    >
+      Sign up
+    </button>
+  );
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   authMocks.configured = true;
@@ -94,6 +149,11 @@ beforeEach(() => {
   authMocks.deleteLocalAccountData.mockReset();
   authMocks.getIdToken.mockReset();
   authMocks.signOut.mockReset();
+  authMocks.createUser.mockReset();
+  authMocks.updateProfile.mockReset();
+  authMocks.sendEmailVerification.mockReset();
+  authMocks.reload.mockReset();
+  authMocks.getAppCheckToken.mockReset();
   authMocks.fetch.mockReset();
   authMocks.getIdToken.mockResolvedValue("fresh-token");
   authMocks.fetch.mockResolvedValue(
@@ -104,6 +164,10 @@ beforeEach(() => {
   );
   authMocks.deleteLocalAccountData.mockResolvedValue(undefined);
   authMocks.signOut.mockResolvedValue(undefined);
+  authMocks.updateProfile.mockResolvedValue(undefined);
+  authMocks.sendEmailVerification.mockResolvedValue(undefined);
+  authMocks.reload.mockResolvedValue(undefined);
+  authMocks.getAppCheckToken.mockResolvedValue(undefined);
   vi.stubGlobal("fetch", authMocks.fetch);
 });
 
@@ -174,6 +238,77 @@ describe("AuthProvider mobile bootstrap recovery", () => {
       </AuthProvider>,
     );
     expect(screen.getByText("guest")).toBeInTheDocument();
+  });
+
+  it("locks cloud access until an email account is verified", async () => {
+    const session = {
+      uid: "pending-user",
+      displayName: "Pending User",
+      email: "pending@example.com",
+      emailVerified: false,
+      photoURL: null,
+      getIdToken: authMocks.getIdToken,
+    };
+    authMocks.currentUser = session;
+    render(
+      <AuthProvider>
+        <VerificationHarness />
+      </AuthProvider>,
+    );
+
+    act(() => {
+      authMocks.next?.(session);
+    });
+    expect(screen.getByText("cloud-locked:verify-needed")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Resend" }));
+      await Promise.resolve();
+    });
+    expect(authMocks.sendEmailVerification).toHaveBeenCalledWith(session);
+
+    authMocks.reload.mockImplementation(async (user: typeof session) => {
+      user.emailVerified = true;
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Refresh verification" }),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(authMocks.reload).toHaveBeenCalledWith(session);
+    expect(authMocks.getIdToken).toHaveBeenCalledWith(true);
+    expect(screen.getByText("cloud-ready:verified")).toBeInTheDocument();
+    expect(screen.getByText("refreshed")).toBeInTheDocument();
+  });
+
+  it("sends a verification email after an email/password signup", async () => {
+    const account = {
+      uid: "new-user",
+      displayName: null,
+      email: "new@example.com",
+      emailVerified: false,
+      photoURL: null,
+    };
+    authMocks.createUser.mockResolvedValue({ user: account });
+    render(
+      <AuthProvider>
+        <SignUpHarness />
+      </AuthProvider>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign up" }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(authMocks.updateProfile).toHaveBeenCalledWith(account, {
+      displayName: "New User",
+    });
+    expect(authMocks.sendEmailVerification).toHaveBeenCalledWith(account);
   });
 
   it("clears local account data only after cloud and authentication deletion succeed", async () => {

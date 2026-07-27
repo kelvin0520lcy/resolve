@@ -1,4 +1,5 @@
 import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAppCheck } from "firebase-admin/app-check";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
@@ -41,6 +42,7 @@ export function getFirebaseAdmin() {
     });
   return {
     auth: getAuth(app),
+    appCheck: getAppCheck(app),
     db: getFirestore(app),
   };
 }

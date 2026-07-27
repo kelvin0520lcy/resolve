@@ -1199,9 +1199,9 @@ export function normalizeStoredData(
 }
 
 export function ResolveProvider({ children }: { children: ReactNode }) {
-  const { user, isConfigured } = useAuth();
+  const { user, isConfigured, canUseCloud } = useAuth();
   const identity = user?.id ?? "demo-user";
-  const accountSyncEnabled = isConfigured && Boolean(user);
+  const accountSyncEnabled = isConfigured && Boolean(user) && canUseCloud;
   const emptyData = useMemo(() => createEmptyData(identity), [identity]);
   const {
     data,

@@ -1,5 +1,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { hasValidAppCheckToken } from "@/lib/firebase/app-check-server";
+import { logServerEvent } from "@/lib/monitoring/server-log";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,6 +16,13 @@ function bearerToken(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!(await hasValidAppCheckToken(request))) {
+    return Response.json(
+      { error: "App verification failed. Refresh the page and try again." },
+      { status: 401 },
+    );
+  }
+
   const token = bearerToken(request);
   if (!token) {
     return Response.json({ error: "Authentication is required." }, { status: 401 });
@@ -23,6 +32,12 @@ export async function POST(request: Request) {
   try {
     services = getFirebaseAdmin();
   } catch (caught) {
+    logServerEvent(
+      "error",
+      "account_deletion_failed",
+      { phase: "service_initialization" },
+      caught,
+    );
     const message =
       caught instanceof Error
         ? caught.message
@@ -47,6 +62,7 @@ export async function POST(request: Request) {
     );
   }
 
+  let phase = "recent_authentication_check";
   try {
     const nowSeconds = Math.floor(Date.now() / 1_000);
     if (
@@ -64,6 +80,7 @@ export async function POST(request: Request) {
     }
 
     const marker = db.collection("accountDeletions").doc(decoded.uid);
+    phase = "deletion_lock";
     await marker.set(
       {
         userId: decoded.uid,
@@ -73,14 +90,18 @@ export async function POST(request: Request) {
       { merge: true },
     );
 
+    phase = "workspace_deletion";
     await db.recursiveDelete(db.collection("workspaces").doc(decoded.uid));
+    phase = "profile_deletion";
     await db.collection("users").doc(decoded.uid).delete();
+    phase = "authentication_deletion";
     await auth.deleteUser(decoded.uid);
     // Keep the write-blocking marker after authentication is deleted. This
     // closes the window in which another open tab could recreate cloud data
     // using a client-side token that has not noticed the deletion yet.
     // Firestore TTL may be configured against expiresAt; without TTL, the
     // permanent tombstone is the safer failure mode.
+    phase = "deletion_receipt";
     await marker
       .set(
         {
@@ -98,6 +119,12 @@ export async function POST(request: Request) {
 
     return Response.json({ deleted: true });
   } catch (caught) {
+    logServerEvent(
+      "error",
+      "account_deletion_failed",
+      { phase },
+      caught,
+    );
     const message =
       caught instanceof Error
         ? caught.message

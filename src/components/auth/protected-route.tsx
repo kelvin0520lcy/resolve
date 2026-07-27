@@ -11,12 +11,20 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [showRecoveryActions, setShowRecoveryActions] = useState(false);
   const hasSession = !isConfigured || Boolean(firebaseUser);
+  const hasVerifiedSession =
+    !isConfigured || Boolean(firebaseUser?.emailVerified);
 
   useEffect(() => {
     if (!loading && isConfigured && !hasSession) {
       router.replace("/login");
     }
   }, [hasSession, loading, isConfigured, router]);
+
+  useEffect(() => {
+    if (!loading && isConfigured && hasSession && !hasVerifiedSession) {
+      router.replace("/verify-email");
+    }
+  }, [hasSession, hasVerifiedSession, loading, isConfigured, router]);
 
   useEffect(() => {
     if (!loading) return;
@@ -59,7 +67,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (isConfigured && !hasSession) return null;
+  if (isConfigured && (!hasSession || !hasVerifiedSession)) return null;
 
   return <>{children}</>;
 }

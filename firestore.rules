@@ -5,6 +5,7 @@ service cloud.firestore {
     function isOwner(userId) {
       return request.auth != null
         && request.auth.uid == userId
+        && request.auth.token.email_verified == true
         && !exists(/databases/$(database)/documents/accountDeletions/$(userId));
     }
 

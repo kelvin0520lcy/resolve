@@ -35,8 +35,9 @@ mode. The eventual policy should include `frame-ancestors 'none'`,
 `img-src`, and `script-src` directives. HSTS is configured at the hosting edge,
 not through an unverified development-only policy.
 
-Firebase Storage is not used for user uploads. Add dedicated Storage rules
-before introducing any upload feature.
+Firebase Storage is not initialized by the application. If uploads are added
+later, introduce dedicated Storage rules and emulator tests before enabling the
+SDK or accepting user files.
 
 ## Performance profiling
 

@@ -54,6 +54,7 @@ vi.mock("@/contexts/auth-context", () => ({
       email: "cloud@example.com",
     },
     isConfigured: true,
+    canUseCloud: true,
   }),
 }));
 

@@ -117,16 +117,23 @@ export default function PrivacyPage() {
       <Section title="Changes and contact">
         <p>
           Material changes will be reflected by updating the effective date on
-          this page. Questions, privacy requests, and security reports can be
-          sent to the maintainer through the{" "}
+          this page. General questions and privacy requests can be sent through
+          the{" "}
           <a
             href="https://github.com/kelvin0520lcy/resolve/issues"
             className="font-bold text-accent underline underline-offset-4"
           >
-            Resolve! issue tracker
+          Resolve! issue tracker
           </a>
-          . Do not post passwords, tokens, private reflections, or other
-          sensitive data in a public issue.
+          . Report suspected vulnerabilities through a{" "}
+          <a
+            href="https://github.com/kelvin0520lcy/resolve/security/advisories/new"
+            className="font-bold text-accent underline underline-offset-4"
+          >
+            private GitHub security advisory
+          </a>
+          . Never post passwords, tokens, private reflections, or other
+          sensitive data publicly.
         </p>
         <p>
           The rules for using the service are available in the{" "}

@@ -16,11 +16,14 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  reload,
   updateProfile,
   type User as FirebaseUser,
 } from "firebase/auth";
 import {
   getFirebaseAuth,
+  getFirebaseAppCheckToken,
   isFirebaseConfigured,
 } from "@/lib/firebase/config";
 import type { User } from "@/types";
@@ -31,11 +34,15 @@ type AuthContextValue = {
   firebaseUser: FirebaseUser | null;
   loading: boolean;
   isConfigured: boolean;
+  canUseCloud: boolean;
+  needsEmailVerification: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  resendVerificationEmail: () => Promise<void>;
+  refreshEmailVerification: () => Promise<boolean>;
   deleteAccount: () => Promise<void>;
 };
 
@@ -60,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(isConfigured);
+  const [, setSessionRevision] = useState(0);
 
   useEffect(() => {
     if (!isConfigured) {
@@ -113,12 +121,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [isConfigured]);
 
+  const canUseCloud =
+    !isConfigured || Boolean(firebaseUser?.emailVerified);
+  const needsEmailVerification =
+    isConfigured && Boolean(firebaseUser && !firebaseUser.emailVerified);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       firebaseUser,
       loading,
       isConfigured,
+      canUseCloud,
+      needsEmailVerification,
       async signIn(email, password) {
         const credential = await signInWithEmailAndPassword(
           getFirebaseAuth(),
@@ -139,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile.displayName = displayName;
         setFirebaseUser(cred.user);
         setUser(profile);
+        await sendEmailVerification(cred.user);
       },
       async signInWithGoogle() {
         const provider = new GoogleAuthProvider();
@@ -155,6 +171,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async resetPassword(email) {
         await sendPasswordResetEmail(getFirebaseAuth(), email);
       },
+      async resendVerificationEmail() {
+        const activeUser = getFirebaseAuth().currentUser;
+        if (!activeUser) {
+          throw new Error("Sign in before requesting a verification email.");
+        }
+        if (activeUser.emailVerified) return;
+        await sendEmailVerification(activeUser);
+      },
+      async refreshEmailVerification() {
+        const activeUser = getFirebaseAuth().currentUser;
+        if (!activeUser) return false;
+        await reload(activeUser);
+        await activeUser.getIdToken(true);
+        setFirebaseUser(activeUser);
+        setUser(profileFromFirebase(activeUser));
+        setSessionRevision((current) => current + 1);
+        return activeUser.emailVerified;
+      },
       async deleteAccount() {
         const activeUser = getFirebaseAuth().currentUser;
         if (!activeUser) throw new Error("Sign in again before deleting the account.");
@@ -167,11 +201,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
         }
         const token = await activeUser.getIdToken(true);
+        const appCheckToken = await getFirebaseAppCheckToken().catch(
+          () => undefined,
+        );
+        const headers: Record<string, string> = {
+          authorization: `Bearer ${token}`,
+        };
+        if (appCheckToken) {
+          headers["x-firebase-appcheck"] = appCheckToken;
+        }
         const response = await fetch("/api/account/delete", {
           method: "POST",
-          headers: {
-            authorization: `Bearer ${token}`,
-          },
+          headers,
         });
         const result = (await response.json().catch(() => ({}))) as {
           error?: string;
@@ -190,7 +231,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       },
     }),
-    [user, firebaseUser, loading, isConfigured],
+    [
+      user,
+      firebaseUser,
+      loading,
+      isConfigured,
+      canUseCloud,
+      needsEmailVerification,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

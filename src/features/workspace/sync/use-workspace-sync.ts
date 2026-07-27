@@ -49,6 +49,7 @@ import {
   TabSyncCoordinator,
   type WorkspaceTabMessage,
 } from "@/features/workspace/sync/tab-coordinator";
+import { reportOperationalEvent } from "@/lib/monitoring/client-events";
 
 export const CLOUD_SAVE_DEBOUNCE_MS = 15_000;
 export const CLOUD_REFRESH_INTERVAL_MS = 15 * 60_000;
@@ -283,6 +284,7 @@ export function useWorkspaceSync({
   const recoveryRawTextRef = useRef<string | null>(null);
   const autoRetryTimerRef = useRef<number | null>(null);
   const retryAttemptRef = useRef(0);
+  const reportedRetryExhaustedRef = useRef(false);
   const retryImmediatelyRef = useRef(false);
   const persistedDataRef = useRef<ResolveData | null>(null);
 
@@ -677,6 +679,7 @@ export function useWorkspaceSync({
         persistMetadata(pending.length > 0, pending, Date.now());
         const savedAt = Date.now();
         retryAttemptRef.current = 0;
+        reportedRetryExhaustedRef.current = false;
         if (autoRetryTimerRef.current !== null) {
           window.clearTimeout(autoRetryTimerRef.current);
           autoRetryTimerRef.current = null;
@@ -825,6 +828,10 @@ export function useWorkspaceSync({
           // The raw localStorage payload is still left untouched for recovery.
         }
         if (!cancelled) {
+          void reportOperationalEvent("workspace_migration_failed", {
+            phase: "local_hydration",
+            errorName: caught instanceof Error ? caught.name : "UnknownError",
+          });
           const message =
             caught instanceof Error
               ? `Workspace recovery is required: ${caught.message}`
@@ -1075,6 +1082,17 @@ export function useWorkspaceSync({
       autoRetryTimerRef.current = null;
       updateMetrics({ retryExecuted: 1 });
       void flushToCloud().finally(() => {
+        if (
+          dirtyRef.current &&
+          retryAttemptRef.current >= retryDelays.length &&
+          !reportedRetryExhaustedRef.current
+        ) {
+          reportedRetryExhaustedRef.current = true;
+          void reportOperationalEvent("workspace_sync_retry_exhausted", {
+            phase: "cloud_write",
+            attempt: retryAttemptRef.current,
+          });
+        }
         updateMetrics(
           dirtyRef.current
             ? { retryFailed: 1 }
@@ -1112,18 +1130,29 @@ export function useWorkspaceSync({
     (conflictId: string, choice: "local" | "remote") => {
       const conflict = conflictsRef.current.find((item) => item.id === conflictId);
       if (!conflict) return;
-      const next = applyConflictChoice(dataRef.current, conflict, choice);
-      const remaining = conflictsRef.current.filter((item) => item.id !== conflictId);
-      dataRef.current = next;
-      setData(next);
-      setConflicts(remaining);
-      const patches = buildWorkspacePatches(
-        baseDataRef.current,
-        next,
-        coordinatorRef.current?.tabId ?? "local-tab",
-      );
-      persistMetadata(patches.length > 0, patches);
-      setStatus(remaining.length ? "conflict" : patches.length ? "saving" : "synced");
+      try {
+        const next = applyConflictChoice(dataRef.current, conflict, choice);
+        const remaining = conflictsRef.current.filter((item) => item.id !== conflictId);
+        dataRef.current = next;
+        setData(next);
+        setConflicts(remaining);
+        const patches = buildWorkspacePatches(
+          baseDataRef.current,
+          next,
+          coordinatorRef.current?.tabId ?? "local-tab",
+        );
+        persistMetadata(patches.length > 0, patches);
+        setStatus(
+          remaining.length ? "conflict" : patches.length ? "saving" : "synced",
+        );
+      } catch (caught) {
+        setStatus("error");
+        setError("The conflict choice could not be applied. Your local copy is unchanged.");
+        void reportOperationalEvent("workspace_conflict_failed", {
+          phase: "apply_choice",
+          errorName: caught instanceof Error ? caught.name : "UnknownError",
+        });
+      }
     },
     [persistMetadata],
   );
@@ -1140,43 +1169,51 @@ export function useWorkspaceSync({
 
   const importWorkspace = useCallback(
     async (value: unknown) => {
-      const backup = createRecoverySnapshot(
-        dataRef.current,
-        "import",
-        CURRENT_WORKSPACE_SCHEMA_VERSION,
-        new Date().toISOString(),
-        identity,
-      );
-      await saveRecoverySnapshot(backup);
-      const { payload, sourceVersion: detectedVersion } =
-        detectWorkspaceImportVersion(
-          value,
+      try {
+        const backup = createRecoverySnapshot(
+          dataRef.current,
+          "import",
+          CURRENT_WORKSPACE_SCHEMA_VERSION,
+          new Date().toISOString(),
+          identity,
+        );
+        await saveRecoverySnapshot(backup);
+        const { payload, sourceVersion: detectedVersion } =
+          detectWorkspaceImportVersion(
+            value,
+            dataRef.current.preferences.timeZone,
+          );
+        const migrated = migrateWorkspaceData(
+          payload,
+          detectedVersion,
           dataRef.current.preferences.timeZone,
         );
-      const migrated = migrateWorkspaceData(
-        payload,
-        detectedVersion,
-        dataRef.current.preferences.timeZone,
-      );
-      const payloadShape = validateWorkspacePayloadShape(migrated.data, {
-        allowMissingLegacyFields:
-          detectedVersion < CURRENT_WORKSPACE_SCHEMA_VERSION,
-      });
-      if (!payloadShape.valid) {
-        throw new Error(payloadShape.errors.join(" "));
+        const payloadShape = validateWorkspacePayloadShape(migrated.data, {
+          allowMissingLegacyFields:
+            detectedVersion < CURRENT_WORKSPACE_SCHEMA_VERSION,
+        });
+        if (!payloadShape.valid) {
+          throw new Error(payloadShape.errors.join(" "));
+        }
+        const normalized = normalize(migrated.data, identity);
+        const validation = validateWorkspaceData(normalized);
+        if (!validation.valid) throw new Error(validation.errors.join(" "));
+        const importedSize = estimateWorkspaceSize(normalized);
+        if (
+          importedSize.estimatedFirestoreBytes > WORKSPACE_SAFE_CEILING_BYTES
+        ) {
+          throw new Error(
+            "This backup is larger than Resolve's safe active-workspace limit. Archive or trim the source workspace before importing it.",
+          );
+        }
+        setLocalData(normalized);
+      } catch (caught) {
+        void reportOperationalEvent("workspace_import_failed", {
+          phase: "validation",
+          errorName: caught instanceof Error ? caught.name : "UnknownError",
+        });
+        throw caught;
       }
-      const normalized = normalize(migrated.data, identity);
-      const validation = validateWorkspaceData(normalized);
-      if (!validation.valid) throw new Error(validation.errors.join(" "));
-      const importedSize = estimateWorkspaceSize(normalized);
-      if (
-        importedSize.estimatedFirestoreBytes > WORKSPACE_SAFE_CEILING_BYTES
-      ) {
-        throw new Error(
-          "This backup is larger than Resolve's safe active-workspace limit. Archive or trim the source workspace before importing it.",
-        );
-      }
-      setLocalData(normalized);
     },
     [identity, normalize, setLocalData],
   );

@@ -5,6 +5,7 @@ const routes = [
   "/login",
   "/signup",
   "/reset-password",
+  "/verify-email",
   "/privacy",
   "/terms",
   "/dashboard",
