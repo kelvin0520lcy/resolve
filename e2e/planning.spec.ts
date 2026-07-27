@@ -37,6 +37,7 @@ test("public landing and sign-in do not overflow a mobile viewport", async ({
   page,
 }) => {
   await page.goto("/");
+  await expect(page.getByText("Semester live house · public beta")).toBeVisible();
   await expect(page.getByRole("heading", { name: "MAKE THE QUIET DAYS COUNT." }))
     .toBeVisible();
   expect(

@@ -112,6 +112,20 @@ emulatorDescribe("Firestore ownership and revision rules", () => {
       }),
     );
     await assertFails(getDoc(doc(database, "accountDeletions/user-1")));
+    await assertFails(
+      setDoc(doc(database, "accountDeletions/user-1"), {
+        userId: "user-1",
+        status: "deleted",
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(database, "accountDeletions/user-1"), {
+        status: "deleted",
+      }),
+    );
+    await assertFails(
+      deleteDoc(doc(database, "accountDeletions/user-1")),
+    );
   });
 
   it("allows a valid archive create but never a client overwrite", async () => {

@@ -61,7 +61,7 @@ export default function LandingPage() {
                 RESOLVE<span className="text-accent">!</span>
               </p>
               <p className="text-[9px] font-black uppercase tracking-[0.25em] text-white/50">
-                Semester live house
+                Semester live house · public beta
               </p>
             </div>
           </div>

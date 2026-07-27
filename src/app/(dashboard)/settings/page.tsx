@@ -40,7 +40,8 @@ import { useDialogFocus } from "@/hooks/use-dialog-focus";
 type BuildInfo = {
   version: string;
   commit: string;
-  builtAt: string;
+  builtAt: string | null;
+  startedAt: string;
   environment: string;
   schemaVersion: number;
   deploymentId: string;
@@ -982,8 +983,12 @@ export default function SettingsPage() {
         {buildInfo && (
           <p className="text-center text-[10px] font-bold uppercase tracking-wider text-muted">
             Resolve {buildInfo.version} · {buildInfo.environment} ·{" "}
-            {buildInfo.commit.slice(0, 8)} · built{" "}
-            {new Date(buildInfo.builtAt).toLocaleString()} · schema{" "}
+            {buildInfo.commit.slice(0, 8)} ·{" "}
+            {buildInfo.builtAt ? "built" : "started"}{" "}
+            {new Date(
+              buildInfo.builtAt ?? buildInfo.startedAt,
+            ).toLocaleString()}{" "}
+            · schema{" "}
             {buildInfo.schemaVersion}
           </p>
         )}

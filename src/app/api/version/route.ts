@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 const processStartedAt = new Date().toISOString();
 
 export async function GET() {
+  const buildTimestamp = process.env.BUILD_TIMESTAMP?.trim() || null;
   return Response.json(
     {
       version: packageJson.version,
@@ -14,7 +15,8 @@ export async function GET() {
         process.env.SOURCE_COMMIT ??
         process.env.GIT_COMMIT_SHA ??
         "local",
-      builtAt: process.env.BUILD_TIMESTAMP ?? processStartedAt,
+      builtAt: buildTimestamp,
+      startedAt: processStartedAt,
       environment: process.env.NODE_ENV ?? "development",
       schemaVersion: CURRENT_WORKSPACE_SCHEMA_VERSION,
       deploymentId:

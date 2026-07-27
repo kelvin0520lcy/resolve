@@ -6,24 +6,40 @@ test("deployed landing page and build identity are healthy", async ({
 }) => {
   const version = await request.get("/api/version");
   expect(version.ok()).toBe(true);
-  expect(await version.json()).toMatchObject({
+  const build = await version.json();
+  expect(build).toMatchObject({
     version: expect.any(String),
     commit: expect.not.stringMatching(/^local$/),
     schemaVersion: expect.any(Number),
     environment: "production",
   });
+  const expectedCommit = process.env.EXPECTED_COMMIT_SHA?.trim();
+  if (expectedCommit) {
+    expect(build.commit.startsWith(expectedCommit)).toBe(true);
+  }
 
   await page.goto("/");
+  await expect(page.getByText("Semester live house · public beta")).toBeVisible();
   const createAccountLinks = page.getByRole("link", { name: "Create account" });
   await expect(createAccountLinks.first()).toBeVisible();
   const signInLinks = page.getByRole("link", { name: "Sign in" });
   await expect(signInLinks.first()).toBeVisible();
-  expect(await createAccountLinks.evaluateAll((links) =>
-    links.map((link) => link.getAttribute("href")),
-  )).toEqual(["/signup", "/signup", "/signup"]);
-  expect(await signInLinks.evaluateAll((links) =>
-    links.map((link) => link.getAttribute("href")),
-  )).toEqual(["/login", "/login"]);
+  const callsToAction = await page.locator("a").evaluateAll((links) =>
+    links.map((link) => ({
+      label: link.textContent?.replace(/\s+/g, " ").trim(),
+      href: link.getAttribute("href"),
+    })),
+  );
+  expect(
+    callsToAction
+      .filter(({ label }) => label === "Create account")
+      .map(({ href }) => href),
+  ).toEqual(["/signup", "/signup", "/signup"]);
+  expect(
+    callsToAction
+      .filter(({ label }) => label === "Sign in")
+      .map(({ href }) => href),
+  ).toEqual(["/login", "/login"]);
 
   await expect(page.getByRole("link", { name: "Privacy" })).toHaveAttribute(
     "href",
