@@ -10,6 +10,7 @@ import {
   generateFretboard,
   STANDARD_TUNING,
 } from "@/features/guitar-learning/lib/music-theory";
+import { GuitarChordDiagram } from "@/features/guitar-learning/components/chord-diagram";
 import type { VisualSection } from "@/features/guitar-learning/types";
 import type { ExplicitLessonVisual } from "@/features/guitar-learning/types";
 
@@ -44,7 +45,7 @@ function RhythmDiagram({ title }: { title: string }) {
 
   return (
     <DiagramShell label={`Count, hand direction, and sounding-stroke grid for ${title}`}>
-      <div className="grid grid-cols-[2.9rem_repeat(8,minmax(1.4rem,1fr))] gap-0.5 text-center text-[9px] sm:grid-cols-[3.7rem_repeat(8,minmax(2rem,1fr))] sm:gap-1 sm:text-xs">
+      <div className="grid grid-cols-[2.9rem_repeat(8,minmax(1.4rem,1fr))] gap-0.5 text-center text-xs sm:grid-cols-[3.7rem_repeat(8,minmax(2rem,1fr))] sm:gap-1">
         <span className="flex items-center justify-start font-black text-muted">
           COUNT
         </span>
@@ -98,7 +99,7 @@ function RhythmDiagram({ title }: { title: string }) {
           );
         })}
       </div>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold text-muted">
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold text-muted">
         <span>● sounds</span>
         <span>&gt; accent</span>
         <span>X muted</span>
@@ -119,7 +120,7 @@ function PickingDiagram({ title }: { title: string }) {
       <div className="relative grid grid-cols-8 gap-1">
         {strings.map((string, index) => (
           <div key={`${string}-${index}`} className="min-w-0 text-center">
-            <span className="text-[9px] font-black text-muted">
+            <span className="text-[11px] font-black text-muted">
               {index + 1}
             </span>
             <div
@@ -134,7 +135,7 @@ function PickingDiagram({ title }: { title: string }) {
               ) : (
                 <ArrowUp className="h-5 w-5 text-cyan" aria-hidden="true" />
               )}
-              <span className="mt-1 text-[10px] font-black">{string}</span>
+              <span className="mt-1 text-xs font-black">{string}</span>
             </div>
           </div>
         ))}
@@ -142,7 +143,7 @@ function PickingDiagram({ title }: { title: string }) {
       <div className="mt-4 space-y-2">
         {["B string", "G string", "D string"].map((string) => (
           <div key={string} className="flex items-center gap-2">
-            <span className="w-14 text-[9px] font-black text-muted">{string}</span>
+            <span className="w-14 text-[11px] font-black text-muted">{string}</span>
             <span className="h-px flex-1 bg-foreground/25" />
           </div>
         ))}
@@ -174,7 +175,7 @@ function FretboardDiagram({ title }: { title: string }) {
 
   return (
     <DiagramShell label={`Seven-fret interval map in A for ${title}`}>
-      <div className="mb-2 grid grid-cols-[1.7rem_repeat(8,minmax(1.35rem,1fr))] gap-0.5 text-center text-[8px] font-black text-muted sm:grid-cols-[2rem_repeat(8,minmax(1.8rem,1fr))] sm:gap-1 sm:text-[9px]">
+      <div className="mb-2 grid grid-cols-[1.7rem_repeat(8,minmax(1.35rem,1fr))] gap-0.5 text-center text-[10px] font-black text-muted sm:grid-cols-[2rem_repeat(8,minmax(1.8rem,1fr))] sm:gap-1 sm:text-[11px]">
         <span>STR</span>
         {Array.from({ length: 8 }, (_unused, fret) => (
           <span key={fret}>{fret}</span>
@@ -188,7 +189,7 @@ function FretboardDiagram({ title }: { title: string }) {
               key={`${openString}-${stringIndex}`}
               className="grid grid-cols-[1.7rem_repeat(8,minmax(1.35rem,1fr))] gap-0.5 sm:grid-cols-[2rem_repeat(8,minmax(1.8rem,1fr))] sm:gap-1"
             >
-              <span className="flex items-center justify-center text-[9px] font-black text-muted">
+              <span className="flex items-center justify-center text-[11px] font-black text-muted">
                 {openString.replace(/\d/g, "")}
               </span>
               {board
@@ -198,7 +199,7 @@ function FretboardDiagram({ title }: { title: string }) {
                   return (
                     <span
                       key={`${stringIndex}-${note.fret}`}
-                      className={`flex min-h-7 items-center justify-center rounded-md border text-[9px] font-black ${
+                      className={`flex min-h-7 items-center justify-center rounded-md border text-[11px] font-black ${
                         note.interval === 0
                           ? "border-warning bg-warning text-[#18121f]"
                           : highlighted
@@ -237,18 +238,45 @@ function chordFormula(title: string) {
 
 function ChordDiagram({ title }: { title: string }) {
   const formula = chordFormula(title);
-  const dotPositions = [
-    [5, 1],
-    [4, 3],
-    [3, 3],
-    [2, 2],
+  const intervalMarkers = [
+    {
+      string: 5 as const,
+      fret: 3,
+      marker: formula[0],
+      markerDescription: `${formula[0]} interval`,
+      root: true,
+    },
+    {
+      string: 4 as const,
+      fret: 2,
+      marker: formula[1] ?? "5",
+      markerDescription: `${formula[1] ?? "5"} interval`,
+    },
+    {
+      string: 3 as const,
+      fret: "open" as const,
+    },
+    {
+      string: 2 as const,
+      fret: 1,
+      marker: formula[2] ?? "5",
+      markerDescription: `${formula[2] ?? "5"} interval`,
+    },
+    {
+      string: 1 as const,
+      fret: "open" as const,
+    },
+    {
+      string: 6 as const,
+      fret: "muted" as const,
+    },
   ];
 
   return (
     <DiagramShell label={`Chord formula and interval voicing for ${title}`}>
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wide text-muted">
+          <p className="text-xs font-black uppercase tracking-wide text-muted">
             Interval recipe
           </p>
           <div className="mt-2 flex items-center gap-2">
@@ -274,38 +302,10 @@ function ChordDiagram({ title }: { title: string }) {
             colour. The root names the chord; the fifth stabilises it.
           </p>
         </div>
-        <div className="grid grid-cols-6 gap-1 rounded-xl border border-border bg-surface p-2">
-          {Array.from({ length: 30 }, (_unused, index) => {
-            const string = index % 6;
-            const fret = Math.floor(index / 6);
-            const dotIndex = dotPositions.findIndex(
-              ([dotString, dotFret]) =>
-                dotString === string && dotFret === fret,
-            );
-            return (
-              <span
-                key={index}
-                className={`flex aspect-square items-center justify-center border-b border-r border-foreground/20 text-[8px] font-black ${
-                  dotIndex >= 0
-                    ? "rounded-full bg-accent text-white"
-                    : "text-transparent"
-                }`}
-              >
-                {dotIndex >= 0
-                  ? formula[dotIndex % formula.length]
-                  : "·"}
-              </span>
-            );
-          })}
-          {["E", "A", "D", "G", "B", "e"].map((string) => (
-            <span
-              key={string}
-              className="text-center text-[8px] font-black text-muted"
-            >
-              {string}
-            </span>
-          ))}
-        </div>
+        <GuitarChordDiagram
+          chordName={`${title} interval shape`}
+          strings={intervalMarkers}
+        />
       </div>
     </DiagramShell>
   );
@@ -460,7 +460,7 @@ function ExplicitRhythmDiagram({
             key={`beat-${beatIndex}`}
             className="rounded-xl border-2 border-foreground/20 bg-surface p-2"
           >
-            <p className="mb-2 text-center text-[9px] font-black uppercase tracking-wide text-muted">
+            <p className="mb-2 text-center text-xs font-black uppercase tracking-wide text-muted">
               Beat {beatIndex + 1}
             </p>
             <div
@@ -487,11 +487,11 @@ function ExplicitRhythmDiagram({
                     <span className="block rounded-md bg-warning/15 px-1 py-1 text-xs font-black">
                       {visual.countLabels[slot]}
                     </span>
-                    <span className="mt-1 block text-[9px] font-black text-muted">
+                    <span className="mt-1 block text-xs font-black text-muted">
                       {direction === "D" ? "Down ↓" : "Up ↑"}
                     </span>
                     <span
-                      className={`mt-1 flex min-h-10 items-center justify-center rounded-md border-2 px-1 text-[9px] font-black ${
+                      className={`mt-1 flex min-h-10 items-center justify-center rounded-md border-2 px-1 text-xs font-black ${
                         event?.type === "played"
                           ? "border-accent bg-accent/12 text-accent"
                           : event?.type === "muted"
@@ -504,7 +504,7 @@ function ExplicitRhythmDiagram({
                       {symbol}
                     </span>
                     {event?.chord && (
-                      <span className="mt-1 block truncate text-[9px] font-black">
+                      <span className="mt-1 block truncate text-xs font-black">
                         {event.chord}
                       </span>
                     )}
@@ -515,7 +515,7 @@ function ExplicitRhythmDiagram({
           </div>
         ))}
       </div>
-      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-muted">
+      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold text-muted">
         <span>● played</span>
         <span>&gt;● accented</span>
         <span>X muted contact</span>
@@ -539,7 +539,7 @@ function ExplicitFretboardDiagram({
       label={`Explicit beginner fretboard from fret 0 to ${visual.fretCount}`}
     >
       <div
-        className="grid gap-0.5 text-center text-[8px] sm:gap-1 sm:text-[9px]"
+        className="grid gap-0.5 text-center text-[10px] sm:gap-1 sm:text-[11px]"
         style={{
           gridTemplateColumns: `2.8rem repeat(${visual.fretCount + 1}, minmax(0, 1fr))`,
         }}
@@ -596,7 +596,7 @@ function ExplicitFretboardDiagram({
           </div>
         ))}
       </div>
-      <p className="mt-3 text-[10px] font-bold text-muted">
+      <p className="mt-3 text-xs font-bold leading-5 text-muted">
         String 1 is thin and high. String 6 is thick and low. Fret 0 means the
         open string at the nut.
       </p>
@@ -609,56 +609,24 @@ function ExplicitChordDiagram({
 }: {
   visual: Extract<ExplicitLessonVisual, { kind: "chord-diagram" }>;
 }) {
-  const byString = new Map(
-    visual.strings.map((instruction) => [
-      instruction.string,
-      instruction,
-    ]),
-  );
   return (
     <DiagramShell label={`Playable ${visual.chordName} chord diagram`}>
       <div className="mx-auto max-w-sm">
         <p className="text-center font-display text-xl">{visual.chordName}</p>
-        <p className="mt-1 text-center text-[10px] font-bold text-muted">
+        <p className="mt-1 text-center text-xs font-bold text-muted">
           Starting fret {visual.startingFret}
         </p>
-        <div className="mt-3 grid grid-cols-6 gap-1">
-          {([6, 5, 4, 3, 2, 1] as const).map((string) => {
-            const instruction = byString.get(string)!;
-            return (
-              <div key={string} className="text-center">
-                <span className="text-[10px] font-black">
-                  {instruction.fret === "muted"
-                    ? "X"
-                    : instruction.fret === "open"
-                      ? "O"
-                      : instruction.fret}
-                </span>
-                <div className="mt-1 flex min-h-24 flex-col justify-end rounded-lg border-2 border-foreground/20 bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_19%,color-mix(in_srgb,var(--foreground)_20%,transparent)_20%)] p-1">
-                  {typeof instruction.fret === "number" && (
-                    <span
-                      className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-black ${
-                        instruction.role === "root"
-                          ? "bg-warning text-[#18121f]"
-                          : "bg-accent text-white"
-                      }`}
-                    >
-                      {instruction.finger ?? "●"}
-                    </span>
-                  )}
-                </div>
-                <span className="mt-1 block text-[9px] font-black text-muted">
-                  S{string}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-3 flex flex-wrap justify-center gap-3 text-[10px] font-bold text-muted">
-          <span>O open</span>
-          <span>X do not play</span>
-          <span>Number in dot = finger</span>
-        </div>
+        <GuitarChordDiagram
+          chordName={visual.chordName}
+          startingFret={visual.startingFret}
+          strings={visual.strings.map((instruction) => ({
+            string: instruction.string,
+            fret: instruction.fret,
+            finger: instruction.finger,
+            root: instruction.role === "root",
+          }))}
+          className="mt-2"
+        />
       </div>
     </DiagramShell>
   );
@@ -675,7 +643,7 @@ function ExplicitOrientationDiagram({
         <div className="h-10 w-20 rounded-l-2xl border-4 border-warning/70 bg-warning/15" />
         <div className="relative h-5 flex-1 border-y-4 border-foreground/30 bg-surface">
           <span className="absolute inset-x-0 top-1/2 h-px bg-foreground/40" />
-          <span className="absolute left-0 top-[-0.55rem] text-[9px] font-black text-warning">
+          <span className="absolute left-0 top-[-0.55rem] text-[11px] font-black text-warning">
             NUT
           </span>
         </div>
@@ -690,7 +658,7 @@ function ExplicitOrientationDiagram({
             className="rounded-xl border border-border bg-surface p-3"
           >
             <p className="text-xs font-black">{label.name}</p>
-            <p className="mt-1 text-[10px] leading-4 text-muted">
+            <p className="mt-1 text-xs leading-5 text-muted">
               {label.plainEnglish}
             </p>
           </div>
@@ -718,14 +686,14 @@ function ExplicitPickingDiagram({
               className="mx-auto block h-10 w-6 rotate-12 rounded-b-full rounded-t-md border-2 border-warning bg-warning/25"
             />
             <p className="mt-2 text-xs font-black">{step.label}</p>
-            <p className="mt-1 text-[10px] font-bold text-muted">
+            <p className="mt-1 text-xs font-bold text-muted">
               {step.direction === "D"
                 ? "Toward floor ↓"
                 : step.direction === "U"
                   ? "Toward ceiling ↑"
                   : "Relax between motions"}
             </p>
-            <p className="mt-1 text-[9px] uppercase tracking-wide text-accent">
+            <p className="mt-1 text-[11px] uppercase tracking-wide text-accent">
               {step.contact}
             </p>
           </div>
@@ -750,7 +718,7 @@ function ExplicitTabDiagram({
               key={`${stringName}-${string}`}
               className="grid grid-cols-[1.5rem_repeat(4,minmax(0,1fr))] items-center gap-1"
             >
-              <span className="text-[10px] font-black text-muted">
+              <span className="text-xs font-black text-muted">
                 {stringName}
               </span>
               {[1, 2, 3, 4].map((beat) => {
@@ -772,7 +740,7 @@ function ExplicitTabDiagram({
           );
         })}
       </div>
-      <p className="mt-3 text-[10px] font-bold text-muted">
+      <p className="mt-3 text-xs font-bold leading-5 text-muted">
         Top line = thin high E, string 1. Numbers are frets. Read left to right.
       </p>
     </DiagramShell>
@@ -795,7 +763,7 @@ function ExplicitPhraseDiagram({
         {Array.from({ length: visual.beats }, (_unused, index) => (
           <span
             key={index}
-            className="rounded-md bg-warning/15 py-1 text-center text-[10px] font-black"
+            className="rounded-md bg-warning/15 py-1 text-center text-xs font-black"
           >
             {index + 1}
           </span>
@@ -805,7 +773,7 @@ function ExplicitPhraseDiagram({
         {visual.events.map((event, index) => (
           <div
             key={`${event.beat}-${event.label}-${index}`}
-            className={`absolute top-3 flex min-h-20 items-center justify-center rounded-lg border-2 px-2 text-center text-[9px] font-black leading-4 ${
+            className={`absolute top-3 flex min-h-20 items-center justify-center rounded-lg border-2 px-2 text-center text-[11px] font-black leading-4 ${
               event.role === "rest"
                 ? "border-dashed border-warning bg-warning/8 text-warning"
                 : event.role === "root"
@@ -826,7 +794,7 @@ function ExplicitPhraseDiagram({
           </div>
         ))}
       </div>
-      <p className="mt-3 text-[10px] font-bold text-muted">
+      <p className="mt-3 text-xs font-bold leading-5 text-muted">
         Block position shows when the note or rest begins; width shows how long
         it lasts.
       </p>

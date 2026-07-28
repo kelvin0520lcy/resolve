@@ -160,6 +160,23 @@ export function RhythmLab({
   const playbackTimer = useRef<number | null>(null);
   const playbackStep = useRef(0);
   const totalSteps = cells.length;
+  const stepsPerBar = slotsPerBeat * 4;
+  const bars = Array.from(
+    { length: Math.ceil(totalSteps / stepsPerBar) },
+    (_value, barIndex) => {
+      const startStep = barIndex * stepsPerBar;
+      const startBeat = barIndex * 4;
+      const barChords = chordChanges
+        .slice(startBeat, startBeat + 4)
+        .filter((chord, index, all) => chord && all.indexOf(chord) === index);
+      return {
+        index: barIndex,
+        startBeat,
+        chords: barChords,
+        cells: cells.slice(startStep, startStep + stepsPerBar),
+      };
+    },
+  );
 
   const audioPattern = useMemo(
     () => ({
@@ -336,106 +353,174 @@ export function RhythmLab({
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-[22px] border-2 border-border bg-[#100d15] p-3">
-        <div
-          className="grid gap-2"
-          style={{
-            gridTemplateColumns: `repeat(${totalSteps}, minmax(3rem, 1fr))`,
-            minWidth: `${Math.max(480, totalSteps * 64)}px`,
-          }}
-          aria-label={`${totalSteps}-step rhythm grid`}
-        >
-          {cells.map((cell) => {
-            const beatIndex = Math.floor(cell.index / slotsPerBeat);
-            const chord =
-              cell.index % slotsPerBeat === 0
-                ? chordChanges[beatIndex]
-                : undefined;
-            return (
-              <div
-                key={cell.index}
-                className={`rounded-xl border-2 p-2 text-center transition ${
-                  activeStep === cell.index
-                    ? "scale-105 border-warning bg-warning/15"
-                    : cell.accented
-                      ? "border-accent bg-accent/10"
-                      : "border-border bg-surface"
-                }`}
-              >
-                <p className="h-4 text-[9px] font-black text-warning">
-                  {chord}
-                </p>
-                <p className="text-xs font-black text-muted">{cell.count}</p>
-                <p className="mt-1 text-[10px] font-bold text-muted">
-                  hand {cell.direction}
-                </p>
-                <button
-                  type="button"
-                  className="mt-2 flex h-11 w-full items-center justify-center rounded-lg border border-border bg-surface-muted text-lg font-black hover:border-accent"
-                  aria-label={`Step ${cell.index + 1}, ${cell.count}, ${cell.direction}, ${cell.state}`}
-                  disabled={guided}
-                  onClick={() => {
-                    stopPlayback();
-                    setCells((current) =>
-                      current.map((candidate) =>
-                        candidate.index === cell.index
-                          ? {
-                              ...candidate,
-                              state: cycleRhythmState(candidate.state),
-                            }
-                          : candidate,
-                      ),
-                    );
-                  }}
-                >
-                  {rhythmCellToSymbol(cell)}
-                </button>
-                <label className="mt-2 flex items-center justify-center gap-1 text-[9px] font-bold">
-                  <input
-                    type="checkbox"
-                    disabled={guided}
-                    checked={cell.accented}
-                    onChange={(event) => {
-                      stopPlayback();
-                      setCells((current) =>
-                        current.map((candidate) =>
-                          candidate.index === cell.index
-                            ? {
-                                ...candidate,
-                                accented: event.target.checked,
-                              }
-                            : candidate,
-                        ),
-                      );
-                    }}
-                  />
-                  Accent
-                </label>
-                <label className="mt-1 flex items-center justify-center gap-1 text-[9px] font-bold">
-                  <input
-                    type="checkbox"
-                    disabled={guided}
-                    checked={cell.palmMuted}
-                    onChange={(event) => {
-                      stopPlayback();
-                      setCells((current) =>
-                        current.map((candidate) =>
-                          candidate.index === cell.index
-                            ? {
-                                ...candidate,
-                                palmMuted: event.target.checked,
-                              }
-                            : candidate,
-                        ),
-                      );
-                    }}
-                  />
-                  Palm mute
-                </label>
-              </div>
-            );
-          })}
-        </div>
+      <div
+        className={`grid gap-3 ${
+          bars.length > 1 ? "lg:grid-cols-2" : ""
+        }`}
+        aria-label={`${totalSteps}-step rhythm grid`}
+      >
+        {bars.map((bar) => (
+          <section
+            key={bar.index}
+            className="min-w-0 rounded-[22px] border-2 border-border bg-[#100d15] p-3"
+            aria-label={`Bar ${bar.index + 1}${
+              bar.chords.length ? `, ${bar.chords.join(" to ")}` : ""
+            }`}
+          >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-accent">
+                Bar {bar.index + 1}
+              </p>
+              {bar.chords.length > 0 && (
+                <Badge variant="warning">
+                  Hold {bar.chords.join(" → ")}
+                </Badge>
+              )}
+            </div>
+            <div
+              data-testid={`rhythm-bar-grid-${bar.index + 1}`}
+              className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+            >
+              {Array.from(
+                { length: Math.ceil(bar.cells.length / slotsPerBeat) },
+                (_unused, localBeatIndex) => {
+                  const beatCells = bar.cells.slice(
+                    localBeatIndex * slotsPerBeat,
+                    (localBeatIndex + 1) * slotsPerBeat,
+                  );
+                  const chord =
+                    chordChanges[bar.startBeat + localBeatIndex];
+                  return (
+                    <div
+                      key={`beat-${bar.index}-${localBeatIndex}`}
+                      data-testid={`rhythm-beat-group-${bar.index + 1}-${localBeatIndex + 1}`}
+                      className="min-w-0 rounded-xl border border-border/80 bg-surface-muted/35 p-1.5"
+                    >
+                      <div className="mb-1 flex min-h-5 items-center justify-between gap-1 px-0.5">
+                        <p className="text-[11px] font-black text-muted">
+                          Beat {localBeatIndex + 1}
+                        </p>
+                        {bar.chords.length > 1 && chord && (
+                          <span className="truncate text-xs font-black text-warning">
+                            {chord}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className="grid gap-1"
+                        style={{
+                          gridTemplateColumns: `repeat(${slotsPerBeat}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {beatCells.map((cell) => (
+                          <div
+                            key={cell.index}
+                            className={`min-w-0 rounded-xl border-2 text-center transition ${
+                              guided ? "p-1" : "p-1.5 sm:p-2"
+                            } ${
+                              activeStep === cell.index
+                                ? "scale-105 border-warning bg-warning/15"
+                                : cell.accented
+                                  ? "border-accent bg-accent/10"
+                                  : "border-border bg-surface"
+                            }`}
+                          >
+                            <p className="text-xs font-black text-muted">
+                              {cell.count}
+                            </p>
+                            <p className="mt-1 font-bold text-muted">
+                              <span className="sr-only">
+                                hand {cell.direction}
+                              </span>
+                              <span aria-hidden="true" className="text-sm">
+                                {cell.direction === "D" ? "↓" : "↑"}
+                              </span>
+                            </p>
+                            {guided ? (
+                              <div
+                                className="mt-2 flex h-10 items-center justify-center rounded-lg border border-border bg-surface-muted text-lg font-black"
+                                aria-label={`Step ${cell.index + 1}, ${cell.count}, ${cell.direction}, ${cell.state}`}
+                              >
+                                {rhythmCellToSymbol(cell)}
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="mt-2 flex h-11 w-full items-center justify-center rounded-lg border border-border bg-surface-muted text-lg font-black hover:border-accent"
+                                  aria-label={`Step ${cell.index + 1}, ${cell.count}, ${cell.direction}, ${cell.state}`}
+                                  onClick={() => {
+                                    stopPlayback();
+                                    setCells((current) =>
+                                      current.map((candidate) =>
+                                        candidate.index === cell.index
+                                          ? {
+                                              ...candidate,
+                                              state: cycleRhythmState(
+                                                candidate.state,
+                                              ),
+                                            }
+                                          : candidate,
+                                      ),
+                                    );
+                                  }}
+                                >
+                                  {rhythmCellToSymbol(cell)}
+                                </button>
+                                <label className="mt-2 flex min-w-0 flex-col items-center justify-center gap-0.5 text-[11px] font-bold leading-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={cell.accented}
+                                    onChange={(event) => {
+                                      stopPlayback();
+                                      setCells((current) =>
+                                        current.map((candidate) =>
+                                          candidate.index === cell.index
+                                            ? {
+                                                ...candidate,
+                                                accented:
+                                                  event.target.checked,
+                                              }
+                                            : candidate,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                  Accent
+                                </label>
+                                <label className="mt-1 flex min-w-0 flex-col items-center justify-center gap-0.5 text-[11px] font-bold leading-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={cell.palmMuted}
+                                    onChange={(event) => {
+                                      stopPlayback();
+                                      setCells((current) =>
+                                        current.map((candidate) =>
+                                          candidate.index === cell.index
+                                            ? {
+                                                ...candidate,
+                                                palmMuted:
+                                                  event.target.checked,
+                                              }
+                                            : candidate,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                  Palm mute
+                                </label>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                },
+              )}
+            </div>
+          </section>
+        ))}
       </div>
 
       <p className="rounded-2xl border border-accent/25 bg-accent/5 p-4 text-xs leading-5 text-muted">
@@ -505,7 +590,7 @@ export function RhythmLab({
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {chordChanges.map((chord, index) => (
-            <label key={index} className="text-[10px] font-black">
+            <label key={index} className="text-xs font-black">
               Beat {index + 1} chord
               <input
                 className={`${fieldClassName} mt-1`}
@@ -524,7 +609,7 @@ export function RhythmLab({
         </div>
       </div>}
 
-      <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wide text-muted">
+      <div className="flex flex-wrap gap-2 text-xs font-black uppercase tracking-wide text-muted">
         <Badge>D/U · sounding stroke</Badge>
         <Badge>– · missed pass</Badge>
         <Badge>X · muted stroke</Badge>

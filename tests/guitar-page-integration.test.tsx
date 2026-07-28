@@ -123,6 +123,12 @@ describe("Guitar Studio page integration", () => {
     render(<GuitarPage />);
 
     await user.click(screen.getByRole("tab", { name: "Learn" }));
+    expect(screen.getByTestId("guitar-next-lesson-card")).toHaveClass(
+      "rounded-[22px]",
+    );
+    expect(
+      screen.getByTestId("guitar-next-lesson-card").firstElementChild,
+    ).toHaveClass("min-h-[12rem]", "lg:grid-cols-[1fr_14rem]");
     await user.click(
       await screen.findByRole("button", { name: "Add practice task" }),
     );

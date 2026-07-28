@@ -75,7 +75,7 @@ export function LessonGlossary({
       </div>
       {introduced.length > 0 && (
         <>
-          <p className="mt-3 text-[10px] font-black uppercase tracking-wide text-cyan">
+          <p className="mt-3 text-xs font-black uppercase tracking-wide text-cyan">
             New today · plain English first
           </p>
           <div className="mt-2 grid gap-2 md:grid-cols-2">

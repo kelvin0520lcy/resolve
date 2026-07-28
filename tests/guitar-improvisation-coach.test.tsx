@@ -4,6 +4,17 @@ import { describe, expect, it } from "vitest";
 import { ImprovisationCoach } from "@/features/guitar-learning/components/tools/improvisation-coach";
 
 describe("ImprovisationCoach", () => {
+  it("constrains the call-and-response column inside the desktop grid", () => {
+    render(<ImprovisationCoach mode="improvisation" />);
+
+    expect(
+      screen.getByTestId("improvisation-practice-layout"),
+    ).toHaveClass("lg:grid-cols-[18rem_minmax(0,1fr)]");
+    expect(
+      screen.getByText("Call and response").closest(".min-w-0"),
+    ).toBeTruthy();
+  });
+
   it("changes constraint guidance and produces analysed call responses", async () => {
     const user = userEvent.setup();
     render(<ImprovisationCoach mode="improvisation" />);
@@ -33,6 +44,13 @@ describe("ImprovisationCoach", () => {
   it("edits phrase events without saving transient tool state", async () => {
     const user = userEvent.setup();
     render(<ImprovisationCoach mode="phrase-builder" />);
+    expect(screen.getByTestId("phrase-timeline-layout")).toHaveClass(
+      "grid",
+      "sm:flex",
+    );
+    expect(screen.getByTestId("phrase-timeline-layout")).not.toHaveClass(
+      "min-w-[680px]",
+    );
     expect(screen.getAllByLabelText("Pitch or rest")).toHaveLength(5);
     await user.selectOptions(
       screen.getAllByLabelText("Pitch or rest")[0],

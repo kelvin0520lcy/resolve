@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, RotateCcw, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { GuitarChordDiagram } from "@/features/guitar-learning/components/chord-diagram";
 import type { GuitarLearningState } from "@/features/guitar-learning/types";
 import type { GuitarToolPreset } from "@/features/guitar-learning/data/tool-presets";
 import { recordChordChangeBest } from "@/features/guitar-learning/lib/learning-state";
@@ -51,50 +52,26 @@ function MiniChord({
   sharedStrings: Set<number>;
 }) {
   const chord = CHORDS[name];
+  const strings = chord.frets.map((fret, index) => ({
+    string: (6 - index) as 1 | 2 | 3 | 4 | 5 | 6,
+    fret:
+      fret === "X"
+        ? ("muted" as const)
+        : fret === "0"
+          ? ("open" as const)
+          : Number(fret),
+    finger: chord.fingers[index] || undefined,
+    root: chord.rootStrings.includes(index as never),
+    shared: sharedStrings.has(index),
+  }));
   return (
     <div className="rounded-2xl border-2 border-border bg-surface p-3 text-center">
       <p className="font-display text-2xl">{name}</p>
-      <div
-        className="mx-auto mt-3 grid max-w-56 grid-cols-6"
-        aria-label={`${name} chord diagram`}
-      >
-        {chord.frets.map((fret, index) => {
-          const numericFret = Number(fret);
-          const root = chord.rootStrings.includes(index as never);
-          const shared = sharedStrings.has(index);
-          return (
-            <div key={`${name}-${index}`} className="text-center">
-              <span className="text-xs font-black">
-                {fret === "X" ? "×" : fret === "0" ? "○" : " "}
-              </span>
-              <div className="relative mt-1 h-32 border-y-2 border-foreground/35 bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_calc(25%-1px),color-mix(in_srgb,var(--foreground)_24%,transparent)_25%)]">
-                <span className="absolute bottom-0 left-1/2 top-0 w-px bg-foreground/45" />
-                {Number.isFinite(numericFret) && numericFret > 0 && (
-                  <span
-                    className={`absolute left-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-xs font-black text-white ${
-                      shared
-                        ? "border-white bg-success ring-2 ring-success/30"
-                        : root
-                          ? "border-white bg-warning text-[#18121f]"
-                          : "border-white bg-accent"
-                    }`}
-                    style={{ top: `${(numericFret - 0.5) * 25}%` }}
-                    aria-label={`String ${6 - index}, fret ${numericFret}, finger ${chord.fingers[index]}${root ? ", root note" : ""}${shared ? ", shared position" : ""}`}
-                  >
-                    {chord.fingers[index]}
-                  </span>
-                )}
-              </div>
-              <span className="mt-1 block text-[9px] text-muted">
-                {6 - index}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <p className="mt-2 text-[10px] text-muted">
-        ○ open · × mute · number inside dot = finger
-      </p>
+      <GuitarChordDiagram
+        chordName={name}
+        strings={strings}
+        className="mt-2"
+      />
     </div>
   );
 }

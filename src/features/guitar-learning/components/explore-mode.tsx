@@ -517,6 +517,69 @@ function ContextualGuide({
   );
 }
 
+function MobileToolPicker({
+  initialGroup,
+  selectedToolId,
+  onSelectTool,
+}: {
+  initialGroup: GuitarToolDefinition["group"];
+  selectedToolId: GuitarToolId;
+  onSelectTool: (toolId: GuitarToolId) => void;
+}) {
+  const [group, setGroup] = useState(initialGroup);
+  const groups = [...new Set(GUITAR_TOOLS.map((tool) => tool.group))];
+
+  return (
+    <aside className="min-w-0 xl:hidden" aria-label="Mobile tool picker">
+      <div className="rounded-2xl border-2 border-border bg-surface-elevated p-3">
+        <label className="block text-xs font-black uppercase tracking-wide text-muted">
+          Tool category
+          <select
+            className={`${fieldClassName} mt-2`}
+            value={group}
+            onChange={(event) =>
+              setGroup(
+                event.target.value as GuitarToolDefinition["group"],
+              )
+            }
+          >
+            {groups.map((candidate) => (
+              <option key={candidate} value={candidate}>
+                {candidate}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {GUITAR_TOOLS.filter((tool) => tool.group === group).map(
+            (tool) => {
+              const Icon = tool.icon;
+              return (
+                <button
+                  key={tool.id}
+                  type="button"
+                  aria-pressed={selectedToolId === tool.id}
+                  onClick={() => onSelectTool(tool.id)}
+                  className={`flex min-h-12 min-w-0 items-center gap-2 rounded-xl border-2 px-3 py-2 text-left text-sm font-black transition ${
+                    selectedToolId === tool.id
+                      ? "border-accent bg-accent/15 text-accent"
+                      : "border-border bg-surface hover:border-accent/50"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 break-words">
+                    {tool.shortTitle}
+                  </span>
+                </button>
+              );
+            },
+          )}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export function GuitarExploreMode({
   selectedToolId,
   selectedPresetId,
@@ -544,6 +607,10 @@ export function GuitarExploreMode({
   const ActiveIcon = activeTool.icon;
   const quickStart = GUITAR_TOOL_QUICK_START[activeTool.id];
   const groups = [...new Set(GUITAR_TOOLS.map((tool) => tool.group))];
+  const hasGuidedPreset = ALL_GUITAR_TOOL_PRESETS.some(
+    (preset) =>
+      preset.toolId === selectedToolId && preset.exactGuided !== false,
+  );
 
   function renderTool() {
     const selectedPreset =
@@ -563,10 +630,6 @@ export function GuitarExploreMode({
         />
       );
     }
-    const hasGuidedPreset = ALL_GUITAR_TOOL_PRESETS.some(
-      (preset) =>
-        preset.toolId === selectedToolId && preset.exactGuided !== false,
-    );
     if (toolMode === "guided" && hasGuidedPreset) {
       const preset =
         selectedPreset ??
@@ -652,14 +715,21 @@ export function GuitarExploreMode({
 
   return (
     <div className="grid min-w-0 gap-5 xl:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside className="min-w-0">
-        <div className="arc-strip flex gap-2 overflow-x-auto pb-2 xl:block xl:space-y-4 xl:overflow-visible">
+      <MobileToolPicker
+        key={activeTool.group}
+        initialGroup={activeTool.group}
+        selectedToolId={selectedToolId}
+        onSelectTool={onSelectTool}
+      />
+
+      <aside className="hidden min-w-0 xl:block" aria-label="Desktop tool list">
+        <div className="arc-strip space-y-4">
           {groups.map((group) => (
-            <div key={group} className="min-w-max xl:min-w-0">
-              <p className="mb-2 hidden px-2 text-[9px] font-black uppercase tracking-[0.18em] text-muted xl:block">
+            <div key={group}>
+              <p className="mb-2 px-2 text-xs font-black uppercase tracking-[0.18em] text-muted">
                 {group}
               </p>
-              <div className="flex gap-2 xl:grid">
+              <div className="grid gap-2">
                 {GUITAR_TOOLS.filter((tool) => tool.group === group).map(
                   (tool) => {
                     const Icon = tool.icon;
@@ -669,7 +739,7 @@ export function GuitarExploreMode({
                         type="button"
                         aria-pressed={selectedToolId === tool.id}
                         onClick={() => onSelectTool(tool.id)}
-                        className={`flex min-h-11 items-center gap-2 rounded-xl border-2 px-3 py-2 text-left text-xs font-black transition xl:w-full ${
+                        className={`flex min-h-11 w-full items-center gap-2 rounded-xl border-2 px-3 py-2 text-left text-xs font-black transition ${
                           selectedToolId === tool.id
                             ? "border-accent bg-accent/15 text-accent"
                             : "border-border bg-surface hover:border-accent/50"
@@ -733,7 +803,7 @@ export function GuitarExploreMode({
               key={label}
               className="rounded-xl border border-border bg-surface p-3"
             >
-              <p className="text-[9px] font-black uppercase tracking-[0.14em] text-accent">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-accent">
                 {label}
               </p>
               <p className="mt-2 text-xs leading-5">{instruction}</p>
@@ -741,7 +811,8 @@ export function GuitarExploreMode({
           ))}
         </section>
 
-        {!["tuner", "chord-trainer"].includes(selectedToolId) && (
+        {!["tuner", "chord-trainer"].includes(selectedToolId) &&
+        hasGuidedPreset ? (
           <div
             className="flex w-fit rounded-xl border-2 border-border bg-surface p-1"
             role="group"
@@ -763,7 +834,11 @@ export function GuitarExploreMode({
               </button>
             ))}
           </div>
-        )}
+        ) : !["tuner", "chord-trainer"].includes(selectedToolId) ? (
+          <Badge className="w-fit" variant="default">
+            Sandbox tool · no guided lesson preset yet
+          </Badge>
+        ) : null}
 
         <Card className="min-w-0">
           <CardContent className="min-w-0 pt-5">

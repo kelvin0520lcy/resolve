@@ -146,24 +146,29 @@ export function LessonConceptRoute({
       label={`Learning route for ${conceptTitle}: hear, see, play, and use`}
       className="mt-4"
     >
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 sm:gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {stages.map((stage, index) => {
           const Icon = stage.icon;
           return (
-            <div key={stage.label} className="contents">
-              <div className="min-w-0 rounded-xl border border-border bg-surface px-1.5 py-3 text-center sm:p-3">
+            <div
+              key={stage.label}
+              className="min-w-0 rounded-xl border border-border bg-surface p-3 text-center"
+            >
+              <div className="flex items-center justify-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/12 text-[11px] font-black text-accent">
+                  {index + 1}
+                </span>
                 <Icon
-                  className="mx-auto h-4 w-4 text-accent"
+                  className="h-4 w-4 text-accent"
                   aria-hidden="true"
                 />
-                <p className="mt-1 text-[9px] font-black uppercase tracking-wide text-accent">
-                  {stage.label}
-                </p>
-                <p className="mt-1 line-clamp-2 break-words text-[9px] font-bold leading-4 text-muted sm:text-[10px]">
-                  {stage.detail}
-                </p>
               </div>
-              {index < stages.length - 1 && <FlowArrow compact />}
+              <p className="mt-2 text-xs font-black uppercase tracking-wide text-accent">
+                {stage.label}
+              </p>
+              <p className="mt-1 line-clamp-2 break-words text-xs font-bold leading-5 text-muted">
+                {stage.detail}
+              </p>
             </div>
           );
         })}
@@ -189,7 +194,7 @@ export function ConnectionBridgeVisual({
     >
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center">
         <div className="rounded-xl border-2 border-cyan/35 bg-cyan/8 p-3">
-          <p className="text-[9px] font-black uppercase tracking-wide text-cyan">
+          <p className="text-[11px] font-black uppercase tracking-wide text-cyan">
             Keep familiar
           </p>
           <p className="mt-1 text-xs font-black leading-5">{knownConcept}</p>
@@ -200,14 +205,14 @@ export function ConnectionBridgeVisual({
             className="mx-auto h-4 w-4 text-warning"
             aria-hidden="true"
           />
-          <p className="mt-1 text-[9px] font-black uppercase tracking-wide text-warning">
+          <p className="mt-1 text-[11px] font-black uppercase tracking-wide text-warning">
             Notice one change
           </p>
           <p className="mt-1 text-xs font-black">{language.relationship}</p>
         </div>
         <FlowArrow />
         <div className="rounded-xl border-2 border-accent/35 bg-accent/8 p-3">
-          <p className="text-[9px] font-black uppercase tracking-wide text-accent">
+          <p className="text-[11px] font-black uppercase tracking-wide text-accent">
             New idea
           </p>
           <p className="mt-1 text-xs font-black leading-5">{conceptTitle}</p>
@@ -268,7 +273,7 @@ export function TechniqueControlVisual({
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-danger/30 bg-danger/8 p-3">
-          <p className="text-[9px] font-black uppercase tracking-wide text-danger">
+          <p className="text-[11px] font-black uppercase tracking-wide text-danger">
             Unstable · too many corrections
           </p>
           <MotionPath controlled={false} />
@@ -276,7 +281,7 @@ export function TechniqueControlVisual({
             {["Tense", "Large", "Late", "Uneven"].map((label, index) => (
               <span
                 key={label}
-                className={`rounded-md bg-danger/15 py-1 text-center text-[8px] font-black ${
+                className={`rounded-md bg-danger/15 py-1 text-center text-[11px] font-black ${
                   index === 1 ? "translate-y-1" : ""
                 }`}
               >
@@ -286,7 +291,7 @@ export function TechniqueControlVisual({
           </div>
         </div>
         <div className="rounded-xl border border-success/30 bg-success/8 p-3">
-          <p className="text-[9px] font-black uppercase tracking-wide text-success">
+          <p className="text-[11px] font-black uppercase tracking-wide text-success">
             Controlled · one repeatable decision
           </p>
           <MotionPath controlled />
@@ -294,7 +299,7 @@ export function TechniqueControlVisual({
             {[language.anchor, "Small", "Early", "Even"].map((label) => (
               <span
                 key={label}
-                className="rounded-md bg-success/15 py-1 text-center text-[8px] font-black"
+                className="rounded-md bg-success/15 py-1 text-center text-[11px] font-black"
               >
                 {label}
               </span>
@@ -333,21 +338,21 @@ export function PracticeLoopVisual({
               key={step.label}
               className="relative rounded-xl border border-border bg-surface p-3"
             >
-              <span className="absolute right-2 top-2 text-[9px] font-black text-muted">
+              <span className="absolute right-2 top-2 text-[11px] font-black text-muted">
                 0{index + 1}
               </span>
               <Icon className="h-4 w-4 text-accent" aria-hidden="true" />
-              <p className="mt-2 text-[9px] font-black uppercase tracking-wide text-accent">
+              <p className="mt-2 text-xs font-black uppercase tracking-wide text-accent">
                 {step.label}
               </p>
-              <p className="mt-1 text-[10px] font-bold leading-4">
+              <p className="mt-1 text-xs font-bold leading-5">
                 {step.detail}
               </p>
             </div>
           );
         })}
       </div>
-      <p className="mt-3 text-center text-[10px] font-bold text-muted">
+      <p className="mt-3 text-center text-xs font-bold leading-5 text-muted">
         If Transfer breaks down, return to Isolate—do not hide the problem with
         speed.
       </p>
@@ -370,31 +375,31 @@ export function MusicalUseVisual({
     >
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center">
         <div className="rounded-xl border border-border bg-surface p-3">
-          <p className="text-[9px] font-black uppercase tracking-wide text-muted">
+          <p className="text-[11px] font-black uppercase tracking-wide text-muted">
             Version A · establish
           </p>
           <div className="mt-2 grid grid-cols-4 gap-1">
             {[1, 2, 3, 4].map((bar) => (
               <span
                 key={bar}
-                className="flex h-8 items-center justify-center rounded-md bg-cyan/12 text-[9px] font-black text-cyan"
+                className="flex h-8 items-center justify-center rounded-md bg-cyan/12 text-[11px] font-black text-cyan"
               >
                 {bar}
               </span>
             ))}
           </div>
-          <p className="mt-2 text-[10px] font-bold">{language.anchor}</p>
+          <p className="mt-2 text-xs font-bold">{language.anchor}</p>
         </div>
         <FlowArrow />
         <div className="rounded-xl border-2 border-accent/35 bg-accent/8 p-3">
-          <p className="text-[9px] font-black uppercase tracking-wide text-accent">
+          <p className="text-[11px] font-black uppercase tracking-wide text-accent">
             Version B · one change
           </p>
           <div className="mt-2 grid grid-cols-4 gap-1">
             {[1, 2, 3, 4].map((bar) => (
               <span
                 key={bar}
-                className={`flex h-8 items-center justify-center rounded-md text-[9px] font-black ${
+                className={`flex h-8 items-center justify-center rounded-md text-[11px] font-black ${
                   bar === 3
                     ? "bg-warning text-[#18121f]"
                     : "bg-accent/15 text-accent"
@@ -404,7 +409,7 @@ export function MusicalUseVisual({
               </span>
             ))}
           </div>
-          <p className="mt-2 line-clamp-1 text-[10px] font-bold">
+          <p className="mt-2 line-clamp-1 text-xs font-bold">
             {conceptTitle}
           </p>
         </div>
@@ -414,10 +419,10 @@ export function MusicalUseVisual({
             className="mx-auto h-5 w-5 text-success"
             aria-hidden="true"
           />
-          <p className="mt-2 text-[9px] font-black uppercase tracking-wide text-success">
+          <p className="mt-2 text-[11px] font-black uppercase tracking-wide text-success">
             Compare the role
           </p>
-          <p className="mt-1 text-[10px] font-bold leading-4">
+          <p className="mt-1 text-xs font-bold leading-5">
             Keep the version that makes {language.result.toLowerCase()} clearer.
           </p>
         </div>

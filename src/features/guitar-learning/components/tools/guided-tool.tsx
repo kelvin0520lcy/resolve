@@ -66,9 +66,12 @@ export function GuidedGuitarTool({
   return (
     <section aria-labelledby="guided-tool-title" className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <Badge variant="accent">Guided example</Badge>
-          <h3 id="guided-tool-title" className="font-display mt-2 text-2xl">
+          <h3
+            id="guided-tool-title"
+            className="font-display mt-2 break-words text-2xl"
+          >
             {selected.lessonTitle}
           </h3>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
@@ -76,10 +79,10 @@ export function GuidedGuitarTool({
           </p>
         </div>
         {options.length > 1 && (
-          <label className="text-xs font-black">
+          <label className="block w-full min-w-0 text-xs font-black sm:w-auto">
             Example
             <select
-              className="ml-2 rounded-xl border-2 border-border bg-surface px-3 py-2"
+              className="mt-2 block w-full min-w-0 max-w-full rounded-xl border-2 border-border bg-surface px-3 py-2 sm:ml-2 sm:mt-0 sm:inline-block sm:w-auto"
               value={selected.id}
               onChange={(event) => onSelectPreset(event.target.value)}
             >
@@ -95,13 +98,13 @@ export function GuidedGuitarTool({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-surface-muted/45 p-3">
-          <p className="text-[10px] font-black uppercase tracking-wide text-accent">
+          <p className="text-xs font-black uppercase tracking-wide text-accent">
             What to do
           </p>
           <p className="mt-2 text-xs leading-5">{visual.prompt}</p>
         </div>
         <div className="rounded-xl border border-success/25 bg-success/8 p-3">
-          <p className="text-[10px] font-black uppercase tracking-wide text-success">
+          <p className="text-xs font-black uppercase tracking-wide text-success">
             You have it when
           </p>
           <p className="mt-2 text-xs leading-5">{selected.successCondition}</p>

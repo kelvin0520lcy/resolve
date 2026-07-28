@@ -132,6 +132,25 @@ describe("published guitar curriculum", () => {
     ).toBe("achieved");
   });
 
+  it("authors project evidence outcomes explicitly while retaining inference as a fallback", () => {
+    for (const lessonId of [
+      "guitar-language:first-two-chord-groove",
+      "rhythm:beginner-jrock-groove-project",
+      "improvisation:call-and-response",
+    ]) {
+      expect(
+        GUITAR_LESSON_BY_ID.get(lessonId)?.applicationActivity.outcomes,
+      ).toEqual(["partial", "partial", "achieved"]);
+    }
+
+    const inferredLesson = GUITAR_LESSON_BY_ID.get(
+      "improvisation:playing-with-only-two-or-three-notes",
+    )!;
+    expect(inferredLesson.applicationActivity.outcomes).toHaveLength(
+      inferredLesson.applicationActivity.options.length,
+    );
+  });
+
   it("keeps every troubleshooter destination valid and tool-compatible", () => {
     for (const problem of PRACTICE_TROUBLESHOOTER_PROBLEMS) {
       expect(

@@ -586,6 +586,7 @@ export const SCALE_TO_PHRASE_LESSONS = [
       body: "Perform an original four-bar call-and-response over Am: call, space, answer, space.",
       prompt: "Which project evidence did you achieve?",
       options: ["Recognisable call", "Settled response", "Both"],
+      outcomes: ["partial", "partial", "achieved"],
       completionMessage: "You completed a short original solo form using home, three notes, rest, ending, and motif.",
     },
     alternativeExplanation:

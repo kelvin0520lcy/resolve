@@ -85,9 +85,30 @@ describe("LessonRenderer authored flow", () => {
     const user = userEvent.setup();
     const onStageChange = vi.fn();
     render(<Harness initialStage={1} onStageChange={onStageChange} />);
-    expect(screen.getByText("Stage 2 of 8")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getAllByText("Stage 2 of 8")).toHaveLength(2);
+    expect(
+      screen.getByRole("combobox", { name: "Lesson stage" }),
+    ).toHaveValue("1");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Lesson stage" }),
+      "2",
+    );
     expect(onStageChange).toHaveBeenCalledWith(2);
+  });
+
+  it("uses one clear visual-stage confirmation instead of a duplicate checkbox", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialStage={1} />);
+
+    expect(
+      screen.queryByRole("checkbox", { name: /I traced the diagram/ }),
+    ).not.toBeInTheDocument();
+    const completeButton = screen.getByRole("button", {
+      name: "I traced and explained it",
+    });
+    expect(completeButton).toBeEnabled();
+    await user.click(completeButton);
+    expect(screen.getAllByText("1/5 lesson stages")).toHaveLength(2);
   });
 
   it("records every honest musical-application outcome", async () => {

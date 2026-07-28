@@ -690,6 +690,7 @@ export const RHYTHM_YOU_CAN_SEE_LESSONS = [
       body: "Perform and save one four-bar verse-to-chorus rhythm part using original chords.",
       prompt: "Which project criteria did you meet?",
       options: ["Steady pulse", "Clear section contrast", "Both"],
+      outcomes: ["partial", "partial", "achieved"],
       completionMessage: "You completed an original, royalty-safe Japanese-rock rhythm part.",
     },
     alternativeExplanation:

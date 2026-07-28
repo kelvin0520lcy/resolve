@@ -292,8 +292,6 @@ function VisualLessonStage({
   onComplete: () => void;
   onOpenTool: (toolId: GuitarToolId, presetId?: string) => void;
 }) {
-  const [confirmedObservation, setConfirmedObservation] = useState(false);
-
   return (
     <SectionFrame
       eyebrow="Guided visual"
@@ -301,7 +299,6 @@ function VisualLessonStage({
       footer={
         <CompletionButton
           completed={completed}
-          disabled={!confirmedObservation}
           label="I traced and explained it"
           onClick={onComplete}
         />
@@ -315,7 +312,7 @@ function VisualLessonStage({
         />
       </div>
       <div className="mt-4 rounded-2xl border border-accent/25 bg-accent/5 p-4">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-accent">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-accent">
           How to read it
         </p>
         <ol className="mt-3 space-y-2">
@@ -336,18 +333,6 @@ function VisualLessonStage({
           <strong className="text-foreground">You’ve got it when:</strong>{" "}
           {section.successCriteria}
         </p>
-        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface/70 p-3 text-sm leading-6">
-          <input
-            type="checkbox"
-            className="mt-1 h-4 w-4 accent-[var(--accent)]"
-            checked={confirmedObservation}
-            onChange={(event) =>
-              setConfirmedObservation(event.target.checked)
-            }
-          />
-          I traced the diagram and can state the relationship without reading
-          the answer.
-        </label>
       </div>
       {hasExactGuidedGuitarPreset(section.toolPresetId) && (
         <>
@@ -886,6 +871,30 @@ export function LessonRenderer({
         </CardContent>
       </Card>
 
+      <label className="block rounded-2xl border-2 border-border bg-surface p-4 lg:hidden">
+        <span className="text-xs font-black uppercase tracking-wide text-muted">
+          Lesson stage
+        </span>
+        <span className="mt-1 block text-xs leading-5 text-muted">
+          Jump between stages without losing completed work.
+        </span>
+        <select
+          aria-label="Lesson stage"
+          value={String(stage)}
+          onChange={(event) => goToStage(Number(event.target.value))}
+          className="mt-3 min-h-12 w-full rounded-xl border-2 border-border bg-surface-elevated px-3 text-sm font-bold text-foreground"
+        >
+          {stageLabels.map((label, index) => (
+            <option key={`${label}-${index}`} value={String(index)}>
+              {index + 1}. {label}
+            </option>
+          ))}
+        </select>
+        <span className="mt-2 block text-xs font-bold text-accent">
+          Stage {stage + 1} of {totalStages}
+        </span>
+      </label>
+
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
         <div id="guitar-lesson-stage" className="min-w-0 scroll-mt-24">
           {currentSection && renderSection(currentSection)}
@@ -1030,7 +1039,7 @@ export function LessonRenderer({
           </div>
         </div>
 
-        <aside className="space-y-4">
+        <aside className="hidden space-y-4 lg:block">
           <Card>
             <CardHeader>
               <CardTitle>Lesson route</CardTitle>

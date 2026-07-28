@@ -202,13 +202,13 @@ export function PickingVisualizer({
         <div className="mt-12 space-y-4" aria-label="Animated picking strings">
           {[5, 4, 3, 2, 1, 0].map((string) => (
             <div key={string} className="relative h-5">
-              <span className="absolute left-0 top-0 text-[9px] font-black text-muted">
+              <span className="absolute left-0 top-0 text-[11px] font-black text-muted">
                 {6 - string}
               </span>
               <span className="absolute left-7 right-0 top-2 h-px bg-[#e4cfaa]/70" />
               {active.string === string && (
                 <span
-                  className={`absolute top-[-0.35rem] flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-accent text-[10px] font-black text-white transition-all duration-300 ${
+                  className={`absolute top-[-0.35rem] flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-accent text-xs font-black text-white transition-all duration-300 ${
                     exaggerated ? "left-[82%]" : "left-[48%]"
                   }`}
                 >
@@ -255,7 +255,7 @@ export function PickingVisualizer({
                   : "border-border bg-surface"
               }`}
             >
-              <span className="text-[10px] font-black uppercase tracking-wide text-muted">
+              <span className="text-xs font-black uppercase tracking-wide text-muted">
                 Step {index + 1}
               </span>
               <span className="mt-1 block font-black">

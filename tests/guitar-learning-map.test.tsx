@@ -20,6 +20,16 @@ function Harness() {
 }
 
 describe("GuitarLearningMap", () => {
+  it("uses a three-column desktop path grid so the final row stays balanced", () => {
+    render(<Harness />);
+    expect(screen.getByTestId("guitar-path-grid")).toHaveClass(
+      "xl:grid-cols-3",
+    );
+    expect(screen.getByTestId("guitar-path-grid")).not.toHaveClass(
+      "xl:grid-cols-4",
+    );
+  });
+
   it("explains locked nodes and supports an already-known override", async () => {
     const user = userEvent.setup();
     render(<Harness />);

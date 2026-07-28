@@ -120,7 +120,7 @@ function NoteStrip({
           }
         >
           <span className="block font-display text-lg">{note}</span>
-          <span className="mt-1 block text-[9px] font-black uppercase tracking-wide opacity-75">
+          <span className="mt-1 block text-[11px] font-black uppercase tracking-wide opacity-75">
             {roleLabels?.[index] ?? getIntervalName(root, note)}
           </span>
         </button>
@@ -139,24 +139,28 @@ function MiniFretboardMap({
   const positions = generateFretboard(STANDARD_TUNING, 12, root);
   const noteSet = new Set(notes);
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border bg-[#110e16] p-3">
+    <div className="rounded-2xl border border-border bg-[#110e16] p-3">
       <div
-        className="grid min-w-[620px] gap-px"
-        style={{ gridTemplateColumns: "3rem repeat(13, 1fr)" }}
+        data-testid="harmony-fretboard-map"
+        className="grid gap-px"
+        style={{
+          gridTemplateColumns:
+            "2rem repeat(13, minmax(0, 1fr))",
+        }}
         aria-label="Twelve-fret note relationship map"
       >
         <div />
         {Array.from({ length: 13 }, (_value, fret) => (
           <div
             key={fret}
-            className="text-center text-[9px] font-bold text-muted"
+            className="text-center text-[11px] font-bold text-muted"
           >
             {fret}
           </div>
         ))}
         {[5, 4, 3, 2, 1, 0].map((stringIndex) => (
           <div key={stringIndex} className="contents">
-            <div className="flex items-center justify-center text-[9px] font-black text-muted">
+            <div className="flex items-center justify-center text-[11px] font-black text-muted">
               {6 - stringIndex}
             </div>
             {positions
@@ -168,7 +172,7 @@ function MiniFretboardMap({
                 >
                   {noteSet.has(position.note) && (
                     <span
-                      className={`flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-black ${
+                      className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-black sm:h-6 sm:w-6 sm:text-[11px] ${
                         position.note === root
                           ? "bg-accent text-white"
                           : "bg-warning text-[#18121f]"

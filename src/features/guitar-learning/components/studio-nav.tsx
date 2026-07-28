@@ -85,7 +85,7 @@ export function GuitarStudioNav({
                 <span className="block text-xs font-black uppercase tracking-wide">
                   {item.label}
                 </span>
-                <span className="mt-0.5 block text-[10px] font-bold text-muted">
+                <span className="mt-0.5 block text-xs font-bold text-muted">
                   {item.shortDescription}
                 </span>
               </span>

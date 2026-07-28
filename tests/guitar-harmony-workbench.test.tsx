@@ -8,6 +8,9 @@ describe("HarmonyWorkbench", () => {
     const user = userEvent.setup();
     render(<HarmonyWorkbench mode="scales" />);
     expect(screen.getByText("A minor pentatonic")).toBeInTheDocument();
+    expect(screen.getByTestId("harmony-fretboard-map")).not.toHaveClass(
+      "min-w-[620px]",
+    );
     await user.selectOptions(screen.getByLabelText("Root note"), "C");
     await user.selectOptions(screen.getByLabelText("Scale colour"), "major");
     expect(screen.getByText("C major")).toBeInTheDocument();

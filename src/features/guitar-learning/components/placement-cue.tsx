@@ -46,7 +46,7 @@ function RhythmCue({ advanced }: { advanced: boolean }) {
     >
       {counts.map((count, index) => (
         <div key={`${count}-${index}`} className="text-center">
-          <span className="text-[10px] font-black">{count}</span>
+          <span className="text-xs font-black">{count}</span>
           <span className="mt-1 flex min-h-9 items-center justify-center rounded-lg border border-border bg-surface">
             {index % 2 === 0 ? (
               <ArrowDown className="h-4 w-4 text-accent" />
@@ -54,7 +54,7 @@ function RhythmCue({ advanced }: { advanced: boolean }) {
               <ArrowUp className="h-4 w-4 text-cyan" />
             )}
           </span>
-          <span className="mt-1 block text-[9px] font-black text-muted">
+          <span className="mt-1 block text-[11px] font-black text-muted">
             {advanced && [2, 6].includes(index)
               ? "X"
               : [0, 2, 3, 6].includes(index)
@@ -111,12 +111,12 @@ function ChordCue() {
       className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center"
     >
       <div className="rounded-xl border border-border bg-surface p-3 text-center">
-        <p className="text-[9px] font-black text-muted">POWER CHORD</p>
+        <p className="text-[11px] font-black text-muted">POWER CHORD</p>
         <p className="mt-1 font-black">R · 5 · R</p>
       </div>
       <ArrowRight className="mx-auto h-4 w-4 rotate-90 text-muted sm:rotate-0" />
       <div className="rounded-xl border border-border bg-surface p-3 text-center">
-        <p className="text-[9px] font-black text-muted">MAJOR / MINOR</p>
+        <p className="text-[11px] font-black text-muted">MAJOR / MINOR</p>
         <p className="mt-1 font-black">R · 3 / ♭3 · 5</p>
       </div>
     </div>
@@ -178,7 +178,7 @@ function TheoryCue({ questionId }: { questionId: string }) {
           key={label}
           className="rounded-xl border border-border bg-surface p-3 text-center"
         >
-          <p className="text-[9px] font-black text-muted">{label}</p>
+          <p className="text-[11px] font-black text-muted">{label}</p>
           <p className="mt-1 text-xs font-black">{formula}</p>
         </div>
       ))}
@@ -194,7 +194,7 @@ export function PlacementCue({
   const listening = LISTENING_CUES[question.id];
   return (
     <div className="mb-5 rounded-2xl border-2 border-accent/20 bg-accent/5 p-4">
-      <p className="mb-3 text-[10px] font-black uppercase tracking-[0.16em] text-accent">
+      <p className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-accent">
         Try this before rating yourself
       </p>
       {question.kind === "rhythm-grid" && (

@@ -193,19 +193,22 @@ export function GuitarLearnMode({
 
   return (
     <div className="space-y-6">
-      <section className="manga-panel speed-lines overflow-hidden rounded-[26px]">
-        <div className="grid min-h-[17rem] lg:grid-cols-[1fr_20rem]">
-          <div className="relative z-10 p-5 sm:p-7">
+      <section
+        data-testid="guitar-next-lesson-card"
+        className="manga-panel speed-lines overflow-hidden rounded-[22px]"
+      >
+        <div className="grid min-h-[12rem] lg:grid-cols-[1fr_14rem]">
+          <div className="relative z-10 p-5">
             <Badge variant="accent">
               <Sparkles className="mr-1 h-3 w-3" />
               Deterministic next step
             </Badge>
             {recommendedLesson && primaryRecommendation ? (
               <>
-                <p className="mt-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#7b5470]">
+                <p className="mt-3 text-xs font-black uppercase tracking-[0.2em] text-[#7b5470]">
                   {recommendedLesson.coach} recommends
                 </p>
-                <h2 className="font-display mt-1 text-3xl leading-none tracking-wide text-[#18121f]">
+                <h2 className="font-display mt-1 text-2xl leading-none tracking-wide text-[#18121f]">
                   {recommendedLesson.title}
                 </h2>
                 {recommendedLesson.optional && (
@@ -226,7 +229,7 @@ export function GuitarLearnMode({
                       .join(", ")}
                   </div>
                 ) : (
-                  <div className="mt-5 flex flex-wrap gap-3">
+                  <div className="mt-4 flex flex-wrap gap-3">
                     <Button
                       type="button"
                       onClick={() => openLesson(recommendedLesson.id)}
@@ -268,7 +271,7 @@ export function GuitarLearnMode({
                     </Button>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="secondary"
                       onClick={() =>
                         updateState((current) =>
                           hideLessonRecommendation(
@@ -313,7 +316,7 @@ export function GuitarLearnMode({
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="pt-5">
-            <p className="text-[10px] font-black uppercase tracking-wide text-muted">
+            <p className="text-xs font-black uppercase tracking-wide text-muted">
               Confirmed concepts
             </p>
             <p className="font-display mt-1 text-3xl">{understoodCount}</p>
@@ -321,7 +324,7 @@ export function GuitarLearnMode({
         </Card>
         <Card>
           <CardContent className="pt-5">
-            <p className="text-[10px] font-black uppercase tracking-wide text-muted">
+            <p className="text-xs font-black uppercase tracking-wide text-muted">
               Current paths
             </p>
             <p className="font-display mt-1 text-3xl">
@@ -331,7 +334,7 @@ export function GuitarLearnMode({
         </Card>
         <Card>
           <CardContent className="pt-5">
-            <p className="text-[10px] font-black uppercase tracking-wide text-muted">
+            <p className="text-xs font-black uppercase tracking-wide text-muted">
               Bookmarked
             </p>
             <p className="font-display mt-1 text-3xl">

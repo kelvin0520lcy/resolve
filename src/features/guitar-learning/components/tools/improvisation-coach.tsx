@@ -69,12 +69,16 @@ function PhraseTimeline({
   onChange?: (events: PhraseEvent[]) => void;
 }) {
   return (
-    <div className="overflow-x-auto pb-2">
-      <div className="flex min-w-[680px] gap-2" aria-label="Phrase timeline">
+    <div className="sm:overflow-x-auto sm:pb-2">
+      <div
+        data-testid="phrase-timeline-layout"
+        className="grid gap-2 sm:flex sm:min-w-[680px]"
+        aria-label="Phrase timeline"
+      >
         {events.map((event, index) => (
           <div
             key={event.id}
-            className={`min-w-36 flex-1 rounded-2xl border-2 p-3 ${
+            className={`min-w-0 flex-1 rounded-2xl border-2 p-3 sm:min-w-36 ${
               event.rest
                 ? "border-dashed border-border bg-surface-muted/35"
                 : event.note === root
@@ -82,13 +86,13 @@ function PhraseTimeline({
                   : "border-border bg-surface"
             }`}
           >
-            <p className="text-[9px] font-black uppercase tracking-wide text-muted">
+            <p className="text-xs font-black uppercase tracking-wide text-muted">
               Event {index + 1} · {event.durationSteps} step
               {event.durationSteps > 1 ? "s" : ""}
             </p>
             {editable ? (
               <>
-                <label className="mt-2 block text-[9px] font-black">
+                <label className="mt-2 block text-xs font-black">
                   Pitch or rest
                   <select
                     className={`${fieldClassName} mt-1 h-9 px-2 text-xs`}
@@ -119,7 +123,7 @@ function PhraseTimeline({
                     ))}
                   </select>
                 </label>
-                <label className="mt-2 block text-[9px] font-black">
+                <label className="mt-2 block text-[11px] font-black">
                   Articulation
                   <select
                     className={`${fieldClassName} mt-1 h-9 px-2 text-xs`}
@@ -336,8 +340,11 @@ export function ImprovisationCoach({
 
       {mode === "improvisation" ? (
         <>
-          <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
-            <div className="rounded-2xl border border-border bg-surface p-4">
+          <div
+            data-testid="improvisation-practice-layout"
+            className="grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]"
+          >
+            <div className="min-w-0 rounded-2xl border border-border bg-surface p-4">
               <label className="text-xs font-black">
                 Practice constraint
                 <select
@@ -363,7 +370,7 @@ export function ImprovisationCoach({
                 vary timing, register, and articulation.
               </p>
             </div>
-            <div className="rounded-2xl border border-border bg-surface p-4">
+            <div className="min-w-0 rounded-2xl border border-border bg-surface p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="flex items-center gap-2 font-black">
@@ -385,7 +392,7 @@ export function ImprovisationCoach({
                   New call
                 </Button>
               </div>
-              <p className="mt-4 text-[10px] font-black uppercase tracking-wide text-muted">
+              <p className="mt-4 text-xs font-black uppercase tracking-wide text-muted">
                 Call
               </p>
               <PhraseTimeline
@@ -417,7 +424,7 @@ export function ImprovisationCoach({
                   </Button>
                 ))}
               </div>
-              <p className="mt-4 text-[10px] font-black uppercase tracking-wide text-muted">
+              <p className="mt-4 text-xs font-black uppercase tracking-wide text-muted">
                 Response
               </p>
               <PhraseTimeline

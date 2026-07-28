@@ -836,6 +836,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Perform four bars: G, C, G, C. Use one downstroke per beat and finish cleanly.",
       prompt: "Which evidence did you achieve?",
       options: ["Four complete bars", "Five clean timed changes", "Both"],
+      outcomes: ["partial", "partial", "achieved"],
       completionMessage: "You completed a real two-chord groove with musical time.",
     },
     alternativeExplanation:

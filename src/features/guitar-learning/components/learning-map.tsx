@@ -122,7 +122,10 @@ export function GuitarLearningMap({
             is preserved without mixing unfinished lessons into these routes.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <CardContent
+          data-testid="guitar-path-grid"
+          className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+        >
           {pathStats.map((item) => {
             const selected = item.path.id === path.id;
             return (
@@ -156,7 +159,7 @@ export function GuitarLearningMap({
                   }
                   label={`${item.path.title}: ${item.confirmed} confirmed of ${item.path.lessonIds.length}`}
                 />
-                <p className="mt-2 text-[10px] font-black uppercase tracking-wide text-muted">
+                <p className="mt-2 text-xs font-black uppercase tracking-wide text-muted">
                   {item.confirmed} confirmed · {item.learning} active ·{" "}
                   {item.path.lessonIds.length} total
                 </p>
@@ -202,7 +205,7 @@ export function GuitarLearningMap({
                       }`}
                       aria-label={`${lesson.title}, ${STATUS_LABELS[status]}`}
                     >
-                      <span className="absolute -left-2 -top-2 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-[#18121f] bg-warning px-1 text-[10px] font-black text-[#18121f]">
+                      <span className="absolute -left-2 -top-2 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-[#18121f] bg-warning px-1 text-xs font-black text-[#18121f]">
                         {index + 1}
                       </span>
                       <span className="flex items-start justify-between gap-3">
@@ -215,7 +218,7 @@ export function GuitarLearningMap({
                             {lesson.difficulty}/5
                           </span>
                         </span>
-                        <span className="flex shrink-0 items-center gap-1 text-[10px] font-black uppercase tracking-wide">
+                        <span className="flex shrink-0 items-center gap-1 text-xs font-black uppercase tracking-wide">
                           {status === "locked" ? (
                             <LockKeyhole className="h-3.5 w-3.5" />
                           ) : status === "understood" ||
@@ -232,7 +235,7 @@ export function GuitarLearningMap({
                         </span>
                       </span>
                       {progress?.checkpointScore !== undefined && (
-                        <span className="mt-3 block text-[10px] font-bold">
+                        <span className="mt-3 block text-xs font-bold">
                           Checkpoint {Math.round(progress.checkpointScore * 100)}%
                           · {progress.attempts} attempt
                           {progress.attempts === 1 ? "" : "s"}
@@ -282,7 +285,7 @@ export function GuitarLearningMap({
                         {STATUS_LABELS[status]}
                       </Badge>
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-wide text-muted">
+                        <p className="text-xs font-black uppercase tracking-wide text-muted">
                           Learning objectives
                         </p>
                         <ul className="mt-2 space-y-2 text-xs leading-5">
@@ -294,7 +297,7 @@ export function GuitarLearningMap({
                         </ul>
                       </div>
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-wide text-muted">
+                        <p className="text-xs font-black uppercase tracking-wide text-muted">
                           Prerequisites
                         </p>
                         {selectedLesson.prerequisiteIds.length ? (
@@ -312,11 +315,11 @@ export function GuitarLearningMap({
                                 <button
                                   key={id}
                                   type="button"
-                                  className="rounded-xl border border-border bg-surface-muted px-2.5 py-2 text-left text-[11px] font-bold"
+                                  className="rounded-xl border border-border bg-surface-muted px-2.5 py-2 text-left text-xs font-bold"
                                   onClick={() => setSelectedLessonId(id)}
                                 >
                                   {prerequisite?.title ?? id}
-                                  <span className="block text-[9px] text-muted">
+                                  <span className="mt-0.5 block text-[11px] text-muted">
                                     {STATUS_LABELS[prerequisiteStatus]}
                                   </span>
                                 </button>
@@ -330,7 +333,7 @@ export function GuitarLearningMap({
                         )}
                       </div>
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-wide text-muted">
+                        <p className="text-xs font-black uppercase tracking-wide text-muted">
                           Unlocks
                         </p>
                         <p className="mt-2 text-xs leading-5">
@@ -392,7 +395,7 @@ export function GuitarLearningMap({
           (status) => (
             <span
               key={status}
-              className={`rounded-xl border-2 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide ${STATUS_STYLES[status]}`}
+              className={`rounded-xl border-2 px-2.5 py-1.5 text-xs font-black uppercase tracking-wide ${STATUS_STYLES[status]}`}
             >
               {STATUS_LABELS[status]}
             </span>

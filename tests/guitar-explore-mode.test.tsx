@@ -1,4 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { GuitarExploreMode } from "@/features/guitar-learning/components/explore-mode";
@@ -74,6 +79,10 @@ describe("GuitarExploreMode guidance", () => {
       screen.queryByRole("button", { name: "Place on the grid" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Completed loops: 0")).toBeInTheDocument();
+    expect(screen.getByLabelText("Example")).toHaveClass(
+      "w-full",
+      "max-w-full",
+    );
   });
 
   it("resets the current guided example instead of selecting the same preset", async () => {
@@ -95,5 +104,82 @@ describe("GuitarExploreMode guidance", () => {
     expect(screen.getByLabelText("Tempo · 96 BPM")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Reset example" }));
     expect(screen.getByLabelText("Tempo · 60 BPM")).toBeInTheDocument();
+  });
+
+  it("does not show a non-functional mode switch for sandbox-only tools", () => {
+    render(
+      <GuitarExploreMode
+        selectedToolId="chords"
+        onSelectTool={vi.fn()}
+        onSelectPreset={vi.fn()}
+        onOpenLesson={vi.fn()}
+        state={state}
+        updateState={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("group", { name: "Tool mode" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Sandbox tool · no guided lesson preset yet"),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a grouped, scannable mobile tool picker", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <GuitarExploreMode
+        selectedToolId="fretboard"
+        onSelectTool={vi.fn()}
+        onSelectPreset={vi.fn()}
+        onOpenLesson={vi.fn()}
+        state={state}
+        updateState={vi.fn()}
+      />,
+    );
+    const picker = screen.getByRole("complementary", {
+      name: "Mobile tool picker",
+    });
+    const category = within(picker).getByLabelText("Tool category");
+    expect(category).toHaveValue("Fretboard");
+    expect(
+      within(picker).getByRole("button", { name: "Fretboard" }),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(category, "Harmony");
+    expect(
+      within(picker).getByRole("button", { name: "Chord changes" }),
+    ).toBeInTheDocument();
+    expect(
+      within(picker).getByRole("button", { name: "Theory" }),
+    ).toBeInTheDocument();
+    expect(
+      within(picker).queryByRole("button", { name: "Fretboard" }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <GuitarExploreMode
+        selectedToolId="rhythm"
+        onSelectTool={vi.fn()}
+        onSelectPreset={vi.fn()}
+        onOpenLesson={vi.fn()}
+        state={state}
+        updateState={vi.fn()}
+      />,
+    );
+    expect(
+      within(
+        screen.getByRole("complementary", {
+          name: "Mobile tool picker",
+        }),
+      ).getByLabelText("Tool category"),
+    ).toHaveValue("Rhythm");
+    expect(
+      within(
+        screen.getByRole("complementary", {
+          name: "Mobile tool picker",
+        }),
+      ).getByRole("button", { name: "Rhythm" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 });
