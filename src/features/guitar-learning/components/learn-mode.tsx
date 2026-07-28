@@ -27,7 +27,7 @@ import { fieldClassName } from "@/components/ui/resolve";
 import { LessonRenderer } from "@/features/guitar-learning/components/lesson-renderer";
 import { PlacementAssessment } from "@/features/guitar-learning/components/placement-assessment";
 import {
-  GUITAR_LESSON_BY_ID,
+  PUBLISHED_GUITAR_LESSON_BY_ID,
   GUITAR_LESSONS,
   GUITAR_PATHS,
 } from "@/features/guitar-learning/data/curriculum";
@@ -100,7 +100,7 @@ export function GuitarLearnMode({
   onLessonStageChange?: (lessonId: string, stage: number) => void;
 }) {
   const [activeLessonId, setActiveLessonId] = useState<string | null>(
-    initialLessonId && GUITAR_LESSON_BY_ID.has(initialLessonId)
+    initialLessonId && PUBLISHED_GUITAR_LESSON_BY_ID.has(initialLessonId)
       ? initialLessonId
       : null,
   );
@@ -110,7 +110,7 @@ export function GuitarLearnMode({
   );
   const [showCurriculum, setShowCurriculum] = useState(false);
   const activeLesson = activeLessonId
-    ? GUITAR_LESSON_BY_ID.get(activeLessonId)
+    ? PUBLISHED_GUITAR_LESSON_BY_ID.get(activeLessonId)
     : undefined;
   const recommendations = useMemo(
     () =>
@@ -124,7 +124,7 @@ export function GuitarLearnMode({
   );
   const primaryRecommendation = recommendations[0];
   const recommendedLesson = primaryRecommendation
-    ? GUITAR_LESSON_BY_ID.get(primaryRecommendation.lessonId)
+    ? PUBLISHED_GUITAR_LESSON_BY_ID.get(primaryRecommendation.lessonId)
     : undefined;
   const filteredLessons = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -139,7 +139,7 @@ export function GuitarLearnMode({
   }, [pathFilter, search]);
 
   function openLesson(lessonId: string) {
-    const lesson = GUITAR_LESSON_BY_ID.get(lessonId);
+    const lesson = PUBLISHED_GUITAR_LESSON_BY_ID.get(lessonId);
     if (!lesson || getEffectiveLessonStatus(lesson, state) === "locked") {
       return;
     }
@@ -217,7 +217,7 @@ export function GuitarLearnMode({
                     {primaryRecommendation.missingPrerequisiteIds
                       .map(
                         (id) =>
-                          GUITAR_LESSON_BY_ID.get(id)?.title ??
+                          PUBLISHED_GUITAR_LESSON_BY_ID.get(id)?.title ??
                           "Earlier lesson",
                       )
                       .join(", ")}
@@ -495,7 +495,7 @@ export function GuitarLearnMode({
                         {lesson.prerequisiteIds
                           .map(
                             (id) =>
-                              GUITAR_LESSON_BY_ID.get(id)?.title ??
+                              PUBLISHED_GUITAR_LESSON_BY_ID.get(id)?.title ??
                               "Earlier lesson",
                           )
                           .join(", ")}
@@ -554,7 +554,7 @@ export function GuitarLearnMode({
           </CardHeader>
           <CardContent className="space-y-3">
             {recommendations.slice(1).map((recommendation) => {
-              const lesson = GUITAR_LESSON_BY_ID.get(
+              const lesson = PUBLISHED_GUITAR_LESSON_BY_ID.get(
                 recommendation.lessonId,
               )!;
               return (

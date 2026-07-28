@@ -1031,6 +1031,14 @@ export const GUITAR_LEGACY_LESSONS = legacyLessons;
 
 export const GUITAR_LESSONS = AUTHORED_GUITAR_LESSONS;
 
+export const PUBLISHED_GUITAR_LESSON_BY_ID = new Map(
+  GUITAR_LESSONS.map((lesson) => [lesson.id, lesson]),
+);
+
+/**
+ * Migration-only union. UI rendering must use PUBLISHED_GUITAR_LESSON_BY_ID
+ * so old stored IDs cannot reopen generic legacy lessons.
+ */
 export const GUITAR_LESSON_BY_ID = new Map(
   [...GUITAR_LEGACY_LESSONS, ...GUITAR_LESSONS].map((lesson) => [
     lesson.id,
@@ -1060,7 +1068,7 @@ export const REQUIRED_SEED_LESSON_IDS = REQUIRED_SEED_TITLES.map(
 );
 
 export function getGuitarLesson(lessonId: string) {
-  return GUITAR_LESSON_BY_ID.get(lessonId);
+  return PUBLISHED_GUITAR_LESSON_BY_ID.get(lessonId);
 }
 
 export function getGuitarPath(pathId: GuitarPathId) {

@@ -4,6 +4,7 @@ import {
   GUITAR_LESSON_BY_ID,
   GUITAR_LESSONS,
   GUITAR_PATHS,
+  getGuitarLesson,
 } from "@/features/guitar-learning/data/curriculum";
 import {
   AUTHORED_GUITAR_COURSES,
@@ -11,12 +12,13 @@ import {
 } from "@/features/guitar-learning/data/authored-curriculum";
 import { GUITAR_GLOSSARY } from "@/features/guitar-learning/data/glossary";
 import { ALL_GUITAR_TOOL_PRESET_BY_ID } from "@/features/guitar-learning/data/authored-tool-presets";
+import { PRACTICE_TROUBLESHOOTER_PROBLEMS } from "@/features/guitar-learning/components/practice-troubleshooter";
 import type { VisualSection } from "@/features/guitar-learning/types";
 
 describe("published guitar curriculum", () => {
   it("publishes only authored beginner courses while retaining legacy IDs", () => {
     expect(GUITAR_PATHS).toHaveLength(3);
-    expect(GUITAR_LESSONS).toHaveLength(24);
+    expect(GUITAR_LESSONS).toHaveLength(25);
     expect(AUTHORED_GUITAR_COURSES.map((course) => course.id)).toEqual([
       "guitar-language",
       "rhythm",
@@ -34,6 +36,10 @@ describe("published guitar curriculum", () => {
         GUITAR_LESSON_BY_ID.has(lesson.id),
       ),
     ).toBe(true);
+    const legacyOnlyLesson = GUITAR_LEGACY_LESSONS.find(
+      (lesson) => !GUITAR_LESSONS.some((published) => published.id === lesson.id),
+    )!;
+    expect(getGuitarLesson(legacyOnlyLesson.id)).toBeUndefined();
   });
 
   it("contains explicit teaching evidence instead of generic fallback copy", () => {
@@ -95,6 +101,19 @@ describe("published guitar curriculum", () => {
       "improvisation:phrase-endings",
       "improvisation:motif-development",
       "improvisation:call-and-response",
+      "improvisation:bend-to-a-heard-target",
     ]);
+  });
+
+  it("keeps every troubleshooter destination valid and tool-compatible", () => {
+    for (const problem of PRACTICE_TROUBLESHOOTER_PROBLEMS) {
+      expect(
+        GUITAR_LESSONS.some((lesson) => lesson.id === problem.lessonId),
+        `${problem.id} must open a published lesson`,
+      ).toBe(true);
+      const preset = ALL_GUITAR_TOOL_PRESET_BY_ID.get(problem.presetId);
+      expect(preset, `${problem.id} must open a real preset`).toBeDefined();
+      expect(preset?.toolId).toBe(problem.toolId);
+    }
   });
 });

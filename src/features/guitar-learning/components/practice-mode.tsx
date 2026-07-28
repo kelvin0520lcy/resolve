@@ -6,10 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  GUITAR_LESSONS,
-  GUITAR_PATHS,
+  PUBLISHED_GUITAR_LESSON_BY_ID,
 } from "@/features/guitar-learning/data/curriculum";
-import { getEffectiveLessonStatus } from "@/features/guitar-learning/lib/learning-state";
+import { getLessonRecommendations } from "@/features/guitar-learning/lib/recommendations";
 import { GuitarTuner } from "@/features/guitar-learning/components/tools/tuner";
 import { ChordChangeTrainer } from "@/features/guitar-learning/components/tools/chord-change-trainer";
 import { PracticeTroubleshooter } from "@/features/guitar-learning/components/practice-troubleshooter";
@@ -32,32 +31,18 @@ export function GuitarPracticeMode({
 }) {
   const [tab, setTab] = useState<PracticeTab>("routine");
   const [minutes, setMinutes] = useState<15 | 30 | 45>(15);
-  const completed = useMemo(
-    () =>
-      new Set(
-        state.progress
-          .filter((entry) => ["understood", "already_known"].includes(entry.status))
-          .map((entry) => entry.lessonId),
-      ),
-    [state.progress],
-  );
   const routine = useMemo(() => {
-    const actionable = GUITAR_LESSONS.filter(
-      (lesson) =>
-        !completed.has(lesson.id) &&
-        getEffectiveLessonStatus(lesson, state) !== "locked",
-    );
-    const firstFromEachCourse = GUITAR_PATHS.map((path) =>
-      actionable.find((lesson) => lesson.pathId === path.id),
-    ).filter((lesson): lesson is (typeof actionable)[number] => Boolean(lesson));
-    const featuredIds = new Set(firstFromEachCourse.map((lesson) => lesson.id));
-    const candidates = [
-      ...firstFromEachCourse,
-      ...actionable.filter((lesson) => !featuredIds.has(lesson.id)),
-    ];
     const targetCount = minutes === 15 ? 2 : minutes === 30 ? 3 : 4;
-    return candidates.slice(0, targetCount);
-  }, [completed, minutes, state]);
+    return getLessonRecommendations({
+      state,
+      limit: targetCount,
+    }).flatMap((recommendation) => {
+      const lesson = PUBLISHED_GUITAR_LESSON_BY_ID.get(
+        recommendation.lessonId,
+      );
+      return lesson ? [{ lesson, recommendation }] : [];
+    });
+  }, [minutes, state]);
 
   const tabs: Array<{ id: PracticeTab; label: string; icon: typeof Clock3 }> = [
     { id: "routine", label: "Today’s routine", icon: Clock3 },
@@ -115,7 +100,7 @@ export function GuitarPracticeMode({
                 <Button type="button" onClick={() => setTab("tuner")}>Open tuner</Button>
               </CardContent>
             </Card>
-            {routine.map((lesson, index) => (
+            {routine.map(({ lesson, recommendation }, index) => (
               <Card key={lesson.id}>
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-5">
                   <div className="min-w-0">
@@ -124,6 +109,9 @@ export function GuitarPracticeMode({
                     </p>
                     <p className="mt-1 font-black">{lesson.title}</p>
                     <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">{lesson.learnerProblem}</p>
+                    <p className="mt-2 max-w-2xl text-[11px] leading-5 text-accent">
+                      Why today: {recommendation.reasons[0]}
+                    </p>
                   </div>
                   <Button type="button" onClick={() => onOpenLesson(lesson.id)}>Open lesson</Button>
                 </CardContent>

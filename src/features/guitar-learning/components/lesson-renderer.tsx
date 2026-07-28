@@ -295,7 +295,7 @@ function VisualLessonStage({
 
   return (
     <SectionFrame
-      eyebrow="Interactive visual"
+      eyebrow="Guided visual"
       title={section.title}
       footer={
         <CompletionButton
@@ -793,13 +793,9 @@ export function LessonRenderer({
 
   function submitApplication() {
     if (!applicationChoice) return;
-    if (applicationChoice === lesson.applicationActivity.options[0]) {
-      updateState((current) =>
-        setLessonApplicationComplete(current, lesson.id, true),
-      );
-    } else {
-      setShowAlternative(true);
-    }
+    updateState((current) =>
+      setLessonApplicationComplete(current, lesson.id, true),
+    );
   }
 
   return (

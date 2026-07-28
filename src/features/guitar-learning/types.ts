@@ -187,6 +187,15 @@ export type AudioPattern =
       accentedSteps?: number[];
       mutedSteps?: number[];
       bpm?: number;
+    }
+  | {
+      kind: "timed-rhythm";
+      events: Array<{
+        timeBeats: number;
+        accented?: boolean;
+        muted?: boolean;
+      }>;
+      bpm?: number;
     };
 
 type LessonSectionBase = {

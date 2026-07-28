@@ -3,11 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { GuitarPracticeMode } from "@/features/guitar-learning/components/practice-mode";
 import { GuitarTuner } from "@/features/guitar-learning/components/tools/tuner";
+import { ChordChangeTrainer } from "@/features/guitar-learning/components/tools/chord-change-trainer";
 import { GuitarGlossarySearch } from "@/features/guitar-learning/components/glossary";
 import { createPlacementResultForRoute } from "@/features/guitar-learning/data/placement";
 import {
   createEmptyGuitarLearningState,
   recordChordChangeBest,
+  recordLessonCheckpoint,
 } from "@/features/guitar-learning/lib/learning-state";
 
 describe("beginner-first Guitar Studio", () => {
@@ -37,7 +39,10 @@ describe("beginner-first Guitar Studio", () => {
     );
     expect(screen.getByRole("heading", { name: "A practice session you can finish" })).toBeInTheDocument();
     expect(screen.getByText("Meet the guitar without jargon")).toBeInTheDocument();
-    expect(screen.getByText("Find the repeating pulse")).toBeInTheDocument();
+    expect(screen.getAllByText(/Why today:/)).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: "Open lesson" }),
+    ).toHaveLength(2);
     expect(screen.queryByText("String numbers versus string names")).not.toBeInTheDocument();
   });
 
@@ -49,6 +54,30 @@ describe("beginner-first Guitar Studio", () => {
     expect(first.profile.chordChangeBests?.["G-C"]).toBe(8);
     expect(lower).toBe(first);
     expect(higher.profile.chordChangeBests?.["G-C"]).toBe(11);
+  });
+
+  it("puts a failed checkpoint at the front of the next routine", () => {
+    const reviewState = recordLessonCheckpoint(
+      createEmptyGuitarLearningState("learner"),
+      "rhythm:feeling-and-identifying-the-pulse",
+      0,
+      "2026-07-28T00:00:00Z",
+    );
+    render(
+      <GuitarPracticeMode
+        state={reviewState}
+        updateState={vi.fn()}
+        onOpenLesson={vi.fn()}
+        onOpenTool={vi.fn()}
+      />,
+    );
+    const lessons = screen.getAllByRole("button", { name: "Open lesson" });
+    expect(lessons[0].closest("div")).toHaveTextContent(
+      "Find the repeating pulse",
+    );
+    expect(lessons[0].closest("div")).toHaveTextContent(
+      "latest checkpoint",
+    );
   });
 
   it("keeps a useful tuner fallback when microphone access is unavailable", async () => {
@@ -69,6 +98,46 @@ describe("beginner-first Guitar Studio", () => {
       screen.getByText(/Microphone tuning is unavailable here/),
     ).toBeInTheDocument();
     expect(screen.getByText(/does not upload or save microphone audio/)).toBeInTheDocument();
+  });
+
+  it("supports chromatic, target, bend-target, and alternate tuner modes", async () => {
+    const user = userEvent.setup();
+    render(<GuitarTuner />);
+    const mode = screen.getByLabelText("Tuner mode");
+
+    await user.selectOptions(mode, "chromatic");
+    expect(
+      screen.getByRole("heading", { name: "Identify and centre any guitar note" }),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(mode, "target");
+    expect(screen.getByLabelText("Target note")).toBeInTheDocument();
+
+    await user.selectOptions(mode, "bend-target");
+    expect(screen.getByLabelText("Bend from")).toBeInTheDocument();
+
+    await user.selectOptions(mode, "alternate");
+    expect(screen.getByLabelText("Alternate tuning")).toBeInTheDocument();
+  });
+
+  it("shows playable chord positions and prevents identical chord pairs", () => {
+    render(
+      <ChordChangeTrainer
+        state={createEmptyGuitarLearningState("learner")}
+        updateState={vi.fn()}
+        presetSettings={{ chordA: "C", chordB: "Am" }}
+      />,
+    );
+
+    expect(screen.getByLabelText("C chord diagram")).toBeInTheDocument();
+    expect(screen.getByLabelText("Am chord diagram")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/String 5, fret 3, finger 3, root note/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Second chord").querySelector('option[value="C"]'),
+    ).toBeNull();
+    expect(screen.getByText(/string 2/)).toBeInTheDocument();
   });
 
   it("searches technical and plain-English glossary language", async () => {

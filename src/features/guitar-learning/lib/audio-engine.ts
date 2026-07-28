@@ -365,6 +365,24 @@ export class GuitarAudioEngine {
     const requestedBpm = pattern.bpm ?? 84;
     const bpm = Number.isFinite(requestedBpm) ? requestedBpm : 84;
     const beatSeconds = 60 / Math.max(30, Math.min(240, bpm));
+
+    if (pattern.kind === "timed-rhythm") {
+      for (const event of pattern.events) {
+        if (!Number.isFinite(event.timeBeats) || event.timeBeats < 0) {
+          continue;
+        }
+        this.schedulePluck(
+          context,
+          event.muted ? 45 : event.accented ? 64 : 52,
+          startAt + event.timeBeats * beatSeconds,
+          event.muted ? 0.07 : 0.12,
+          event.accented ? 0.18 : 0.105,
+          true,
+        );
+      }
+      return true;
+    }
+
     const stepSeconds = beatSeconds * (4 / pattern.subdivisions);
     const accents = new Set(pattern.accentedSteps ?? []);
     const muted = new Set(pattern.mutedSteps ?? []);

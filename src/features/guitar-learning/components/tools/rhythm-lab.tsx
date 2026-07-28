@@ -23,6 +23,7 @@ import {
   type RhythmTransformation,
 } from "@/features/guitar-learning/lib/rhythm";
 import type { RhythmCell } from "@/features/guitar-learning/types";
+import type { GuitarToolPreset } from "@/features/guitar-learning/data/tool-presets";
 
 const TRANSFORMATIONS: Array<{
   id: RhythmTransformation;
@@ -49,18 +50,80 @@ function initialPattern(subdivision: RhythmSubdivision) {
   }));
 }
 
-export function RhythmLab() {
-  const [bpm, setBpm] = useState(84);
-  const [subdivision, setSubdivision] =
-    useState<RhythmSubdivision>(8);
-  const [cells, setCells] = useState<RhythmCell[]>(() =>
-    initialPattern(8),
+function rhythmPreset(
+  settings?: GuitarToolPreset["settings"],
+): {
+  bpm: number;
+  subdivision: RhythmSubdivision;
+  cells: RhythmCell[];
+  voiceCount: boolean;
+} {
+  const slotsPerBeat =
+    typeof settings?.slotsPerBeat === "number"
+      ? settings.slotsPerBeat
+      : 2;
+  const subdivision = ([4, 8, 12, 16].includes(slotsPerBeat * 4)
+    ? slotsPerBeat * 4
+    : 8) as RhythmSubdivision;
+  const activeSteps = new Set(
+    Array.isArray(settings?.pattern)
+      ? settings.pattern.filter(
+          (step): step is number =>
+            typeof step === "number" && Number.isInteger(step),
+        )
+      : Array.from({ length: subdivision }, (_value, index) => index),
   );
+  const mutedSteps = new Set(
+    Array.isArray(settings?.mutedSteps)
+      ? settings.mutedSteps.filter(
+          (step): step is number => typeof step === "number",
+        )
+      : [],
+  );
+  const accentedSteps = new Set(
+    Array.isArray(settings?.accentedSteps)
+      ? settings.accentedSteps.filter(
+          (step): step is number => typeof step === "number",
+        )
+      : [0],
+  );
+  return {
+    bpm:
+      typeof settings?.bpm === "number"
+        ? Math.max(30, Math.min(240, settings.bpm))
+        : 84,
+    subdivision,
+    cells: createRhythmGrid(subdivision).map((cell) => ({
+      ...cell,
+      state: mutedSteps.has(cell.index)
+        ? "muted"
+        : activeSteps.has(cell.index)
+          ? "played"
+          : "missed",
+      accented: accentedSteps.has(cell.index),
+    })),
+    voiceCount: settings?.voiceCount === true,
+  };
+}
+
+export function RhythmLab({
+  presetSettings,
+  guided = false,
+}: {
+  presetSettings?: GuitarToolPreset["settings"];
+  guided?: boolean;
+}) {
+  const preset = rhythmPreset(presetSettings);
+  const [bpm, setBpm] = useState(preset.bpm);
+  const [subdivision, setSubdivision] =
+    useState<RhythmSubdivision>(preset.subdivision);
+  const [cells, setCells] = useState<RhythmCell[]>(preset.cells);
   const [patternInput, setPatternInput] = useState("D D U U D U");
   const [patternError, setPatternError] = useState("");
   const [transformationNote, setTransformationNote] = useState("");
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [looping, setLooping] = useState(false);
+  const [completedLoops, setCompletedLoops] = useState(0);
   const [chordChanges, setChordChanges] = useState([
     "Am",
     "F",
@@ -104,6 +167,7 @@ export function RhythmLab() {
 
   function startPlayback(loop: boolean) {
     stopPlayback();
+    setCompletedLoops(0);
     const stepMilliseconds = (60_000 / bpm) * (4 / subdivision);
     playbackStep.current = 0;
     setActiveStep(0);
@@ -113,13 +177,26 @@ export function RhythmLab() {
       playbackStep.current += 1;
       if (playbackStep.current >= subdivision) {
         if (!loop) {
+          setCompletedLoops(1);
           stopPlayback();
           return;
         }
+        setCompletedLoops((current) => current + 1);
         playbackStep.current = 0;
         void guitarAudioEngine.play(audioPattern);
       }
       setActiveStep(playbackStep.current);
+      if (
+        preset.voiceCount &&
+        playbackStep.current % beatSteps === 0 &&
+        "speechSynthesis" in window
+      ) {
+        const beat = Math.floor(playbackStep.current / beatSteps) + 1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(
+          new SpeechSynthesisUtterance(String(beat)),
+        );
+      }
     }, stepMilliseconds);
   }
 
@@ -175,23 +252,34 @@ export function RhythmLab() {
             }}
           />
         </label>
-        <label className="text-xs font-black">
-          Subdivision
-          <select
-            className={`${fieldClassName} mt-2`}
-            value={subdivision}
-            onChange={(event) =>
-              changeSubdivision(
-                Number(event.target.value) as RhythmSubdivision,
-              )
-            }
-          >
-            <option value="4">Quarter notes · 1 2 3 4</option>
-            <option value="8">Eighth notes · 1 & 2 &</option>
-            <option value="12">Triplets · 1-trip-let</option>
-            <option value="16">Sixteenths · 1-e-&-a</option>
-          </select>
-        </label>
+        {guided ? (
+          <div className="rounded-xl border border-border bg-surface p-3 text-xs">
+            <p className="font-black">
+              {subdivision / 4} timing {subdivision / 4 === 1 ? "position" : "positions"} per beat
+            </p>
+            <p className="mt-1 text-muted">
+              Four beats · {preset.voiceCount ? "spoken beat cues on" : "visual count cues"}
+            </p>
+          </div>
+        ) : (
+          <label className="text-xs font-black">
+            Subdivision
+            <select
+              className={`${fieldClassName} mt-2`}
+              value={subdivision}
+              onChange={(event) =>
+                changeSubdivision(
+                  Number(event.target.value) as RhythmSubdivision,
+                )
+              }
+            >
+              <option value="4">Quarter notes · 1 2 3 4</option>
+              <option value="8">Eighth notes · 1 & 2 &</option>
+              <option value="12">Triplets · 1-trip-let</option>
+              <option value="16">Sixteenths · 1-e-&-a</option>
+            </select>
+          </label>
+        )}
         <div className="flex flex-wrap items-end gap-2">
           <Button type="button" onClick={() => startPlayback(false)}>
             <Play className="h-4 w-4" />
@@ -211,6 +299,12 @@ export function RhythmLab() {
           </Button>
         </div>
       </div>
+
+      {guided && (
+        <p role="status" className="text-xs font-black text-accent">
+          Completed bars: {completedLoops}
+        </p>
+      )}
 
       <div className="overflow-x-auto rounded-[22px] border-2 border-border bg-[#100d15] p-3">
         <div
@@ -248,6 +342,7 @@ export function RhythmLab() {
                   type="button"
                   className="mt-2 flex h-11 w-full items-center justify-center rounded-lg border border-border bg-surface-muted text-lg font-black hover:border-accent"
                   aria-label={`Step ${cell.index + 1}, ${cell.count}, ${cell.direction}, ${cell.state}`}
+                  disabled={guided}
                   onClick={() => {
                     stopPlayback();
                     setCells((current) =>
@@ -267,6 +362,7 @@ export function RhythmLab() {
                 <label className="mt-2 flex items-center justify-center gap-1 text-[9px] font-bold">
                   <input
                     type="checkbox"
+                    disabled={guided}
                     checked={cell.accented}
                     onChange={(event) => {
                       stopPlayback();
@@ -287,6 +383,7 @@ export function RhythmLab() {
                 <label className="mt-1 flex items-center justify-center gap-1 text-[9px] font-bold">
                   <input
                     type="checkbox"
+                    disabled={guided}
                     checked={cell.palmMuted}
                     onChange={(event) => {
                       stopPlayback();
@@ -316,7 +413,7 @@ export function RhythmLab() {
         direction stays visible so silence never hides the underlying motion.
       </p>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {!guided && <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-surface p-4">
           <p className="font-black">Pattern deconstructor</p>
           <p className="mt-1 text-xs leading-5 text-muted">
@@ -367,9 +464,9 @@ export function RhythmLab() {
             </p>
           )}
         </div>
-      </div>
+      </div>}
 
-      <div className="rounded-2xl border border-border bg-surface p-4">
+      {!guided && <div className="rounded-2xl border border-border bg-surface p-4">
         <p className="font-black">Chord changes on the groove</p>
         <p className="mt-1 text-xs leading-5 text-muted">
           Label one chord per beat to see where the fretting hand must prepare
@@ -394,7 +491,7 @@ export function RhythmLab() {
             </label>
           ))}
         </div>
-      </div>
+      </div>}
 
       <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wide text-muted">
         <Badge>D/U · sounding stroke</Badge>

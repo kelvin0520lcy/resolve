@@ -38,6 +38,7 @@ import {
   type ScaleType,
 } from "@/features/guitar-learning/lib/music-theory";
 import type { GuitarToolId } from "@/features/guitar-learning/types";
+import type { GuitarToolPreset } from "@/features/guitar-learning/data/tool-presets";
 
 const SCALE_OPTIONS: Array<{ value: ScaleType; label: string }> = [
   { value: "major", label: "Major" },
@@ -188,18 +189,26 @@ function MiniFretboardMap({
 function ScalePanel({
   root,
   scale,
+  guided = false,
+  visibleNotes,
 }: {
   root: string;
   scale: ScaleType;
+  guided?: boolean;
+  visibleNotes?: string[];
 }) {
   const [secondScale, setSecondScale] =
     useState<ScaleType>("natural-minor");
-  const notes = buildScale(root, scale);
+  const scaleNotes = buildScale(root, scale);
+  const notes =
+    guided && visibleNotes?.length
+      ? scaleNotes.filter((note) => visibleNotes.includes(note))
+      : scaleNotes;
   const comparison = compareScales(root, scale, secondScale);
   const intervals = intervalFormula(SCALE_INTERVALS[scale]);
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-border bg-surface p-4">
+      {!guided && <div className="rounded-2xl border border-border bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-black">
@@ -226,7 +235,7 @@ function ScalePanel({
         <div className="mt-4">
           <NoteStrip root={root} notes={notes} roleLabels={intervals} />
         </div>
-      </div>
+      </div>}
       <MiniFretboardMap root={root} notes={notes} />
       <div className="rounded-2xl border border-border bg-surface p-4">
         <label className="text-xs font-black">
@@ -771,6 +780,8 @@ function TheoryPanel({
 
 export function HarmonyWorkbench({
   mode,
+  presetSettings,
+  guided = false,
 }: {
   mode:
     | "scales"
@@ -780,16 +791,24 @@ export function HarmonyWorkbench({
     | "progressions"
     | "emotional"
     | "theory";
+  presetSettings?: GuitarToolPreset["settings"];
+  guided?: boolean;
 }) {
-  const [root, setRoot] = useState("A");
+  const [root, setRoot] = useState(
+    typeof presetSettings?.root === "string" ? presetSettings.root : "A",
+  );
   const [scale, setScale] =
-    useState<ScaleType>("minor-pentatonic");
+    useState<ScaleType>(
+      typeof presetSettings?.scale === "string"
+        ? (presetSettings.scale as ScaleType)
+        : "minor-pentatonic",
+    );
   const [chord, setChord] = useState<ChordQuality>("minor");
   const relevantControls = mode !== "emotional";
 
   return (
     <div className="space-y-5">
-      {relevantControls && (
+      {relevantControls && !guided && (
         <div className="grid gap-3 md:grid-cols-3">
           <label className="text-xs font-black">
             Root note
@@ -838,7 +857,29 @@ export function HarmonyWorkbench({
         </div>
       )}
 
-      {mode === "scales" && <ScalePanel root={root} scale={scale} />}
+      {guided && mode === "scales" && (
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="accent">Root · {root}</Badge>
+          <Badge>{scale.replace("-", " ")}</Badge>
+          {Array.isArray(presetSettings?.visibleNotes) && (
+            <Badge>Notes · {presetSettings.visibleNotes.join(", ")}</Badge>
+          )}
+        </div>
+      )}
+      {mode === "scales" && (
+        <ScalePanel
+          root={root}
+          scale={scale}
+          guided={guided}
+          visibleNotes={
+            Array.isArray(presetSettings?.visibleNotes)
+              ? presetSettings.visibleNotes.filter(
+                  (note): note is string => typeof note === "string",
+                )
+              : undefined
+          }
+        />
+      )}
       {mode === "chords" && <ChordPanel root={root} chord={chord} />}
       {mode === "triads" && (
         <TriadPanel

@@ -5,40 +5,96 @@ import { Check, RotateCcw, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { GuitarLearningState } from "@/features/guitar-learning/types";
+import type { GuitarToolPreset } from "@/features/guitar-learning/data/tool-presets";
 import { recordChordChangeBest } from "@/features/guitar-learning/lib/learning-state";
 
 const CHORDS = {
-  G: ["3", "2", "0", "0", "0", "3"],
-  C: ["X", "3", "2", "0", "1", "0"],
-  Am: ["X", "0", "2", "2", "1", "0"],
-  E: ["0", "2", "2", "1", "0", "0"],
-  D: ["X", "X", "0", "2", "3", "2"],
-  Fmaj7: ["X", "X", "3", "2", "1", "0"],
+  G: {
+    frets: ["3", "2", "0", "0", "0", "3"],
+    fingers: [2, 1, 0, 0, 0, 3],
+    rootStrings: [0, 5],
+  },
+  C: {
+    frets: ["X", "3", "2", "0", "1", "0"],
+    fingers: [0, 3, 2, 0, 1, 0],
+    rootStrings: [1],
+  },
+  Am: {
+    frets: ["X", "0", "2", "2", "1", "0"],
+    fingers: [0, 0, 2, 3, 1, 0],
+    rootStrings: [1],
+  },
+  E: {
+    frets: ["0", "2", "2", "1", "0", "0"],
+    fingers: [0, 2, 3, 1, 0, 0],
+    rootStrings: [0, 5],
+  },
+  D: {
+    frets: ["X", "X", "0", "2", "3", "2"],
+    fingers: [0, 0, 0, 1, 3, 2],
+    rootStrings: [2],
+  },
+  Fmaj7: {
+    frets: ["X", "X", "3", "2", "1", "0"],
+    fingers: [0, 0, 3, 2, 1, 0],
+    rootStrings: [2],
+  },
 } as const;
 
 type ChordName = keyof typeof CHORDS;
 
-function MiniChord({ name }: { name: ChordName }) {
+function MiniChord({
+  name,
+  sharedStrings,
+}: {
+  name: ChordName;
+  sharedStrings: Set<number>;
+}) {
+  const chord = CHORDS[name];
   return (
     <div className="rounded-2xl border-2 border-border bg-surface p-3 text-center">
       <p className="font-display text-2xl">{name}</p>
-      <div className="mx-auto mt-3 grid max-w-48 grid-cols-6 gap-1">
-        {CHORDS[name].map((fret, index) => (
-          <div key={`${name}-${index}`} className="text-center">
-            <span className="text-[10px] font-black">{fret}</span>
-            <div className="mt-1 flex h-24 items-center justify-center rounded-md border border-foreground/20 bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_23%,color-mix(in_srgb,var(--foreground)_20%,transparent)_24%)]">
-              {!["0", "X"].includes(fret) && (
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-xs font-black text-white">
-                  {fret}
-                </span>
-              )}
+      <div
+        className="mx-auto mt-3 grid max-w-56 grid-cols-6"
+        aria-label={`${name} chord diagram`}
+      >
+        {chord.frets.map((fret, index) => {
+          const numericFret = Number(fret);
+          const root = chord.rootStrings.includes(index as never);
+          const shared = sharedStrings.has(index);
+          return (
+            <div key={`${name}-${index}`} className="text-center">
+              <span className="text-xs font-black">
+                {fret === "X" ? "×" : fret === "0" ? "○" : " "}
+              </span>
+              <div className="relative mt-1 h-32 border-y-2 border-foreground/35 bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_calc(25%-1px),color-mix(in_srgb,var(--foreground)_24%,transparent)_25%)]">
+                <span className="absolute bottom-0 left-1/2 top-0 w-px bg-foreground/45" />
+                {Number.isFinite(numericFret) && numericFret > 0 && (
+                  <span
+                    className={`absolute left-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-xs font-black text-white ${
+                      shared
+                        ? "border-white bg-success ring-2 ring-success/30"
+                        : root
+                          ? "border-white bg-warning text-[#18121f]"
+                          : "border-white bg-accent"
+                    }`}
+                    style={{ top: `${(numericFret - 0.5) * 25}%` }}
+                    aria-label={`String ${6 - index}, fret ${numericFret}, finger ${chord.fingers[index]}${root ? ", root note" : ""}${shared ? ", shared position" : ""}`}
+                  >
+                    {chord.fingers[index]}
+                  </span>
+                )}
+              </div>
+              <span className="mt-1 block text-[9px] text-muted">
+                {6 - index}
+              </span>
             </div>
-            <span className="mt-1 block text-[9px] text-muted">
-              string {6 - index}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
+      <p className="mt-2 text-[10px] text-muted">
+        ○ open · × mute · number inside dot = finger
+      </p>
     </div>
   );
 }
@@ -46,16 +102,33 @@ function MiniChord({ name }: { name: ChordName }) {
 export function ChordChangeTrainer({
   state,
   updateState,
+  presetSettings,
 }: {
   state: GuitarLearningState;
   updateState: (
     updater: (current: GuitarLearningState) => GuitarLearningState,
   ) => void;
+  presetSettings?: GuitarToolPreset["settings"];
 }) {
-  const [first, setFirst] = useState<ChordName>("G");
-  const [second, setSecond] = useState<ChordName>("C");
-  const [duration, setDuration] = useState(30);
-  const [secondsLeft, setSecondsLeft] = useState(30);
+  const initialFirst =
+    typeof presetSettings?.chordA === "string" &&
+    presetSettings.chordA in CHORDS
+      ? (presetSettings.chordA as ChordName)
+      : "G";
+  const initialSecond =
+    typeof presetSettings?.chordB === "string" &&
+    presetSettings.chordB in CHORDS &&
+    presetSettings.chordB !== initialFirst
+      ? (presetSettings.chordB as ChordName)
+      : (Object.keys(CHORDS).find(
+          (name) => name !== initialFirst,
+        ) as ChordName);
+  const initialDuration =
+    presetSettings?.seconds === 60 ? 60 : 30;
+  const [first, setFirst] = useState<ChordName>(initialFirst);
+  const [second, setSecond] = useState<ChordName>(initialSecond);
+  const [duration, setDuration] = useState(initialDuration);
+  const [secondsLeft, setSecondsLeft] = useState(initialDuration);
   const [running, setRunning] = useState(false);
   const [changes, setChanges] = useState(0);
   const recordedRef = useRef(false);
@@ -64,6 +137,28 @@ export function ChordChangeTrainer({
   );
   const pairKey = useMemo(() => `${first}-${second}`.toUpperCase(), [first, second]);
   const best = state.profile.chordChangeBests?.[pairKey] ?? 0;
+  const sharedStrings = useMemo(
+    () =>
+      new Set(
+        CHORDS[first].frets.flatMap((fret, index) =>
+          fret !== "X" &&
+          fret !== "0" &&
+          fret === CHORDS[second].frets[index] &&
+          CHORDS[first].fingers[index] === CHORDS[second].fingers[index]
+            ? [index]
+            : [],
+        ),
+      ),
+    [first, second],
+  );
+  const movementSummary = CHORDS[first].frets
+    .map((fret, index) => {
+      const next = CHORDS[second].frets[index];
+      if (fret === next) return undefined;
+      return `S${6 - index}: ${fret} → ${next}`;
+    })
+    .filter(Boolean)
+    .join(" · ");
 
   useEffect(() => {
     if (!running) return;
@@ -122,7 +217,9 @@ export function ChordChangeTrainer({
               reset();
             }}
           >
-            {Object.keys(CHORDS).map((name) => <option key={name}>{name}</option>)}
+            {Object.keys(CHORDS)
+              .filter((name) => name !== second)
+              .map((name) => <option key={name}>{name}</option>)}
           </select>
         </label>
         <label className="text-xs font-black">
@@ -136,7 +233,9 @@ export function ChordChangeTrainer({
               reset();
             }}
           >
-            {Object.keys(CHORDS).map((name) => <option key={name}>{name}</option>)}
+            {Object.keys(CHORDS)
+              .filter((name) => name !== first)
+              .map((name) => <option key={name}>{name}</option>)}
           </select>
         </label>
         <label className="text-xs font-black">
@@ -158,8 +257,22 @@ export function ChordChangeTrainer({
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <MiniChord name={first} />
-        <MiniChord name={second} />
+        <MiniChord name={first} sharedStrings={sharedStrings} />
+        <MiniChord name={second} sharedStrings={sharedStrings} />
+      </div>
+
+      <div className="rounded-2xl border border-border bg-surface-muted/45 p-4 text-xs leading-5">
+        <p>
+          <strong className="text-success">Shared anchor:</strong>{" "}
+          {sharedStrings.size > 0
+            ? [...sharedStrings]
+                .map((index) => `string ${6 - index}`)
+                .join(", ")
+            : "No finger stays in exactly the same position—prepare the destination shape in the air."}
+        </p>
+        <p className="mt-2">
+          <strong>Movement map:</strong> {movementSummary}
+        </p>
       </div>
 
       <div className="rounded-2xl border-2 border-border bg-surface-elevated p-4">

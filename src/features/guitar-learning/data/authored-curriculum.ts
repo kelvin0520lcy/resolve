@@ -253,6 +253,39 @@ export function getAuthoredCurriculumIssues(
         issues.push(`${lesson.id} references missing tool preset ${presetId}.`);
       }
     }
+    const audio = lesson.sections.find(
+      (section) => section.type === "audio-comparison",
+    );
+    if (audio?.type === "audio-comparison") {
+      for (const [label, pattern] of [
+        ["correct", audio.correctPattern],
+        ["incorrect", audio.incorrectPattern],
+      ] as const) {
+        if (
+          pattern.kind === "timed-rhythm" &&
+          pattern.events.some(
+            (event, index) =>
+              !Number.isFinite(event.timeBeats) ||
+              event.timeBeats < 0 ||
+              (index > 0 &&
+                event.timeBeats < pattern.events[index - 1].timeBeats),
+          )
+        ) {
+          issues.push(`${lesson.id} has invalid ${label} explicit timing.`);
+        }
+        if (
+          pattern.kind === "rhythm" &&
+          pattern.activeSteps.some(
+            (step) =>
+              !Number.isInteger(step) ||
+              step < 0 ||
+              step >= pattern.subdivisions,
+          )
+        ) {
+          issues.push(`${lesson.id} has invalid ${label} rhythm steps.`);
+        }
+      }
+    }
     if (visual?.visualData?.kind === "rhythm-grid") {
       const slots = visual.visualData.beats * visual.visualData.slotsPerBeat;
       if (

@@ -18,6 +18,7 @@ import {
   type ChordQuality,
   type ScaleType,
 } from "@/features/guitar-learning/lib/music-theory";
+import type { GuitarToolPreset } from "@/features/guitar-learning/data/tool-presets";
 
 type FretboardDisplay =
   | "notes"
@@ -65,17 +66,50 @@ const CHORD_OPTIONS: Array<{ value: ChordQuality; label: string }> = [
   { value: "diminished", label: "Diminished" },
 ];
 
-export function FretboardExplorer() {
+export function FretboardExplorer({
+  presetSettings,
+  guided = false,
+}: {
+  presetSettings?: GuitarToolPreset["settings"];
+  guided?: boolean;
+}) {
   const [tuningKey, setTuningKey] =
     useState<keyof typeof TUNINGS | "custom">("standard");
   const [customTuning, setCustomTuning] = useState<string[]>([
     ...STANDARD_TUNING,
   ]);
-  const [root, setRoot] = useState("A");
-  const [display, setDisplay] = useState<FretboardDisplay>("scale");
-  const [scale, setScale] = useState<ScaleType>("minor-pentatonic");
+  const [root, setRoot] = useState(
+    typeof presetSettings?.root === "string" ? presetSettings.root : "A",
+  );
+  const [display, setDisplay] = useState<FretboardDisplay>(
+    presetSettings?.display === "roots"
+      ? "intervals"
+      : typeof presetSettings?.display === "string" &&
+          ["notes", "intervals", "scale", "chord", "arpeggio"].includes(
+            presetSettings.display,
+          )
+        ? (presetSettings.display as FretboardDisplay)
+        : "scale",
+  );
+  const [scale, setScale] = useState<ScaleType>(
+    typeof presetSettings?.scale === "string"
+      ? (presetSettings.scale as ScaleType)
+      : "minor-pentatonic",
+  );
   const [chord, setChord] = useState<ChordQuality>("minor");
-  const [fretCount, setFretCount] = useState(24);
+  const [fretCount, setFretCount] = useState(
+    typeof presetSettings?.fretCount === "number"
+      ? Math.max(4, Math.min(24, presetSettings.fretCount))
+      : 24,
+  );
+  const rootOnly = guided && presetSettings?.display === "roots";
+  const guidedVisibleNotes = new Set(
+    Array.isArray(presetSettings?.visibleNotes)
+      ? presetSettings.visibleNotes.filter(
+          (note): note is string => typeof note === "string",
+        )
+      : [],
+  );
   const [leftHanded, setLeftHanded] = useState(false);
   const [revealAll, setRevealAll] = useState(false);
   const [compare, setCompare] = useState(false);
@@ -109,6 +143,10 @@ export function FretboardExplorer() {
   const strings = [5, 4, 3, 2, 1, 0];
 
   function isVisible(note: string) {
+    if (rootOnly) return note === root;
+    if (guided && guidedVisibleNotes.size > 0) {
+      return guidedVisibleNotes.has(note);
+    }
     if (revealAll || display === "notes" || display === "intervals") {
       return true;
     }
@@ -139,7 +177,7 @@ export function FretboardExplorer() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      {!guided && <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <label className="text-xs font-black">
           Root note
           <select
@@ -223,9 +261,9 @@ export function FretboardExplorer() {
             ))}
           </select>
         </label>
-      </div>
+      </div>}
 
-      <div className="flex flex-wrap gap-2">
+      {!guided && <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           size="sm"
@@ -266,7 +304,15 @@ export function FretboardExplorer() {
         >
           {fretCount === 24 ? "Compact to 12 frets" : "Show 24 frets"}
         </Button>
-      </div>
+      </div>}
+
+      {guided && (
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="accent">Root · {root}</Badge>
+          <Badge>{rootOnly ? "Root notes only" : scale.replace("-", " ")}</Badge>
+          <Badge>{fretCount} frets</Badge>
+        </div>
+      )}
 
       <div className="rounded-[22px] border-2 border-border bg-[#130f18] p-3">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -409,7 +455,7 @@ export function FretboardExplorer() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+      {!guided && <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div className="rounded-2xl border border-border bg-surface p-4">
           <p className="flex items-center gap-2 text-sm font-black">
             <Ear className="h-4 w-4 text-accent" />
@@ -455,9 +501,9 @@ export function FretboardExplorer() {
             Reset trainer
           </Button>
         </div>
-      </div>
+      </div>}
 
-      <details className="rounded-2xl border border-border bg-surface p-4">
+      {!guided && <details className="rounded-2xl border border-border bg-surface p-4">
         <summary className="cursor-pointer text-sm font-black">
           Custom tuning editor
         </summary>
@@ -487,7 +533,7 @@ export function FretboardExplorer() {
           Select “Custom tuning” above to apply these values. They remain
           local to this tool and are never written to practice history.
         </p>
-      </details>
+      </details>}
     </div>
   );
 }

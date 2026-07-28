@@ -84,6 +84,24 @@ describe("LessonRenderer authored flow", () => {
     expect(onStageChange).toHaveBeenCalledWith(2);
   });
 
+  it("records every honest musical-application outcome", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialStage={lesson.sections.length + 1} />);
+    const finalOption =
+      lesson.applicationActivity.options[
+        lesson.applicationActivity.options.length - 1
+      ];
+
+    await user.click(screen.getByRole("radio", { name: finalOption }));
+    await user.click(
+      screen.getByRole("button", { name: "Save application result" }),
+    );
+
+    expect(
+      screen.getByText(lesson.applicationActivity.completionMessage),
+    ).toBeInTheDocument();
+  });
+
   it.each([
     [2, "Hear the difference"],
     [3, "Try it on the guitar"],

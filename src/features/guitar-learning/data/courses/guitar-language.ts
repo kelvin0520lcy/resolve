@@ -408,7 +408,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
     },
     alternativeExplanation:
       "If the pick catches, first make less of it touch the string before trying to move faster.",
-    toolPresetId: "rhythm:continuous-hand",
+    toolPresetId: "picking:pick-depth",
     reviewSchedule: [1, 3],
   },
   {
@@ -585,13 +585,13 @@ export const GUITAR_LANGUAGE_LESSONS = [
     difficulty: 1,
     coach: "nijika",
     prerequisiteIds: ["guitar-language:pick-grip-and-depth"],
-    termsIntroduced: ["downstroke", "upstroke", "muted-stroke", "rest"],
+    termsIntroduced: ["downstroke", "upstroke", "muted-stroke"],
     assumedTerms: [],
     estimatedMinutes: 8,
     experience:
       "Air-strum the four symbols before touching the strings: D, U, X, and a blank timing space.",
     plainEnglishExplanation:
-      "D means Down ↓ toward the floor. U means Up ↑ toward the ceiling. X means contact the strings while they are muted. A blank means no sounding stroke at that position; later lessons show when the hand still moves through it.",
+      "D means Down ↓ toward the floor. U means Up ↑ toward the ceiling. X means contact the strings while they are muted. A blank only says there is no attack at that position: it may later mean a missed pass, a held sound, a gap, or a true rest depending on context.",
     analogy:
       "The letters describe movement and contact like stage directions.",
     whyItMatters:
@@ -702,7 +702,16 @@ export const GUITAR_LANGUAGE_LESSONS = [
       correctLabel: "Even 1–2–3–4",
       incorrectLabel: "Beat 3 arrives early",
       correctPattern: { kind: "rhythm", subdivisions: 4, activeSteps: [0, 1, 2, 3], accentedSteps: [0], bpm: 60 },
-      incorrectPattern: { kind: "rhythm", subdivisions: 4, activeSteps: [0, 1, 2, 3], accentedSteps: [2], bpm: 75 },
+      incorrectPattern: {
+        kind: "timed-rhythm",
+        events: [
+          { timeBeats: 0, accented: true },
+          { timeBeats: 1 },
+          { timeBeats: 1.72 },
+          { timeBeats: 3 },
+        ],
+        bpm: 60,
+      },
       listenFor: "In the even example, every beat has equal space around it.",
     },
     guidedPractice: {

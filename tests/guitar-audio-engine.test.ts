@@ -106,6 +106,13 @@ describe("procedural guitar pluck", () => {
     expect(slowAudioPattern(rhythm)).toMatchObject({ bpm: 70 });
     expect(notes.beatSeconds).toBe(0.4);
     expect(rhythm.bpm).toBe(100);
+    expect(
+      slowAudioPattern({
+        kind: "timed-rhythm",
+        events: [{ timeBeats: 0 }, { timeBeats: 0.7 }],
+        bpm: 100,
+      }),
+    ).toMatchObject({ bpm: 70 });
   });
 
   it("is deterministic, non-silent, and decays like a plucked string", () => {
@@ -254,6 +261,24 @@ describe("guitar Web Audio engine", () => {
     expect(renderedBuffers.every((buffer) => buffer.length < 6_000)).toBe(
       true,
     );
+  });
+
+  it("schedules explicit timing differences without deleting attacks", async () => {
+    const engine = new GuitarAudioEngine();
+    await engine.play({
+      kind: "timed-rhythm",
+      events: [
+        { timeBeats: 0, accented: true },
+        { timeBeats: 1 },
+        { timeBeats: 1.72 },
+        { timeBeats: Number.NaN },
+      ],
+      bpm: 60,
+    });
+    expect(starts).toHaveLength(3);
+    expect(starts[0]).toBeCloseTo(10.04, 5);
+    expect(starts[1]).toBeCloseTo(11.04, 5);
+    expect(starts[2]).toBeCloseTo(11.76, 5);
   });
 
   it("reports unsupported browsers without throwing", async () => {

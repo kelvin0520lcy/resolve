@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { GuitarToolId } from "@/features/guitar-learning/types";
 
-const PROBLEMS: Array<{
+export const PRACTICE_TROUBLESHOOTER_PROBLEMS: Array<{
   id: string;
   symptom: string;
   cause: string;
@@ -82,9 +82,9 @@ const PROBLEMS: Array<{
     cause: "Too much pick may be below the string or the grip may be rigid.",
     test: "Expose only a small triangle of the pick and brush one muted string in both directions.",
     correction: "Use a shallow angle and let the pick give slightly; do not dig downward.",
-    lessonId: "guitar-language:hold-the-pick",
+    lessonId: "guitar-language:pick-grip-and-depth",
     toolId: "picking",
-    presetId: "rhythm:continuous-hand",
+    presetId: "picking:pick-depth",
   },
   {
     id: "bend-flat-sharp",
@@ -92,9 +92,9 @@ const PROBLEMS: Array<{
     cause: "The target pitch has not been heard before the bend.",
     test: "Play the target note normally, sing it, then bend the lower note until both match.",
     correction: "Support the bending finger with the fingers behind it and stop at the heard target.",
-    lessonId: "improvisation:tonal-centre",
+    lessonId: "improvisation:bend-to-a-heard-target",
     toolId: "tuner",
-    presetId: "tuner:standard",
+    presetId: "tuner:bend-target-a4",
   },
   {
     id: "dont-know-what",
@@ -102,7 +102,7 @@ const PROBLEMS: Array<{
     cause: "The goal is too broad to choose a measurable next action.",
     test: "Name one thing that fails right now: sound, timing, movement, memory, or phrasing.",
     correction: "Pick the matching symptom above or start the suggested 15-minute routine.",
-    lessonId: "guitar-language:parts-of-the-guitar",
+    lessonId: "guitar-language:guitar-orientation",
     toolId: "tuner",
     presetId: "tuner:standard",
   },
@@ -129,7 +129,7 @@ export function PracticeTroubleshooter({
         </p>
       </div>
       <div className="grid gap-2 md:grid-cols-2">
-        {PROBLEMS.map((problem) => {
+        {PRACTICE_TROUBLESHOOTER_PROBLEMS.map((problem) => {
           const open = openId === problem.id;
           return (
             <article key={problem.id} className="rounded-2xl border-2 border-border bg-surface">

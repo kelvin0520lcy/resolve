@@ -1,12 +1,14 @@
 "use client";
 
 import { RotateCcw, Volume2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LessonVisualization } from "@/features/guitar-learning/components/lesson-visualization";
-import { GUITAR_LESSON_BY_ID } from "@/features/guitar-learning/data/curriculum";
+import { PUBLISHED_GUITAR_LESSON_BY_ID } from "@/features/guitar-learning/data/curriculum";
 import {
   AUTHORED_GUITAR_TOOL_PRESETS,
+  ALL_GUITAR_TOOL_PRESETS,
   getAuthoredGuitarToolPreset,
 } from "@/features/guitar-learning/data/authored-tool-presets";
 import { guitarAudioEngine } from "@/features/guitar-learning/lib/audio-engine";
@@ -17,19 +19,31 @@ export function GuidedGuitarTool({
   presetId,
   onSelectPreset,
   onOpenLesson,
+  children,
 }: {
   toolId: GuitarToolId;
   presetId?: string;
   onSelectPreset: (presetId: string) => void;
   onOpenLesson: (lessonId: string) => void;
+  children: ReactNode;
 }) {
-  const options = AUTHORED_GUITAR_TOOL_PRESETS.filter(
+  const authoredOptions = AUTHORED_GUITAR_TOOL_PRESETS.filter(
     (preset) => preset.toolId === toolId,
   );
-  const selected =
-    getAuthoredGuitarToolPreset(presetId) ??
-    options[0];
-  const lesson = selected ? GUITAR_LESSON_BY_ID.get(selected.lessonId) : undefined;
+  const baseOptions = ALL_GUITAR_TOOL_PRESETS.filter(
+    (preset) => preset.toolId === toolId && !preset.id.startsWith("lesson:"),
+  );
+  const requested = getAuthoredGuitarToolPreset(presetId);
+  const options =
+    authoredOptions.length > 0
+      ? requested && !requested.id.startsWith("lesson:")
+        ? [requested, ...authoredOptions]
+        : authoredOptions
+      : baseOptions;
+  const selected = requested ?? options[0];
+  const lesson = selected
+    ? PUBLISHED_GUITAR_LESSON_BY_ID.get(selected.lessonId)
+    : undefined;
   const visual = lesson?.sections.find(
     (section): section is VisualSection =>
       "visualData" in section && Boolean(section.visualData),
@@ -77,8 +91,6 @@ export function GuidedGuitarTool({
         )}
       </div>
 
-      <LessonVisualization section={visual} conceptTitle={lesson.title} />
-
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-surface-muted/45 p-3">
           <p className="text-[10px] font-black uppercase tracking-wide text-accent">
@@ -93,6 +105,19 @@ export function GuidedGuitarTool({
           <p className="mt-2 text-xs leading-5">{selected.successCondition}</p>
         </div>
       </div>
+
+      <div className="rounded-2xl border-2 border-accent/25 bg-accent/5 p-3 sm:p-4">
+        {children}
+      </div>
+
+      <details className="rounded-xl border border-border bg-surface p-3">
+        <summary className="cursor-pointer text-xs font-black">
+          Open the lesson reference visual
+        </summary>
+        <div className="mt-3">
+          <LessonVisualization section={visual} conceptTitle={lesson.title} />
+        </div>
+      </details>
 
       <div className="flex flex-wrap gap-2">
         {audio?.type === "audio-comparison" && (

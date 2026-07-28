@@ -165,6 +165,39 @@ export const GUITAR_TOOL_PRESETS: GuitarToolPreset[] = [
       toleranceCents: 5,
     },
   },
+  {
+    id: "picking:pick-depth",
+    toolId: "picking",
+    lessonId: "guitar-language:pick-grip-and-depth",
+    lessonTitle: "Use a shallow, relaxed pick stroke",
+    goal: "Expose a small pick tip and brush one muted string down and up.",
+    successCondition:
+      "Both strokes clear the string without a catch or a rigid grip.",
+    settings: {
+      pattern: "single-string-alternate",
+      string: 3,
+      bpm: 60,
+      shallowDepth: true,
+      simplified: true,
+    },
+  },
+  {
+    id: "tuner:bend-target-a4",
+    toolId: "tuner",
+    lessonId: "improvisation:bend-to-a-heard-target",
+    lessonTitle: "Match a bend to a heard target",
+    goal:
+      "Hear A4 first, then bend from G4 until the tuner centres on the same A.",
+    successCondition:
+      "The bent note holds within ±5 cents of A4 without overshooting.",
+    settings: {
+      mode: "bend-target",
+      sourceMidi: 67,
+      targetMidi: 69,
+      toleranceCents: 5,
+      simplified: true,
+    },
+  },
 ];
 
 export const GUITAR_TOOL_PRESET_BY_ID = new Map(

@@ -39,7 +39,7 @@ import {
   findGuitarGuideEntries,
   GUITAR_GUIDE_SUGGESTIONS,
 } from "@/features/guitar-learning/data/guide";
-import { GUITAR_LESSON_BY_ID } from "@/features/guitar-learning/data/curriculum";
+import { PUBLISHED_GUITAR_LESSON_BY_ID } from "@/features/guitar-learning/data/curriculum";
 import type {
   GuitarCoach,
   GuitarLearningState,
@@ -51,6 +51,7 @@ import { GuidedGuitarTool } from "@/features/guitar-learning/components/tools/gu
 import { GuitarGlossarySearch } from "@/features/guitar-learning/components/glossary";
 import {
   AUTHORED_GUITAR_TOOL_PRESETS,
+  ALL_GUITAR_TOOL_PRESETS,
   getAuthoredGuitarToolPreset,
 } from "@/features/guitar-learning/data/authored-tool-presets";
 
@@ -131,10 +132,10 @@ export type GuitarToolDefinition = {
 export const GUITAR_TOOLS: GuitarToolDefinition[] = [
   {
     id: "tuner",
-    title: "Standard Guitar Tuner",
+    title: "Guitar Tuner & Pitch Target",
     shortTitle: "Tuner",
     description:
-      "Tune E A D G B E with a live direction display or private reference tones.",
+      "Tune standard or alternate strings, identify chromatic notes, and practise exact bend targets with a live direction display.",
     group: "Listening",
     coach: "kita",
     icon: Mic,
@@ -503,7 +504,7 @@ function ContextualGuide({
                     onClick={() => onOpenLesson(lessonId)}
                   >
                     <BookOpen className="h-3.5 w-3.5" />
-                    {GUITAR_LESSON_BY_ID.get(lessonId)?.title ??
+                    {PUBLISHED_GUITAR_LESSON_BY_ID.get(lessonId)?.title ??
                       "Related lesson"}
                   </Button>
                 ))}
@@ -544,25 +545,58 @@ export function GuitarExploreMode({
   const groups = [...new Set(GUITAR_TOOLS.map((tool) => tool.group))];
 
   function renderTool() {
-    if (selectedToolId === "tuner") return <GuitarTuner />;
-    if (selectedToolId === "chord-trainer") {
-      return <ChordChangeTrainer state={state} updateState={updateState} />;
+    const selectedPreset =
+      getAuthoredGuitarToolPreset(selectedPresetId)?.toolId === selectedToolId
+        ? getAuthoredGuitarToolPreset(selectedPresetId)
+        : undefined;
+    if (selectedToolId === "tuner") {
+      return <GuitarTuner presetSettings={selectedPreset?.settings} />;
     }
-    const hasGuidedPreset = AUTHORED_GUITAR_TOOL_PRESETS.some(
+    if (selectedToolId === "chord-trainer") {
+      return (
+        <ChordChangeTrainer
+          state={state}
+          updateState={updateState}
+          presetSettings={selectedPreset?.settings}
+        />
+      );
+    }
+    const hasGuidedPreset = ALL_GUITAR_TOOL_PRESETS.some(
       (preset) => preset.toolId === selectedToolId,
     );
     if (toolMode === "guided" && hasGuidedPreset) {
+      const preset =
+        selectedPreset ??
+        AUTHORED_GUITAR_TOOL_PRESETS.find(
+          (candidate) => candidate.toolId === selectedToolId,
+        ) ??
+        ALL_GUITAR_TOOL_PRESETS.find(
+          (candidate) => candidate.toolId === selectedToolId,
+        );
+      const guidedTool =
+        selectedToolId === "fretboard" ? (
+          <FretboardExplorer presetSettings={preset?.settings} guided />
+        ) : selectedToolId === "rhythm" ? (
+          <RhythmLab presetSettings={preset?.settings} guided />
+        ) : selectedToolId === "picking" ? (
+          <PickingVisualizer presetSettings={preset?.settings} guided />
+        ) : selectedToolId === "scales" ? (
+          <HarmonyWorkbench
+            mode="scales"
+            presetSettings={preset?.settings}
+            guided
+          />
+        ) : null;
       return (
         <GuidedGuitarTool
+          key={preset?.id}
           toolId={selectedToolId}
-          presetId={
-            getAuthoredGuitarToolPreset(selectedPresetId)?.toolId === selectedToolId
-              ? selectedPresetId
-              : undefined
-          }
+          presetId={preset?.id}
           onSelectPreset={onSelectPreset}
           onOpenLesson={onOpenLesson}
-        />
+        >
+          {guidedTool}
+        </GuidedGuitarTool>
       );
     }
     if (selectedToolId === "fretboard") return <FretboardExplorer />;

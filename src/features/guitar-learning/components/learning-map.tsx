@@ -22,7 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  GUITAR_LESSON_BY_ID,
+  PUBLISHED_GUITAR_LESSON_BY_ID,
   GUITAR_PATHS,
 } from "@/features/guitar-learning/data/curriculum";
 import {
@@ -79,7 +79,7 @@ export function GuitarLearningMap({
     GUITAR_PATHS.find((candidate) => candidate.id === pathId) ??
     GUITAR_PATHS[0];
   const selectedLesson = selectedLessonId
-    ? GUITAR_LESSON_BY_ID.get(selectedLessonId)
+    ? PUBLISHED_GUITAR_LESSON_BY_ID.get(selectedLessonId)
     : undefined;
 
   const pathStats = useMemo(
@@ -99,7 +99,7 @@ export function GuitarLearningMap({
   );
 
   function launchLesson(lessonId: string) {
-    const lesson = GUITAR_LESSON_BY_ID.get(lessonId);
+    const lesson = PUBLISHED_GUITAR_LESSON_BY_ID.get(lessonId);
     if (!lesson || getEffectiveLessonStatus(lesson, state) === "locked") {
       return;
     }
@@ -180,7 +180,7 @@ export function GuitarLearningMap({
           <CardContent>
             <div className="relative mx-auto max-w-2xl">
               {path.lessonIds.map((lessonId, index) => {
-                const lesson = GUITAR_LESSON_BY_ID.get(lessonId)!;
+                const lesson = PUBLISHED_GUITAR_LESSON_BY_ID.get(lessonId)!;
                 const status = getEffectiveLessonStatus(lesson, state);
                 const selected = selectedLessonId === lessonId;
                 const progress = getLessonProgress(state, lessonId);
@@ -301,7 +301,7 @@ export function GuitarLearningMap({
                           <div className="mt-2 flex flex-wrap gap-2">
                             {selectedLesson.prerequisiteIds.map((id) => {
                               const prerequisite =
-                                GUITAR_LESSON_BY_ID.get(id);
+                                PUBLISHED_GUITAR_LESSON_BY_ID.get(id);
                               const prerequisiteStatus = prerequisite
                                 ? getEffectiveLessonStatus(
                                     prerequisite,
@@ -337,7 +337,7 @@ export function GuitarLearningMap({
                           {selectedLesson.unlocksConceptIds
                             .map(
                               (id) =>
-                                GUITAR_LESSON_BY_ID.get(id)?.title ??
+                                PUBLISHED_GUITAR_LESSON_BY_ID.get(id)?.title ??
                                 id,
                             )
                             .join(", ") || "Final concept in this path"}

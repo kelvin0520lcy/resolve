@@ -16,6 +16,7 @@ import {
   describeStringCrossing,
   type PickingStep,
 } from "@/features/guitar-learning/lib/rhythm";
+import type { GuitarToolPreset } from "@/features/guitar-learning/data/tool-presets";
 
 type PickingExercise = {
   id: string;
@@ -75,8 +76,18 @@ const EXERCISES: PickingExercise[] = [
   },
 ];
 
-export function PickingVisualizer() {
-  const [exerciseId, setExerciseId] = useState(EXERCISES[0].id);
+export function PickingVisualizer({
+  presetSettings,
+  guided = false,
+}: {
+  presetSettings?: GuitarToolPreset["settings"];
+  guided?: boolean;
+}) {
+  const [exerciseId, setExerciseId] = useState(
+    presetSettings?.pattern === "single-string-alternate"
+      ? "one-string"
+      : EXERCISES[0].id,
+  );
   const [activeIndex, setActiveIndex] = useState(0);
   const [speed, setSpeed] = useState(0.75);
   const [exaggerated, setExaggerated] = useState(false);
@@ -133,7 +144,7 @@ export function PickingVisualizer() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-3">
+      {!guided && <div className="grid gap-3 md:grid-cols-3">
         <label className="text-xs font-black md:col-span-2">
           Technique sequence
           <select
@@ -167,7 +178,15 @@ export function PickingVisualizer() {
             }}
           />
         </label>
-      </div>
+      </div>}
+
+      {guided && (
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="accent">One muted string</Badge>
+          <Badge>Down–up</Badge>
+          <Badge>Shallow pick depth</Badge>
+        </div>
+      )}
 
       <p className="rounded-2xl border border-border bg-surface p-4 text-sm leading-6 text-muted">
         {exercise.description}
@@ -264,14 +283,16 @@ export function PickingVisualizer() {
           <Pause className="h-4 w-4" />
           Stop
         </Button>
-        <Button
-          type="button"
-          variant={exaggerated ? "destructive" : "secondary"}
-          onClick={() => setExaggerated((current) => !current)}
-        >
-          <AlertTriangle className="h-4 w-4" />
-          {exaggerated ? "Show efficient motion" : "Show excessive motion"}
-        </Button>
+        {!guided && (
+          <Button
+            type="button"
+            variant={exaggerated ? "destructive" : "secondary"}
+            onClick={() => setExaggerated((current) => !current)}
+          >
+            <AlertTriangle className="h-4 w-4" />
+            {exaggerated ? "Show efficient motion" : "Show excessive motion"}
+          </Button>
+        )}
         <Button
           type="button"
           variant="secondary"

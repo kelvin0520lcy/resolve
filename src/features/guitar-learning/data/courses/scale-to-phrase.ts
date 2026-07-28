@@ -593,6 +593,133 @@ export const SCALE_TO_PHRASE_LESSONS = [
     toolPresetId: "scales:a-minor-pentatonic-three-notes",
     reviewSchedule: [1, 3, 7, 14],
   },
+  {
+    id: "improvisation:bend-to-a-heard-target",
+    pathId: "improvisation",
+    title: "Bend to a note you heard first",
+    learnerProblem:
+      "My bends stop at a random pitch instead of sounding deliberate and in tune.",
+    category: "lead",
+    skillType: "physical-technique",
+    difficulty: 2,
+    coach: "kita",
+    prerequisiteIds: ["improvisation:phrase-endings"],
+    termsIntroduced: ["articulation"],
+    assumedTerms: ["root", "phrase"],
+    estimatedMinutes: 12,
+    experience:
+      "Play A at the fifth fret of string 1, sing it, then bend G at the third fret until it reaches the same A.",
+    plainEnglishExplanation:
+      "A bend is not simply a string pushed upward. It is a moving pitch with a destination. Hear the destination normally before trying to reach it from below.",
+    analogy:
+      "Aim at a named floor in a lift instead of pressing the button and stopping wherever the doors open.",
+    whyItMatters:
+      "Targeted bends sound vocal and intentional; untargeted bends make an otherwise clear phrase sound out of tune.",
+    visual: {
+      kind: "fretboard",
+      fretCount: 7,
+      root: "A",
+      notes: [
+        {
+          string: 1,
+          fret: 3,
+          label: "G · bend from",
+          role: "scale",
+          finger: 3,
+        },
+        {
+          string: 1,
+          fret: 5,
+          label: "A · target",
+          role: "target",
+          finger: 4,
+        },
+      ],
+      showNoteNames: true,
+    },
+    visualPrompt:
+      "Play fret 5 first, then return to fret 3 and bend until both pitches match.",
+    visualObservationGuide: [
+      "Hear and sing A before beginning the bend.",
+      "Support the third finger with the first and second fingers behind it.",
+      "Stop pushing when the tuner centres on A4; do not add extra height.",
+    ],
+    visualSuccess:
+      "Three bends arrive within ±5 cents of A4 and hold there without overshooting.",
+    audio: {
+      body:
+        "Compare a G that reaches the intended A with a bend that stops one semitone flat.",
+      correctLabel: "Whole-step target · G to A",
+      incorrectLabel: "Stops flat · G to A♭",
+      correctPattern: {
+        kind: "notes",
+        midiNotes: [69, 67, 69],
+        beatSeconds: 0.75,
+      },
+      incorrectPattern: {
+        kind: "notes",
+        midiNotes: [69, 67, 68],
+        beatSeconds: 0.75,
+      },
+      listenFor:
+        "The final note in the correct example matches the reference A exactly.",
+    },
+    guidedPractice: {
+      body: "Separate hearing the target from the physical bend.",
+      steps: [
+        "Play A4 at string 1, fret 5 and sing the pitch.",
+        "Fret G4 at string 1, fret 3 with the third finger supported by two fingers.",
+        "Push the string upward slowly while watching the bend-target tuner.",
+        "Hold the centred A for one second, release, and repeat three times.",
+      ],
+      success:
+        "Three controlled bends reach and hold A4 without passing above it.",
+    },
+    objectiveCheck: {
+      prompt: "What should happen before you bend the G?",
+      options: [
+        "Hear the target A normally",
+        "Push as far as possible",
+        "Increase the tempo",
+      ],
+      correctIndex: 0,
+      explanation:
+        "A heard target gives the hand a pitch destination instead of a guessed distance.",
+    },
+    checkpoint: {
+      prompt: "What proves that the whole-step bend is in tune?",
+      options: [
+        "It matches A4, the note two frets above",
+        "The string moved visibly",
+        "The bend was loud",
+      ],
+      correctIndex: 0,
+      explanation:
+        "A whole-step bend raises G by two semitones to the heard A target.",
+    },
+    commonMistakes: [
+      {
+        mistake: "Bending without hearing the target first.",
+        fix: "Alternate one normal target note with one bend until the pitches match.",
+      },
+      {
+        mistake: "Using one unsupported fingertip.",
+        fix: "Place two fingers behind the third finger and rotate the wrist as one unit.",
+      },
+    ],
+    musicalApplication: {
+      body:
+        "End a short three-note phrase by bending G into the A home note.",
+      prompt: "What happened when the phrase arrived?",
+      options: ["The bend centred on A", "It was close", "It needs another slow pass"],
+      completionMessage:
+        "You used a measured bend as a pitched phrase ending rather than a random effect.",
+    },
+    alternativeExplanation:
+      "The fret-5 A is the answer key. Memorise its sound, then make the fret-3 G travel upward until the answer and the bend become the same note.",
+    toolPresetId: "tuner:bend-target-a4",
+    reviewSchedule: [1, 3, 7, 14],
+  },
 ] satisfies AuthoredLessonDefinition[];
 
 export const SCALE_TO_PHRASE_COURSE: AuthoredCourseDefinition = {

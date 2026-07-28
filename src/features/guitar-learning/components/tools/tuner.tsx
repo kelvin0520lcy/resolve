@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, ShieldCheck, Volume2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { fieldClassName } from "@/components/ui/resolve";
+import type { GuitarToolPreset } from "@/features/guitar-learning/data/tool-presets";
 import { guitarAudioEngine } from "@/features/guitar-learning/lib/audio-engine";
+import { midiToFrequency } from "@/features/guitar-learning/lib/music-theory";
 
 const STRINGS = [
   { label: "6 · low E", note: "E2", midi: 40, frequency: 82.41 },
@@ -15,6 +18,47 @@ const STRINGS = [
   { label: "1 · high E", note: "E4", midi: 64, frequency: 329.63 },
 ] as const;
 
+type TunerMode =
+  | "standard"
+  | "chromatic"
+  | "target"
+  | "bend-target"
+  | "alternate";
+
+const NOTE_NAMES = [
+  "C",
+  "C♯",
+  "D",
+  "E♭",
+  "E",
+  "F",
+  "F♯",
+  "G",
+  "A♭",
+  "A",
+  "B♭",
+  "B",
+] as const;
+
+function noteName(midi: number) {
+  return `${NOTE_NAMES[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+}
+
+function targetFromMidi(midi: number, label = noteName(midi)) {
+  return {
+    label,
+    note: noteName(midi),
+    midi,
+    frequency: midiToFrequency(midi),
+  };
+}
+
+const ALTERNATE_TUNINGS = {
+  "drop-d": [38, 45, 50, 55, 59, 64],
+  "half-step-down": [39, 44, 49, 54, 58, 63],
+  "open-g": [38, 43, 50, 55, 59, 62],
+} as const;
+
 function detectPitch(buffer: Float32Array, sampleRate: number) {
   let rms = 0;
   for (const value of buffer) rms += value * value;
@@ -23,9 +67,9 @@ function detectPitch(buffer: Float32Array, sampleRate: number) {
 
   let bestOffset = -1;
   let bestCorrelation = 0;
-  const minimumOffset = Math.floor(sampleRate / 380);
+  const minimumOffset = Math.floor(sampleRate / 1_000);
   const maximumOffset = Math.min(
-    Math.floor(sampleRate / 70),
+    Math.floor(sampleRate / 55),
     Math.floor(buffer.length / 2),
   );
   for (let offset = minimumOffset; offset <= maximumOffset; offset += 1) {
@@ -45,14 +89,43 @@ function detectPitch(buffer: Float32Array, sampleRate: number) {
     : undefined;
 }
 
-function nearestString(frequency: number) {
-  return STRINGS.map((string) => {
-    const cents = 1200 * Math.log2(frequency / string.frequency);
-    return { ...string, cents };
+function nearestTarget(
+  frequency: number,
+  targets: ReadonlyArray<{
+    label: string;
+    note: string;
+    midi: number;
+    frequency: number;
+  }>,
+) {
+  return targets.map((target) => {
+    const cents = 1200 * Math.log2(frequency / target.frequency);
+    return { ...target, cents };
   }).sort((left, right) => Math.abs(left.cents) - Math.abs(right.cents))[0];
 }
 
-export function GuitarTuner() {
+export function GuitarTuner({
+  presetSettings,
+}: {
+  presetSettings?: GuitarToolPreset["settings"];
+}) {
+  const initialMode =
+    presetSettings?.mode === "bend-target"
+      ? "bend-target"
+      : ("standard" as TunerMode);
+  const [mode, setMode] = useState<TunerMode>(initialMode);
+  const [targetMidi, setTargetMidi] = useState(
+    typeof presetSettings?.targetMidi === "number"
+      ? presetSettings.targetMidi
+      : 69,
+  );
+  const [sourceMidi, setSourceMidi] = useState(
+    typeof presetSettings?.sourceMidi === "number"
+      ? presetSettings.sourceMidi
+      : 67,
+  );
+  const [alternateTuning, setAlternateTuning] =
+    useState<keyof typeof ALTERNATE_TUNINGS>("drop-d");
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
   const [frequency, setFrequency] = useState<number>();
@@ -60,7 +133,21 @@ export function GuitarTuner() {
   const streamRef = useRef<MediaStream | undefined>(undefined);
   const contextRef = useRef<AudioContext | undefined>(undefined);
   const animationRef = useRef<number | undefined>(undefined);
-  const current = frequency ? nearestString(frequency) : undefined;
+  const targets =
+    mode === "standard"
+      ? [...STRINGS]
+      : mode === "alternate"
+        ? ALTERNATE_TUNINGS[alternateTuning].map((midi, index) =>
+            targetFromMidi(midi, `${6 - index} · ${noteName(midi)}`),
+          )
+        : mode === "chromatic" && frequency
+          ? [
+              targetFromMidi(
+                Math.round(69 + 12 * Math.log2(frequency / 440)),
+              ),
+            ]
+          : [targetFromMidi(targetMidi)];
+  const current = frequency ? nearestTarget(frequency, targets) : undefined;
   const centred = current ? Math.abs(current.cents) <= 5 : false;
 
   function stopListening() {
@@ -106,7 +193,21 @@ export function GuitarTuner() {
         const pitch = detectPitch(buffer, context.sampleRate);
         setFrequency(pitch);
         if (pitch) {
-          const nearest = nearestString(pitch);
+          const activeTargets =
+            mode === "standard"
+              ? [...STRINGS]
+              : mode === "alternate"
+                ? ALTERNATE_TUNINGS[alternateTuning].map((midi, index) =>
+                    targetFromMidi(midi, `${6 - index} · ${noteName(midi)}`),
+                  )
+                : mode === "chromatic"
+                  ? [
+                      targetFromMidi(
+                        Math.round(69 + 12 * Math.log2(pitch / 440)),
+                      ),
+                    ]
+                  : [targetFromMidi(targetMidi)];
+          const nearest = nearestTarget(pitch, activeTargets);
           setStableFrames((frames) =>
             Math.abs(nearest.cents) <= 5 ? Math.min(frames + 1, 60) : 0,
           );
@@ -124,6 +225,17 @@ export function GuitarTuner() {
     }
   }
 
+  const title =
+    mode === "standard"
+      ? "Tune E A D G B E, one string at a time"
+      : mode === "chromatic"
+        ? "Identify and centre any guitar note"
+        : mode === "bend-target"
+          ? `Bend ${noteName(sourceMidi)} up to ${noteName(targetMidi)}`
+          : mode === "alternate"
+            ? "Tune every string to the selected alternate tuning"
+            : `Match the selected target: ${noteName(targetMidi)}`;
+
   return (
     <section aria-labelledby="tuner-title" className="space-y-4">
       <div className="rounded-2xl border-2 border-accent/25 bg-accent/5 p-4">
@@ -131,11 +243,12 @@ export function GuitarTuner() {
           <div>
             <Badge variant="accent">Guided tuner</Badge>
             <h2 id="tuner-title" className="font-display mt-2 text-2xl">
-              Tune E A D G B E, one string at a time
+              {title}
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-              Play one open string. Move the tuning peg slowly until the
-              indicator reaches the centre. Mute the other five strings.
+              {mode === "bend-target"
+                ? "Play the target reference first. Then fret the source note and bend slowly until the indicator reaches the centre."
+                : "Play one note at a time. Adjust slowly until the indicator reaches the centre and holds there."}
             </p>
           </div>
           <Button
@@ -160,12 +273,98 @@ export function GuitarTuner() {
         </p>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="text-xs font-black">
+          Tuner mode
+          <select
+            className={`${fieldClassName} mt-2`}
+            value={mode}
+            onChange={(event) => {
+              stopListening();
+              const nextMode = event.target.value as TunerMode;
+              if (nextMode === "bend-target" && sourceMidi >= targetMidi) {
+                setSourceMidi(Math.max(40, targetMidi - 2));
+              }
+              setMode(nextMode);
+            }}
+          >
+            <option value="standard">Standard tuning</option>
+            <option value="chromatic">Chromatic · any note</option>
+            <option value="target">Selected target note</option>
+            <option value="bend-target">Bend target</option>
+            <option value="alternate">Alternate tuning</option>
+          </select>
+        </label>
+        {(mode === "target" || mode === "bend-target") && (
+          <label className="text-xs font-black">
+            Target note
+            <select
+              className={`${fieldClassName} mt-2`}
+              value={targetMidi}
+              onChange={(event) => {
+                const nextTarget = Number(event.target.value);
+                setTargetMidi(nextTarget);
+                if (sourceMidi >= nextTarget) {
+                  setSourceMidi(Math.max(40, nextTarget - 2));
+                }
+              }}
+            >
+              {Array.from({ length: 37 }, (_value, index) => 40 + index).map(
+                (midi) => (
+                  <option key={midi} value={midi}>
+                    {noteName(midi)}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+        )}
+        {mode === "bend-target" && (
+          <label className="text-xs font-black">
+            Bend from
+            <select
+              className={`${fieldClassName} mt-2`}
+              value={sourceMidi}
+              onChange={(event) => setSourceMidi(Number(event.target.value))}
+            >
+              {Array.from({ length: 36 }, (_value, index) => 40 + index)
+                .filter((midi) => midi < targetMidi)
+                .map((midi) => (
+                  <option key={midi} value={midi}>
+                    {noteName(midi)}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+        {mode === "alternate" && (
+          <label className="text-xs font-black">
+            Alternate tuning
+            <select
+              className={`${fieldClassName} mt-2`}
+              value={alternateTuning}
+              onChange={(event) =>
+                setAlternateTuning(
+                  event.target.value as keyof typeof ALTERNATE_TUNINGS,
+                )
+              }
+            >
+              <option value="drop-d">Drop D · D A D G B E</option>
+              <option value="half-step-down">
+                Half-step down · E♭ A♭ D♭ G♭ B♭ E♭
+              </option>
+              <option value="open-g">Open G · D G D G B D</option>
+            </select>
+          </label>
+        )}
+      </div>
+
       <div
         className="rounded-[24px] border-2 border-border bg-surface p-5 text-center"
         aria-live="polite"
       >
         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
-          {listening ? "Listening for one open string" : "Microphone is off"}
+          {listening ? `Listening in ${mode.replace("-", " ")} mode` : "Microphone is off"}
         </p>
         <p className="font-display mt-2 text-5xl">
           {current?.note ?? "—"}
@@ -203,7 +402,7 @@ export function GuitarTuner() {
         </div>
         {frequency && (
           <p className="mt-3 text-[10px] text-muted">
-            {frequency.toFixed(1)} Hz · closest string {current?.label}
+            {frequency.toFixed(1)} Hz · target {current?.label}
           </p>
         )}
       </div>
@@ -223,7 +422,7 @@ export function GuitarTuner() {
           when microphone access is unavailable.
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          {STRINGS.map((string) => (
+          {targets.map((string) => (
             <Button
               key={string.note}
               type="button"

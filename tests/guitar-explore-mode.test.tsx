@@ -53,4 +53,26 @@ describe("GuitarExploreMode guidance", () => {
       "rhythm:continuous-strumming-hand-movement",
     );
   });
+
+  it("applies a guided lesson preset to the real rhythm tool", async () => {
+    render(
+      <GuitarExploreMode
+        selectedToolId="rhythm"
+        selectedPresetId="lesson:rhythm:feeling-and-identifying-the-pulse"
+        onSelectTool={vi.fn()}
+        onSelectPreset={vi.fn()}
+        onOpenLesson={vi.fn()}
+        state={state}
+        updateState={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByLabelText("4-step rhythm grid")).toBeInTheDocument();
+    expect(screen.getByText("Tempo · 60 BPM")).toBeInTheDocument();
+    expect(screen.getByText(/spoken beat cues on/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Place on the grid" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Completed bars: 0")).toBeInTheDocument();
+  });
 });
