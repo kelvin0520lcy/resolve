@@ -384,13 +384,17 @@ export class GuitarAudioEngine {
     }
 
     const stepSeconds = beatSeconds * (4 / pattern.subdivisions);
+    const totalSteps =
+      Number.isInteger(pattern.totalSteps) && (pattern.totalSteps ?? 0) > 0
+        ? Math.min(pattern.totalSteps!, 128)
+        : pattern.subdivisions;
     const accents = new Set(pattern.accentedSteps ?? []);
     const muted = new Set(pattern.mutedSteps ?? []);
     for (const step of pattern.activeSteps) {
       if (
         !Number.isInteger(step) ||
         step < 0 ||
-        step >= pattern.subdivisions
+        step >= totalSteps
       ) {
         continue;
       }

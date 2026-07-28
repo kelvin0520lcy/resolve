@@ -302,6 +302,7 @@ export function GuitarTuner({
               className={`${fieldClassName} mt-2`}
               value={targetMidi}
               onChange={(event) => {
+                stopListening();
                 const nextTarget = Number(event.target.value);
                 setTargetMidi(nextTarget);
                 if (sourceMidi >= nextTarget) {
@@ -325,7 +326,10 @@ export function GuitarTuner({
             <select
               className={`${fieldClassName} mt-2`}
               value={sourceMidi}
-              onChange={(event) => setSourceMidi(Number(event.target.value))}
+              onChange={(event) => {
+                stopListening();
+                setSourceMidi(Number(event.target.value));
+              }}
             >
               {Array.from({ length: 36 }, (_value, index) => 40 + index)
                 .filter((midi) => midi < targetMidi)
@@ -343,11 +347,12 @@ export function GuitarTuner({
             <select
               className={`${fieldClassName} mt-2`}
               value={alternateTuning}
-              onChange={(event) =>
+              onChange={(event) => {
+                stopListening();
                 setAlternateTuning(
                   event.target.value as keyof typeof ALTERNATE_TUNINGS,
-                )
-              }
+                );
+              }}
             >
               <option value="drop-d">Drop D · D A D G B E</option>
               <option value="half-step-down">

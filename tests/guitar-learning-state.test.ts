@@ -15,6 +15,7 @@ import {
   normalizeGuitarLearningState,
   openGuitarLesson,
   recordLessonCheckpoint,
+  recordLessonApplicationResult,
   setLessonApplicationComplete,
 } from "@/features/guitar-learning/lib/learning-state";
 
@@ -83,6 +84,29 @@ describe("guitar learner state", () => {
       attempts: 1,
       checkpointScore: 0,
     });
+  });
+
+  it("keeps an honest weak application complete but schedules review", () => {
+    const lessonId = "rhythm:feeling-and-identifying-the-pulse";
+    const lesson = GUITAR_LESSON_BY_ID.get(lessonId)!;
+    const state = recordLessonApplicationResult(
+      openGuitarLesson(
+        createEmptyGuitarLearningState("learner"),
+        lessonId,
+      ),
+      lessonId,
+      "not_yet",
+      "2026-07-28T00:00:00Z",
+    );
+    expect(getLessonProgress(state, lessonId)).toMatchObject({
+      applicationCompleted: true,
+      applicationResult: "not_yet",
+      status: "needs_review",
+      selfConfidence: 2,
+    });
+    expect(
+      getLessonCompletionRequirements(state, lesson).canMarkUnderstood,
+    ).toBe(false);
   });
 
   it("calculates and applies a deterministic placement result", () => {

@@ -263,6 +263,21 @@ describe("guitar Web Audio engine", () => {
     );
   });
 
+  it("schedules valid rhythm steps beyond one four-beat bar", async () => {
+    const engine = new GuitarAudioEngine();
+    await engine.play({
+      kind: "rhythm",
+      subdivisions: 8,
+      totalSteps: 16,
+      activeSteps: [0, 8, 15, 16],
+      bpm: 120,
+    });
+    expect(starts).toHaveLength(3);
+    expect(starts[0]).toBeCloseTo(10.04, 5);
+    expect(starts[1]).toBeCloseTo(12.04, 5);
+    expect(starts[2]).toBeCloseTo(13.79, 5);
+  });
+
   it("schedules explicit timing differences without deleting attacks", async () => {
     const engine = new GuitarAudioEngine();
     await engine.play({

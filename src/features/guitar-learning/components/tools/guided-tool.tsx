@@ -18,17 +18,19 @@ export function GuidedGuitarTool({
   toolId,
   presetId,
   onSelectPreset,
+  onReset,
   onOpenLesson,
   children,
 }: {
   toolId: GuitarToolId;
   presetId?: string;
   onSelectPreset: (presetId: string) => void;
+  onReset: () => void;
   onOpenLesson: (lessonId: string) => void;
   children: ReactNode;
 }) {
   const authoredOptions = AUTHORED_GUITAR_TOOL_PRESETS.filter(
-    (preset) => preset.toolId === toolId,
+    (preset) => preset.toolId === toolId && preset.exactGuided !== false,
   );
   const baseOptions = ALL_GUITAR_TOOL_PRESETS.filter(
     (preset) => preset.toolId === toolId && !preset.id.startsWith("lesson:"),
@@ -131,7 +133,7 @@ export function GuidedGuitarTool({
         <Button
           type="button"
           variant="secondary"
-          onClick={() => onSelectPreset(options[0]?.id ?? selected.id)}
+          onClick={onReset}
         >
           <RotateCcw className="h-4 w-4" /> Reset example
         </Button>

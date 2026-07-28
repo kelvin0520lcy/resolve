@@ -21,6 +21,7 @@ import {
 } from "@/features/guitar-learning/data/authored-tool-presets";
 import type {
   GuitarLearningPath,
+  GuitarApplicationResult,
   GuitarLesson,
   VisualSection,
 } from "@/features/guitar-learning/types";
@@ -37,8 +38,52 @@ export const AUTHORED_GUITAR_LESSON_DEFINITIONS: AuthoredLessonDefinition[] = [
   ...SCALE_TO_PHRASE_LESSONS,
 ];
 
+const SUPPLEMENTAL_LESSON_IDS = [
+  "improvisation:bend-to-a-heard-target",
+] as const;
+
 function slugFromId(id: string) {
   return id.split(":").slice(1).join(":");
+}
+
+export function inferApplicationOutcome(
+  option: string,
+): GuitarApplicationResult {
+  const value = option.toLowerCase();
+  if (
+    [
+      "not yet",
+      "i lost",
+      "it stopped",
+      "need the",
+      "needs another",
+      "need a slower",
+      "need to reposition",
+      "after the count stopped",
+      "fewer;",
+    ].some((marker) => value.includes(marker))
+  ) {
+    return "not_yet";
+  }
+  if (
+    [
+      "close",
+      "sometimes",
+      "mostly",
+      "one bar",
+      "for one bar",
+      "once",
+      "one buzzed",
+      "after one check",
+      "after another listen",
+      "only the",
+      "between beats",
+      "between counts",
+    ].some((marker) => value.includes(marker))
+  ) {
+    return "partial";
+  }
+  return "achieved";
 }
 
 function visualSectionType(
@@ -58,7 +103,7 @@ function buildPublishedLesson(
   const preset = AUTHORED_TOOL_PRESET_BY_LESSON_ID.get(definition.id);
   if (!preset) {
     throw new Error(
-      `Published guitar lesson ${definition.id} has no exact guided preset.`,
+      `Published guitar lesson ${definition.id} has no linked tool preset.`,
     );
   }
 
@@ -148,6 +193,9 @@ function buildPublishedLesson(
     applicationActivity: {
       prompt: `${definition.musicalApplication.body} ${definition.musicalApplication.prompt}`,
       options: definition.musicalApplication.options,
+      outcomes:
+        definition.musicalApplication.outcomes ??
+        definition.musicalApplication.options.map(inferApplicationOutcome),
       completionMessage: definition.musicalApplication.completionMessage,
     },
     relatedToolIds: [preset.toolId],
@@ -166,22 +214,38 @@ function buildPublishedLesson(
 }
 
 export const AUTHORED_GUITAR_LESSONS: GuitarLesson[] =
-  AUTHORED_GUITAR_COURSES.flatMap((course) =>
-    course.lessonIds.map((lessonId, index) => {
+  [
+    ...AUTHORED_GUITAR_COURSES.flatMap((course) =>
+      course.lessonIds.map((lessonId, index) => {
+        const definition = AUTHORED_GUITAR_LESSON_DEFINITIONS.find(
+          (candidate) => candidate.id === lessonId,
+        );
+        if (!definition) {
+          throw new Error(
+            `Authored guitar course ${course.id} references missing lesson ${lessonId}.`,
+          );
+        }
+        return buildPublishedLesson(
+          definition,
+          course.lessonIds[index + 1],
+        );
+      }),
+    ),
+    ...SUPPLEMENTAL_LESSON_IDS.map((lessonId) => {
       const definition = AUTHORED_GUITAR_LESSON_DEFINITIONS.find(
         (candidate) => candidate.id === lessonId,
       );
       if (!definition) {
         throw new Error(
-          `Authored guitar course ${course.id} references missing lesson ${lessonId}.`,
+          `Supplemental guitar lesson ${lessonId} is missing.`,
         );
       }
-      return buildPublishedLesson(
-        definition,
-        course.lessonIds[index + 1],
-      );
+      return {
+        ...buildPublishedLesson(definition),
+        optional: true,
+      };
     }),
-  );
+  ];
 
 export const AUTHORED_GUITAR_PATHS: GuitarLearningPath[] =
   AUTHORED_GUITAR_COURSES.map((course) => ({
@@ -279,7 +343,7 @@ export function getAuthoredCurriculumIssues(
             (step) =>
               !Number.isInteger(step) ||
               step < 0 ||
-              step >= pattern.subdivisions,
+              step >= (pattern.totalSteps ?? pattern.subdivisions),
           )
         ) {
           issues.push(`${lesson.id} has invalid ${label} rhythm steps.`);

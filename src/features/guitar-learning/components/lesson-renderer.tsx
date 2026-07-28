@@ -38,6 +38,7 @@ import {
 } from "@/features/guitar-learning/components/lesson-stage-visuals";
 import { LessonVisualization } from "@/features/guitar-learning/components/lesson-visualization";
 import { LessonGlossary } from "@/features/guitar-learning/components/glossary";
+import { hasExactGuidedGuitarPreset } from "@/features/guitar-learning/data/authored-tool-presets";
 import {
   guitarAudioEngine,
   slowAudioPattern,
@@ -47,8 +48,8 @@ import {
   getLessonCompletionRequirements,
   getLessonProgress,
   markLessonUnderstood,
+  recordLessonApplicationResult,
   recordLessonCheckpoint,
-  setLessonApplicationComplete,
   setLessonSectionConfusing,
   toggleLessonBookmark,
 } from "@/features/guitar-learning/lib/learning-state";
@@ -348,19 +349,23 @@ function VisualLessonStage({
           the answer.
         </label>
       </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="mt-4"
-        onClick={() => onOpenTool(section.toolId, section.toolPresetId)}
-      >
-        <Wrench className="h-3.5 w-3.5" />
-        Open guided {section.toolId.replace("-", " ")} example
-      </Button>
-      <p className="mt-2 text-xs leading-5 text-muted">
-        The full tool is optional. Opening it will not mark this stage complete.
-      </p>
+      {hasExactGuidedGuitarPreset(section.toolPresetId) && (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="mt-4"
+            onClick={() => onOpenTool(section.toolId, section.toolPresetId)}
+          >
+            <Wrench className="h-3.5 w-3.5" />
+            Open guided {section.toolId.replace("-", " ")} example
+          </Button>
+          <p className="mt-2 text-xs leading-5 text-muted">
+            The full tool is optional. Opening it will not mark this stage complete.
+          </p>
+        </>
+      )}
     </SectionFrame>
   );
 }
@@ -793,8 +798,13 @@ export function LessonRenderer({
 
   function submitApplication() {
     if (!applicationChoice) return;
+    const choiceIndex = lesson.applicationActivity.options.indexOf(
+      applicationChoice,
+    );
+    const result =
+      lesson.applicationActivity.outcomes?.[choiceIndex] ?? "achieved";
     updateState((current) =>
-      setLessonApplicationComplete(current, lesson.id, true),
+      recordLessonApplicationResult(current, lesson.id, result),
     );
   }
 
@@ -978,9 +988,18 @@ export function LessonRenderer({
               {requirements.applicationCompleted && (
                 <p
                   role="status"
-                  className="mt-4 rounded-xl bg-success/10 p-4 text-sm leading-6 text-success"
+                  className={`mt-4 rounded-xl p-4 text-sm leading-6 ${
+                    progress?.applicationResult === "partial" ||
+                    progress?.applicationResult === "not_yet"
+                      ? "bg-warning/10 text-warning"
+                      : "bg-success/10 text-success"
+                  }`}
                 >
-                  {lesson.applicationActivity.completionMessage}
+                  {progress?.applicationResult === "partial"
+                    ? "Saved. You made useful progress, and this lesson is now in your review queue for another focused pass."
+                    : progress?.applicationResult === "not_yet"
+                      ? "Saved without judgement. This lesson is now in your review queue so you can retry it slowly."
+                      : lesson.applicationActivity.completionMessage}
                 </p>
               )}
             </SectionFrame>

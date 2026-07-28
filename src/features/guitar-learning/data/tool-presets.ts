@@ -7,6 +7,7 @@ export type GuitarToolPreset = {
   lessonTitle: string;
   goal: string;
   successCondition: string;
+  exactGuided?: boolean;
   settings: Record<string, string | number | boolean | string[] | number[]>;
 };
 

@@ -183,6 +183,7 @@ export type AudioPattern =
   | {
       kind: "rhythm";
       subdivisions: 4 | 8 | 12 | 16;
+      totalSteps?: number;
       activeSteps: number[];
       accentedSteps?: number[];
       mutedSteps?: number[];
@@ -305,8 +306,11 @@ export type LessonCheckpoint = {
 export type ApplicationActivity = {
   prompt: string;
   options: string[];
+  outcomes?: GuitarApplicationResult[];
   completionMessage: string;
 };
+
+export type GuitarApplicationResult = "achieved" | "partial" | "not_yet";
 
 export type GuitarLesson = {
   id: string;
@@ -337,6 +341,7 @@ export type GuitarLesson = {
   assumedTerms?: GlossaryTermId[];
   relatedToolPresetIds?: string[];
   reviewSchedule?: number[];
+  optional?: boolean;
 };
 
 export type GuitarLearningPath = {
@@ -355,6 +360,7 @@ export type GuitarLessonProgress = {
   confusingSectionIds?: string[];
   completedSectionIds?: string[];
   applicationCompleted?: boolean;
+  applicationResult?: GuitarApplicationResult;
   lastOpenedAt?: string;
   lastReviewedAt?: string;
   understoodAt?: string;

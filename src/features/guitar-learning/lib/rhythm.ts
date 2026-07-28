@@ -54,6 +54,35 @@ export function createRhythmGrid(
   }));
 }
 
+export function createMultiBeatRhythmGrid(
+  beats: number,
+  slotsPerBeat: 1 | 2 | 3 | 4,
+  initialState: RhythmStrokeState = "missed",
+): RhythmCell[] {
+  const safeBeats = Math.max(1, Math.min(32, Math.round(beats)));
+  const subdivision = (slotsPerBeat * 4) as RhythmSubdivision;
+  const template = createRhythmGrid(subdivision, initialState);
+  return Array.from(
+    { length: safeBeats * slotsPerBeat },
+    (_value, index) => ({
+      ...template[index % template.length],
+      index,
+    }),
+  );
+}
+
+export function rhythmCountCue(
+  step: number,
+  slotsPerBeat: 1 | 2 | 3 | 4,
+): string {
+  const beat = Math.floor(step / slotsPerBeat) % 4 + 1;
+  const position = step % slotsPerBeat;
+  if (position === 0) return String(beat);
+  if (slotsPerBeat === 2) return "and";
+  if (slotsPerBeat === 3) return position === 1 ? "trip" : "let";
+  return position === 1 ? "e" : position === 2 ? "and" : "a";
+}
+
 export function deconstructStrummingPattern(
   pattern: string | string[],
   subdivision: RhythmSubdivision = 8,

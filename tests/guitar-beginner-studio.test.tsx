@@ -120,6 +120,57 @@ describe("beginner-first Guitar Studio", () => {
     expect(screen.getByLabelText("Alternate tuning")).toBeInTheDocument();
   });
 
+  it("stops microphone analysis before changing a live tuning target", async () => {
+    const user = userEvent.setup();
+    const stopTrack = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [{ stop: stopTrack }],
+        })),
+      },
+    });
+    class MockTunerAudioContext {
+      sampleRate = 48_000;
+      close = vi.fn(async () => {});
+      createMediaStreamSource() {
+        return { connect: vi.fn() };
+      }
+      createAnalyser() {
+        return {
+          fftSize: 2048,
+          getFloatTimeDomainData: vi.fn(),
+        };
+      }
+    }
+    Object.defineProperty(window, "AudioContext", {
+      configurable: true,
+      value: MockTunerAudioContext,
+    });
+    const frame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1);
+
+    render(
+      <GuitarTuner presetSettings={{ mode: "target", targetMidi: 69 }} />,
+    );
+    await user.selectOptions(screen.getByLabelText("Tuner mode"), "target");
+    await user.click(screen.getByRole("button", { name: "Use microphone" }));
+    expect(
+      await screen.findByRole("button", { name: "Stop listening" }),
+    ).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Target note"), "70");
+    expect(stopTrack).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Use microphone" }),
+    ).toBeInTheDocument();
+
+    frame.mockRestore();
+    Reflect.deleteProperty(window, "AudioContext");
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
   it("shows playable chord positions and prevents identical chord pairs", () => {
     render(
       <ChordChangeTrainer

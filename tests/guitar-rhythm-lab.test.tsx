@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RhythmLab } from "@/features/guitar-learning/components/tools/rhythm-lab";
 
 describe("RhythmLab", () => {
@@ -33,5 +33,56 @@ describe("RhythmLab", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Accented offbeats",
     );
+  });
+
+  it("renders every step and chord change in an eight-beat guided project", () => {
+    render(
+      <RhythmLab
+        guided
+        presetSettings={{
+          bpm: 84,
+          beats: 8,
+          slotsPerBeat: 2,
+          pattern: Array.from({ length: 16 }, (_value, index) => index),
+          beatChords: ["Am", "Am", "Am", "Am", "F", "F", "F", "F"],
+          voiceCount: true,
+        }}
+      />,
+    );
+    expect(screen.getByLabelText("16-step rhythm grid")).toBeInTheDocument();
+    expect(screen.getAllByText(/hand [DU]/)).toHaveLength(16);
+    expect(screen.getAllByText("Am")).toHaveLength(4);
+    expect(screen.getAllByText("F")).toHaveLength(4);
+    expect(screen.getByText(/8 beats/)).toBeInTheDocument();
+  });
+
+  it("speaks beat one immediately when a counted sequence starts", async () => {
+    const user = userEvent.setup();
+    const speak = vi.fn();
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: { cancel: vi.fn(), speak },
+    });
+    class MockUtterance {
+      constructor(public text: string) {}
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", MockUtterance);
+    render(
+      <RhythmLab
+        guided
+        presetSettings={{
+          bpm: 60,
+          beats: 4,
+          slotsPerBeat: 2,
+          voiceCount: true,
+        }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Play sequence" }));
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect(speak.mock.calls[0][0]).toMatchObject({ text: "1" });
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(window, "speechSynthesis");
   });
 });

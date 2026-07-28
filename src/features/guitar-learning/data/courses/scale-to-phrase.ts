@@ -730,5 +730,7 @@ export const SCALE_TO_PHRASE_COURSE: AuthoredCourseDefinition = {
   coach: "bocchi",
   learnerPromise:
     "You will stop running the box automatically and start making short ideas with audible beginnings and endings.",
-  lessonIds: SCALE_TO_PHRASE_LESSONS.map((lesson) => lesson.id),
+  lessonIds: SCALE_TO_PHRASE_LESSONS
+    .filter((lesson) => lesson.id !== "improvisation:bend-to-a-heard-target")
+    .map((lesson) => lesson.id),
 };

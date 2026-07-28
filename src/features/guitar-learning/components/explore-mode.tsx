@@ -537,6 +537,7 @@ export function GuitarExploreMode({
   ) => void;
 }) {
   const [toolMode, setToolMode] = useState<"guided" | "sandbox">("guided");
+  const [guidedResetNonce, setGuidedResetNonce] = useState(0);
   const activeTool =
     GUITAR_TOOLS.find((tool) => tool.id === selectedToolId) ??
     GUITAR_TOOLS[0];
@@ -546,7 +547,8 @@ export function GuitarExploreMode({
 
   function renderTool() {
     const selectedPreset =
-      getAuthoredGuitarToolPreset(selectedPresetId)?.toolId === selectedToolId
+      getAuthoredGuitarToolPreset(selectedPresetId)?.toolId === selectedToolId &&
+      getAuthoredGuitarToolPreset(selectedPresetId)?.exactGuided !== false
         ? getAuthoredGuitarToolPreset(selectedPresetId)
         : undefined;
     if (selectedToolId === "tuner") {
@@ -562,13 +564,16 @@ export function GuitarExploreMode({
       );
     }
     const hasGuidedPreset = ALL_GUITAR_TOOL_PRESETS.some(
-      (preset) => preset.toolId === selectedToolId,
+      (preset) =>
+        preset.toolId === selectedToolId && preset.exactGuided !== false,
     );
     if (toolMode === "guided" && hasGuidedPreset) {
       const preset =
         selectedPreset ??
         AUTHORED_GUITAR_TOOL_PRESETS.find(
-          (candidate) => candidate.toolId === selectedToolId,
+          (candidate) =>
+            candidate.toolId === selectedToolId &&
+            candidate.exactGuided !== false,
         ) ??
         ALL_GUITAR_TOOL_PRESETS.find(
           (candidate) => candidate.toolId === selectedToolId,
@@ -589,10 +594,11 @@ export function GuitarExploreMode({
         ) : null;
       return (
         <GuidedGuitarTool
-          key={preset?.id}
+          key={`${preset?.id}:${guidedResetNonce}`}
           toolId={selectedToolId}
           presetId={preset?.id}
           onSelectPreset={onSelectPreset}
+          onReset={() => setGuidedResetNonce((current) => current + 1)}
           onOpenLesson={onOpenLesson}
         >
           {guidedTool}

@@ -19,6 +19,17 @@ function settingsFromVisual(
 ): GuitarToolPreset["settings"] {
   const visual: ExplicitLessonVisual = definition.visual;
   if (visual.kind === "rhythm-grid") {
+    const eventsBySlot = new Map(
+      visual.events
+        .filter((event) => event.chord)
+        .map((event) => [event.slot, event.chord!]),
+    );
+    let currentChord = "";
+    const beatChords = Array.from({ length: visual.beats }, (_value, beat) => {
+      const chord = eventsBySlot.get(beat * visual.slotsPerBeat);
+      if (chord) currentChord = chord;
+      return currentChord;
+    });
     return {
       beats: visual.beats,
       slotsPerBeat: visual.slotsPerBeat,
@@ -31,6 +42,7 @@ function settingsFromVisual(
       accentedSteps: visual.events
         .filter((event) => event.accented)
         .map((event) => event.slot),
+      beatChords,
       voiceCount: true,
       simplified: true,
     };
@@ -66,6 +78,19 @@ function settingsFromVisual(
   return {};
 }
 
+function hasExactGuidedRepresentation(
+  definition: (typeof DEFINITIONS)[number],
+  base: GuitarToolPreset,
+) {
+  const kind = definition.visual.kind;
+  if (definition.toolPresetId.startsWith("tuner:")) return true;
+  if (kind === "chord-diagram") return true;
+  if (kind === "rhythm-grid") return base.toolId === "rhythm";
+  if (kind === "fretboard") return base.toolId === "fretboard";
+  if (kind === "picking") return base.toolId === "picking";
+  return false;
+}
+
 export const AUTHORED_GUITAR_TOOL_PRESETS: GuitarToolPreset[] =
   DEFINITIONS.map((definition) => {
     const base = GUITAR_TOOL_PRESET_BY_ID.get(definition.toolPresetId);
@@ -81,6 +106,7 @@ export const AUTHORED_GUITAR_TOOL_PRESETS: GuitarToolPreset[] =
       lessonTitle: definition.title,
       goal: definition.guidedPractice.body,
       successCondition: definition.guidedPractice.success,
+      exactGuided: hasExactGuidedRepresentation(definition, base),
       settings: {
         ...base.settings,
         ...settingsFromVisual(definition),
@@ -102,6 +128,11 @@ export function getAuthoredGuitarToolPreset(presetId?: string) {
   return presetId
     ? ALL_GUITAR_TOOL_PRESET_BY_ID.get(presetId)
     : undefined;
+}
+
+export function hasExactGuidedGuitarPreset(presetId?: string) {
+  const preset = getAuthoredGuitarToolPreset(presetId);
+  return Boolean(preset && preset.exactGuided !== false);
 }
 
 export const AUTHORED_TOOL_PRESET_BY_LESSON_ID = new Map(

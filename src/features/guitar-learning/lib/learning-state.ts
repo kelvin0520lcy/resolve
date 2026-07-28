@@ -5,6 +5,7 @@ import {
 } from "@/features/guitar-learning/data/curriculum";
 import type {
   GuitarLearningState,
+  GuitarApplicationResult,
   GuitarLesson,
   GuitarLessonProgress,
   GuitarLearnerRoute,
@@ -27,6 +28,12 @@ const MASTERY_STATUSES: GuitarMasteryStatus[] = [
   "understood",
   "needs_review",
   "already_known",
+];
+
+const APPLICATION_RESULTS: GuitarApplicationResult[] = [
+  "achieved",
+  "partial",
+  "not_yet",
 ];
 
 const TOOL_IDS = [
@@ -223,6 +230,11 @@ export function normalizeGuitarLearningState(
           (candidate) => validSectionIds.has(candidate),
         ),
         applicationCompleted: entry.applicationCompleted === true,
+        applicationResult: APPLICATION_RESULTS.includes(
+          entry.applicationResult as GuitarApplicationResult,
+        )
+          ? (entry.applicationResult as GuitarApplicationResult)
+          : undefined,
         lastOpenedAt:
           typeof entry.lastOpenedAt === "string"
             ? entry.lastOpenedAt
@@ -480,9 +492,38 @@ export function setLessonApplicationComplete(
   return upsertProgress(state, lessonId, (current) => ({
     ...current,
     applicationCompleted: completed,
+    applicationResult: completed ? "achieved" : undefined,
     status: SATISFIED_STATUSES.includes(current.status)
       ? current.status
       : "learning",
+  }));
+}
+
+export function recordLessonApplicationResult(
+  state: GuitarLearningState,
+  lessonId: string,
+  result: GuitarApplicationResult,
+  now = new Date().toISOString(),
+): GuitarLearningState {
+  if (
+    !GUITAR_LESSON_BY_ID.has(lessonId) ||
+    !APPLICATION_RESULTS.includes(result)
+  ) {
+    return state;
+  }
+  return upsertProgress(state, lessonId, (current) => ({
+    ...current,
+    applicationCompleted: true,
+    applicationResult: result,
+    lastReviewedAt: result === "achieved" ? current.lastReviewedAt : now,
+    selfConfidence:
+      result === "achieved" ? 4 : result === "partial" ? 3 : 2,
+    status:
+      result === "achieved"
+        ? SATISFIED_STATUSES.includes(current.status)
+          ? current.status
+          : "learning"
+        : "needs_review",
   }));
 }
 
@@ -508,7 +549,9 @@ export function getLessonCompletionRequirements(
       incompleteSectionIds.length === 0 &&
       (progress?.checkpointScore ?? -1) >=
         lesson.checkpoint.passingScore &&
-      progress?.applicationCompleted === true,
+      progress?.applicationCompleted === true &&
+      (!progress.applicationResult ||
+        progress.applicationResult === "achieved"),
   };
 }
 

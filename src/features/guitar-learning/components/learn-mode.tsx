@@ -208,6 +208,9 @@ export function GuitarLearnMode({
                 <h2 className="font-display mt-1 text-3xl leading-none tracking-wide text-[#18121f]">
                   {recommendedLesson.title}
                 </h2>
+                {recommendedLesson.optional && (
+                  <Badge className="mt-3">Optional technique branch</Badge>
+                )}
                 <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#5d5267]">
                   {primaryRecommendation.reasons[0]}
                 </p>
@@ -463,6 +466,9 @@ export function GuitarLearnMode({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-black leading-6">{lesson.title}</p>
+                        {lesson.optional && (
+                          <Badge className="mt-2">Optional technique</Badge>
+                        )}
                         <p className="mt-1 text-xs text-muted">
                           {lesson.estimatedMinutes} min · difficulty{" "}
                           {lesson.difficulty}/5
@@ -565,6 +571,9 @@ export function GuitarLearnMode({
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-black">{lesson.title}</p>
+                      {lesson.optional && (
+                        <Badge>Optional technique</Badge>
+                      )}
                       <Badge>{recommendation.source.replace("_", " ")}</Badge>
                     </div>
                     <p className="mt-1 text-xs leading-5 text-muted">

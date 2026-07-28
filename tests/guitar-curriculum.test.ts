@@ -63,6 +63,9 @@ describe("published guitar curriculum", () => {
         lesson.sections.some((section) => section.type === "interactive-question"),
       ).toBe(true);
       expect(lesson.applicationActivity.prompt.length).toBeGreaterThan(30);
+      expect(lesson.applicationActivity.outcomes).toHaveLength(
+        lesson.applicationActivity.options.length,
+      );
     }
   });
 
@@ -101,8 +104,32 @@ describe("published guitar curriculum", () => {
       "improvisation:phrase-endings",
       "improvisation:motif-development",
       "improvisation:call-and-response",
-      "improvisation:bend-to-a-heard-target",
     ]);
+    const bend = GUITAR_LESSONS.find(
+      (lesson) => lesson.id === "improvisation:bend-to-a-heard-target",
+    )!;
+    expect(bend.optional).toBe(true);
+    expect(bend.prerequisiteIds).toContain("improvisation:phrase-endings");
+    expect(phrase.lessonIds).not.toContain(bend.id);
+  });
+
+  it("classifies honest application outcomes instead of treating every answer as success", () => {
+    const pulse = GUITAR_LESSON_BY_ID.get(
+      "rhythm:feeling-and-identifying-the-pulse",
+    )!;
+    expect(pulse.applicationActivity.outcomes).toEqual([
+      "achieved",
+      "partial",
+      "not_yet",
+    ]);
+    const phrase = GUITAR_LESSON_BY_ID.get(
+      "improvisation:playing-with-only-two-or-three-notes",
+    )!;
+    expect(
+      phrase.applicationActivity.outcomes?.[
+        phrase.applicationActivity.options.indexOf("Both")
+      ],
+    ).toBe("achieved");
   });
 
   it("keeps every troubleshooter destination valid and tool-compatible", () => {

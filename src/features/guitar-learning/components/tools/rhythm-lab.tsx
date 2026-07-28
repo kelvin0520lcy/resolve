@@ -13,11 +13,13 @@ import { Button } from "@/components/ui/button";
 import { fieldClassName } from "@/components/ui/resolve";
 import { guitarAudioEngine } from "@/features/guitar-learning/lib/audio-engine";
 import {
+  createMultiBeatRhythmGrid,
   createRhythmGrid,
   cycleRhythmState,
   deconstructStrummingPattern,
   describeRhythmChange,
   rhythmCellToSymbol,
+  rhythmCountCue,
   transformRhythm,
   type RhythmSubdivision,
   type RhythmTransformation,
@@ -54,24 +56,40 @@ function rhythmPreset(
   settings?: GuitarToolPreset["settings"],
 ): {
   bpm: number;
+  beats: number;
+  slotsPerBeat: 1 | 2 | 3 | 4;
   subdivision: RhythmSubdivision;
   cells: RhythmCell[];
+  chordChanges: string[];
   voiceCount: boolean;
 } {
-  const slotsPerBeat =
+  const requestedSlotsPerBeat =
     typeof settings?.slotsPerBeat === "number"
       ? settings.slotsPerBeat
       : 2;
+  const slotsPerBeat = ([1, 2, 3, 4].includes(requestedSlotsPerBeat)
+    ? requestedSlotsPerBeat
+    : 2) as 1 | 2 | 3 | 4;
+  const beats =
+    typeof settings?.beats === "number"
+      ? Math.max(1, Math.min(16, Math.round(settings.beats)))
+      : 4;
   const subdivision = ([4, 8, 12, 16].includes(slotsPerBeat * 4)
     ? slotsPerBeat * 4
     : 8) as RhythmSubdivision;
+  const totalSteps = beats * slotsPerBeat;
+  const configuredBeatChords = Array.isArray(settings?.beatChords)
+    ? settings.beatChords.filter(
+        (chord): chord is string => typeof chord === "string",
+      )
+    : undefined;
   const activeSteps = new Set(
     Array.isArray(settings?.pattern)
       ? settings.pattern.filter(
           (step): step is number =>
             typeof step === "number" && Number.isInteger(step),
         )
-      : Array.from({ length: subdivision }, (_value, index) => index),
+      : Array.from({ length: totalSteps }, (_value, index) => index),
   );
   const mutedSteps = new Set(
     Array.isArray(settings?.mutedSteps)
@@ -92,8 +110,10 @@ function rhythmPreset(
       typeof settings?.bpm === "number"
         ? Math.max(30, Math.min(240, settings.bpm))
         : 84,
+    beats,
+    slotsPerBeat,
     subdivision,
-    cells: createRhythmGrid(subdivision).map((cell) => ({
+    cells: createMultiBeatRhythmGrid(beats, slotsPerBeat).map((cell) => ({
       ...cell,
       state: mutedSteps.has(cell.index)
         ? "muted"
@@ -102,6 +122,16 @@ function rhythmPreset(
           : "missed",
       accented: accentedSteps.has(cell.index),
     })),
+    chordChanges:
+      configuredBeatChords
+        ? Array.from(
+            { length: beats },
+            (_value, index) => configuredBeatChords[index] ?? "",
+          )
+        : Array.from(
+            { length: beats },
+            (_value, index) => ["Am", "F", "C", "G"][index % 4],
+          ),
     voiceCount: settings?.voiceCount === true,
   };
 }
@@ -115,6 +145,8 @@ export function RhythmLab({
 }) {
   const preset = rhythmPreset(presetSettings);
   const [bpm, setBpm] = useState(preset.bpm);
+  const [beats, setBeats] = useState(preset.beats);
+  const [slotsPerBeat, setSlotsPerBeat] = useState(preset.slotsPerBeat);
   const [subdivision, setSubdivision] =
     useState<RhythmSubdivision>(preset.subdivision);
   const [cells, setCells] = useState<RhythmCell[]>(preset.cells);
@@ -124,20 +156,16 @@ export function RhythmLab({
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [looping, setLooping] = useState(false);
   const [completedLoops, setCompletedLoops] = useState(0);
-  const [chordChanges, setChordChanges] = useState([
-    "Am",
-    "F",
-    "C",
-    "G",
-  ]);
+  const [chordChanges, setChordChanges] = useState(preset.chordChanges);
   const playbackTimer = useRef<number | null>(null);
   const playbackStep = useRef(0);
-  const beatSteps = subdivision / 4;
+  const totalSteps = cells.length;
 
   const audioPattern = useMemo(
     () => ({
       kind: "rhythm" as const,
       subdivisions: subdivision,
+      totalSteps,
       activeSteps: cells
         .filter((cell) => cell.state === "played" || cell.state === "muted")
         .map((cell) => cell.index),
@@ -149,8 +177,16 @@ export function RhythmLab({
         .map((cell) => cell.index),
       bpm,
     }),
-    [bpm, cells, subdivision],
+    [bpm, cells, subdivision, totalSteps],
   );
+
+  function speakCount(step: number) {
+    if (!preset.voiceCount || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(
+      new SpeechSynthesisUtterance(rhythmCountCue(step, slotsPerBeat)),
+    );
+  }
 
   function stopPlayback() {
     guitarAudioEngine.stop();
@@ -171,11 +207,12 @@ export function RhythmLab({
     const stepMilliseconds = (60_000 / bpm) * (4 / subdivision);
     playbackStep.current = 0;
     setActiveStep(0);
+    speakCount(0);
     void guitarAudioEngine.play(audioPattern);
     setLooping(loop);
     playbackTimer.current = window.setInterval(() => {
       playbackStep.current += 1;
-      if (playbackStep.current >= subdivision) {
+      if (playbackStep.current >= totalSteps) {
         if (!loop) {
           setCompletedLoops(1);
           stopPlayback();
@@ -186,24 +223,17 @@ export function RhythmLab({
         void guitarAudioEngine.play(audioPattern);
       }
       setActiveStep(playbackStep.current);
-      if (
-        preset.voiceCount &&
-        playbackStep.current % beatSteps === 0 &&
-        "speechSynthesis" in window
-      ) {
-        const beat = Math.floor(playbackStep.current / beatSteps) + 1;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(
-          new SpeechSynthesisUtterance(String(beat)),
-        );
-      }
+      speakCount(playbackStep.current);
     }, stepMilliseconds);
   }
 
   function changeSubdivision(next: RhythmSubdivision) {
     stopPlayback();
+    setBeats(4);
+    setSlotsPerBeat((next / 4) as 1 | 2 | 3 | 4);
     setSubdivision(next);
     setCells(initialPattern(next));
+    setChordChanges(["Am", "F", "C", "G"]);
     setPatternError("");
     setTransformationNote("");
   }
@@ -255,10 +285,10 @@ export function RhythmLab({
         {guided ? (
           <div className="rounded-xl border border-border bg-surface p-3 text-xs">
             <p className="font-black">
-              {subdivision / 4} timing {subdivision / 4 === 1 ? "position" : "positions"} per beat
+              {slotsPerBeat} timing {slotsPerBeat === 1 ? "position" : "positions"} per beat
             </p>
             <p className="mt-1 text-muted">
-              Four beats · {preset.voiceCount ? "spoken beat cues on" : "visual count cues"}
+              {beats} beats · {preset.voiceCount ? "spoken count cues on" : "visual count cues"}
             </p>
           </div>
         ) : (
@@ -283,7 +313,7 @@ export function RhythmLab({
         <div className="flex flex-wrap items-end gap-2">
           <Button type="button" onClick={() => startPlayback(false)}>
             <Play className="h-4 w-4" />
-            Play one bar
+            Play sequence
           </Button>
           <Button
             type="button"
@@ -291,7 +321,7 @@ export function RhythmLab({
             onClick={() => (looping ? stopPlayback() : startPlayback(true))}
           >
             <RotateCcw className="h-4 w-4" />
-            {looping ? "Looping" : "Loop bar"}
+            {looping ? "Looping" : "Loop sequence"}
           </Button>
           <Button type="button" variant="ghost" onClick={stopPlayback}>
             <Pause className="h-4 w-4" />
@@ -302,22 +332,23 @@ export function RhythmLab({
 
       {guided && (
         <p role="status" className="text-xs font-black text-accent">
-          Completed bars: {completedLoops}
+          Completed loops: {completedLoops}
         </p>
       )}
 
       <div className="overflow-x-auto rounded-[22px] border-2 border-border bg-[#100d15] p-3">
         <div
-          className="grid min-w-[720px] gap-2"
+          className="grid gap-2"
           style={{
-            gridTemplateColumns: `repeat(${subdivision}, minmax(3rem, 1fr))`,
+            gridTemplateColumns: `repeat(${totalSteps}, minmax(3rem, 1fr))`,
+            minWidth: `${Math.max(480, totalSteps * 64)}px`,
           }}
-          aria-label={`${subdivision}-step rhythm grid`}
+          aria-label={`${totalSteps}-step rhythm grid`}
         >
           {cells.map((cell) => {
-            const beatIndex = Math.floor(cell.index / beatSteps);
+            const beatIndex = Math.floor(cell.index / slotsPerBeat);
             const chord =
-              cell.index % beatSteps === 0
+              cell.index % slotsPerBeat === 0
                 ? chordChanges[beatIndex]
                 : undefined;
             return (

@@ -10,6 +10,7 @@ import {
 } from "@/features/guitar-learning/lib/learning-state";
 import type {
   GuitarLearningState,
+  GuitarLesson,
   GuitarToolId,
 } from "@/features/guitar-learning/types";
 
@@ -18,20 +19,25 @@ const lesson = GUITAR_LESSON_BY_ID.get(
 )!;
 
 function Harness({
+  activeLesson = lesson,
   onOpenTool = vi.fn(),
   initialStage,
   onStageChange,
 }: {
+  activeLesson?: GuitarLesson;
   onOpenTool?: (toolId: GuitarToolId, presetId?: string) => void;
   initialStage?: number;
   onStageChange?: (stage: number) => void;
 }) {
   const [state, setState] = useState<GuitarLearningState>(() =>
-    openGuitarLesson(createEmptyGuitarLearningState("learner"), lesson.id),
+    openGuitarLesson(
+      createEmptyGuitarLearningState("learner"),
+      activeLesson.id,
+    ),
   );
   return (
     <LessonRenderer
-      lesson={lesson}
+      lesson={activeLesson}
       state={state}
       updateState={(updater) => setState(updater)}
       onOpenTool={onOpenTool}
@@ -97,9 +103,18 @@ describe("LessonRenderer authored flow", () => {
       screen.getByRole("button", { name: "Save application result" }),
     );
 
+    expect(screen.getByText(/review queue so you can retry it slowly/i))
+      .toBeInTheDocument();
+  });
+
+  it("does not offer a generic tool for a visual it cannot represent exactly", () => {
+    const phraseLesson = GUITAR_LESSON_BY_ID.get(
+      "improvisation:call-and-response",
+    )!;
+    render(<Harness activeLesson={phraseLesson} initialStage={1} />);
     expect(
-      screen.getByText(lesson.applicationActivity.completionMessage),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /Open guided/ }),
+    ).not.toBeInTheDocument();
   });
 
   it.each([

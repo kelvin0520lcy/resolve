@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   createRhythmGrid,
+  createMultiBeatRhythmGrid,
   cycleRhythmState,
   deconstructStrummingPattern,
   describeRhythmChange,
   describeStringCrossing,
   rhythmCellToSymbol,
+  rhythmCountCue,
   transformRhythm,
 } from "@/features/guitar-learning/lib/rhythm";
 
@@ -29,6 +31,15 @@ describe("guitar rhythm construction", () => {
     ]);
     expect(createRhythmGrid(12)).toHaveLength(12);
     expect(createRhythmGrid(16)).toHaveLength(16);
+  });
+
+  it("keeps multi-bar steps and speaks every eighth-note position", () => {
+    expect(createMultiBeatRhythmGrid(8, 2)).toHaveLength(16);
+    expect(
+      Array.from({ length: 8 }, (_value, step) =>
+        rhythmCountCue(step, 2),
+      ),
+    ).toEqual(["1", "and", "2", "and", "3", "and", "4", "and"]);
   });
 
   it("deconstructs D D U U D U into continuous hand movement", () => {

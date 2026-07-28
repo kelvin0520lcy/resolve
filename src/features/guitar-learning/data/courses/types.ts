@@ -5,6 +5,7 @@ import type {
   GuitarCoach,
   GuitarLessonCategory,
   GuitarLessonSkillType,
+  GuitarApplicationResult,
   GuitarPathId,
 } from "@/features/guitar-learning/types";
 
@@ -56,6 +57,7 @@ export type AuthoredLessonDefinition = {
     body: string;
     prompt: string;
     options: [string, string, ...string[]];
+    outcomes?: GuitarApplicationResult[];
     completionMessage: string;
   };
   alternativeExplanation: string;

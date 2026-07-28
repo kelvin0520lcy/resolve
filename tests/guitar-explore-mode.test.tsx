@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { GuitarExploreMode } from "@/features/guitar-learning/components/explore-mode";
@@ -69,10 +69,31 @@ describe("GuitarExploreMode guidance", () => {
 
     expect(await screen.findByLabelText("4-step rhythm grid")).toBeInTheDocument();
     expect(screen.getByText("Tempo · 60 BPM")).toBeInTheDocument();
-    expect(screen.getByText(/spoken beat cues on/i)).toBeInTheDocument();
+    expect(screen.getByText(/spoken count cues on/i)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Place on the grid" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Completed bars: 0")).toBeInTheDocument();
+    expect(screen.getByText("Completed loops: 0")).toBeInTheDocument();
+  });
+
+  it("resets the current guided example instead of selecting the same preset", async () => {
+    const user = userEvent.setup();
+    render(
+      <GuitarExploreMode
+        selectedToolId="rhythm"
+        selectedPresetId="lesson:rhythm:feeling-and-identifying-the-pulse"
+        onSelectTool={vi.fn()}
+        onSelectPreset={vi.fn()}
+        onOpenLesson={vi.fn()}
+        state={state}
+        updateState={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Tempo · 60 BPM"), {
+      target: { value: "96" },
+    });
+    expect(screen.getByLabelText("Tempo · 96 BPM")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reset example" }));
+    expect(screen.getByLabelText("Tempo · 60 BPM")).toBeInTheDocument();
   });
 });
