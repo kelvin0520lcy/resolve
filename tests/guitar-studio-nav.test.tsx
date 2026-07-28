@@ -7,12 +7,12 @@ describe("GuitarStudioNav", () => {
   it("exposes four accessible internal modes", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<GuitarStudioNav mode="overview" onChange={onChange} />);
+    render(<GuitarStudioNav mode="learn" onChange={onChange} />);
     expect(screen.getAllByRole("tab")).toHaveLength(4);
     expect(
-      screen.getByRole("tab", { name: /Overview/ }),
+      screen.getByRole("tab", { name: /Learn/ }),
     ).toHaveAttribute("aria-selected", "true");
-    await user.click(screen.getByRole("tab", { name: /Explore/ }));
-    expect(onChange).toHaveBeenCalledWith("explore");
+    await user.click(screen.getByRole("tab", { name: /Tools/ }));
+    expect(onChange).toHaveBeenCalledWith("tools");
   });
 });

@@ -11,10 +11,13 @@ describe("PlacementAssessment", () => {
     render(<PlacementAssessment onComplete={onComplete} />);
 
     expect(
-      screen.getByText("Friendly placement · about 3 minutes"),
+      screen.getByText("Choose your starting route · no exam required"),
     ).toBeInTheDocument();
     await user.click(
-      screen.getByRole("button", { name: "Start the soundcheck" }),
+      screen.getByText("Optional: take the longer skill check"),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Start the optional soundcheck" }),
     );
     expect(
       screen.getByRole("img", {

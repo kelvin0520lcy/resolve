@@ -117,9 +117,9 @@ export function GuitarLearningMap({
           </Badge>
           <CardTitle>See why each concept comes next</CardTitle>
           <CardDescription>
-            The overview shows every path without rendering 166 lesson cards
-            at once. Choose a path to inspect its complete dependency chain,
-            status, unlocks, and exact reason for being locked.
+            Choose one authored course to inspect its dependency chain,
+            status, unlocks, and exact reason for being locked. Legacy progress
+            is preserved without mixing unfinished lessons into these routes.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

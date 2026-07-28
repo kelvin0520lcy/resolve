@@ -18,7 +18,9 @@ import {
   Layers3,
   Map,
   MessageCircleReply,
+  Mic,
   Music2,
+  Repeat2,
   Search,
   Sparkles,
   Waves,
@@ -40,8 +42,17 @@ import {
 import { GUITAR_LESSON_BY_ID } from "@/features/guitar-learning/data/curriculum";
 import type {
   GuitarCoach,
+  GuitarLearningState,
   GuitarToolId,
 } from "@/features/guitar-learning/types";
+import { GuitarTuner } from "@/features/guitar-learning/components/tools/tuner";
+import { ChordChangeTrainer } from "@/features/guitar-learning/components/tools/chord-change-trainer";
+import { GuidedGuitarTool } from "@/features/guitar-learning/components/tools/guided-tool";
+import { GuitarGlossarySearch } from "@/features/guitar-learning/components/glossary";
+import {
+  AUTHORED_GUITAR_TOOL_PRESETS,
+  getAuthoredGuitarToolPreset,
+} from "@/features/guitar-learning/data/authored-tool-presets";
 
 const ToolLoading = () => (
   <div
@@ -118,6 +129,26 @@ export type GuitarToolDefinition = {
 };
 
 export const GUITAR_TOOLS: GuitarToolDefinition[] = [
+  {
+    id: "tuner",
+    title: "Standard Guitar Tuner",
+    shortTitle: "Tuner",
+    description:
+      "Tune E A D G B E with a live direction display or private reference tones.",
+    group: "Listening",
+    coach: "kita",
+    icon: Mic,
+  },
+  {
+    id: "chord-trainer",
+    title: "Chord-Change Trainer",
+    shortTitle: "Chord changes",
+    description:
+      "See both shapes, count only clean changes, and keep a best score for each chord pair.",
+    group: "Harmony",
+    coach: "nijika",
+    icon: Repeat2,
+  },
   {
     id: "fretboard",
     title: "Interactive Fretboard Explorer",
@@ -274,6 +305,16 @@ export const GUITAR_TOOL_QUICK_START: Record<
   GuitarToolId,
   { setup: string; action: string; success: string }
 > = {
+  tuner: {
+    setup: "Mute five strings and play one open string near your device.",
+    action: "Turn the matching tuning peg slowly in the direction shown.",
+    success: "The indicator remains within ±5 cents and says In tune.",
+  },
+  "chord-trainer": {
+    setup: "Choose two chords and a 30- or 60-second timer.",
+    action: "Strum each shape once and count only changes where the intended strings ring.",
+    success: "Your clean-change score improves without extra hand tension.",
+  },
   fretboard: {
     setup: "Choose a root and one display layer: notes, intervals, scale, or chord.",
     action: "Find the highlighted root twice, then trace one interval from each root.",
@@ -477,13 +518,24 @@ function ContextualGuide({
 
 export function GuitarExploreMode({
   selectedToolId,
+  selectedPresetId,
   onSelectTool,
+  onSelectPreset,
   onOpenLesson,
+  state,
+  updateState,
 }: {
   selectedToolId: GuitarToolId;
+  selectedPresetId?: string;
   onSelectTool: (toolId: GuitarToolId) => void;
+  onSelectPreset: (presetId: string) => void;
   onOpenLesson: (lessonId: string) => void;
+  state: GuitarLearningState;
+  updateState: (
+    updater: (current: GuitarLearningState) => GuitarLearningState,
+  ) => void;
 }) {
+  const [toolMode, setToolMode] = useState<"guided" | "sandbox">("guided");
   const activeTool =
     GUITAR_TOOLS.find((tool) => tool.id === selectedToolId) ??
     GUITAR_TOOLS[0];
@@ -492,6 +544,27 @@ export function GuitarExploreMode({
   const groups = [...new Set(GUITAR_TOOLS.map((tool) => tool.group))];
 
   function renderTool() {
+    if (selectedToolId === "tuner") return <GuitarTuner />;
+    if (selectedToolId === "chord-trainer") {
+      return <ChordChangeTrainer state={state} updateState={updateState} />;
+    }
+    const hasGuidedPreset = AUTHORED_GUITAR_TOOL_PRESETS.some(
+      (preset) => preset.toolId === selectedToolId,
+    );
+    if (toolMode === "guided" && hasGuidedPreset) {
+      return (
+        <GuidedGuitarTool
+          toolId={selectedToolId}
+          presetId={
+            getAuthoredGuitarToolPreset(selectedPresetId)?.toolId === selectedToolId
+              ? selectedPresetId
+              : undefined
+          }
+          onSelectPreset={onSelectPreset}
+          onOpenLesson={onOpenLesson}
+        />
+      );
+    }
     if (selectedToolId === "fretboard") return <FretboardExplorer />;
     if (selectedToolId === "rhythm") return <RhythmLab />;
     if (selectedToolId === "picking") return <PickingVisualizer />;
@@ -628,6 +701,30 @@ export function GuitarExploreMode({
           ))}
         </section>
 
+        {!["tuner", "chord-trainer"].includes(selectedToolId) && (
+          <div
+            className="flex w-fit rounded-xl border-2 border-border bg-surface p-1"
+            role="group"
+            aria-label="Tool mode"
+          >
+            {(["guided", "sandbox"] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                aria-pressed={toolMode === item}
+                onClick={() => setToolMode(item)}
+                className={`rounded-lg px-4 py-2 text-xs font-black capitalize ${
+                  toolMode === item
+                    ? "bg-accent text-white"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        )}
+
         <Card className="min-w-0">
           <CardContent className="min-w-0 pt-5">
             {renderTool()}
@@ -638,6 +735,11 @@ export function GuitarExploreMode({
           onSelectTool={onSelectTool}
           onOpenLesson={onOpenLesson}
         />
+        <Card>
+          <CardContent className="pt-5">
+            <GuitarGlossarySearch />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ import {
   TechniqueControlVisual,
 } from "@/features/guitar-learning/components/lesson-stage-visuals";
 import { LessonVisualization } from "@/features/guitar-learning/components/lesson-visualization";
+import { LessonGlossary } from "@/features/guitar-learning/components/glossary";
 import {
   guitarAudioEngine,
   slowAudioPattern,
@@ -288,7 +289,7 @@ function VisualLessonStage({
   conceptTitle: string;
   completed: boolean;
   onComplete: () => void;
-  onOpenTool: (toolId: GuitarToolId) => void;
+  onOpenTool: (toolId: GuitarToolId, presetId?: string) => void;
 }) {
   const [confirmedObservation, setConfirmedObservation] = useState(false);
 
@@ -352,10 +353,10 @@ function VisualLessonStage({
         size="sm"
         variant="outline"
         className="mt-4"
-        onClick={() => onOpenTool(section.toolId)}
+        onClick={() => onOpenTool(section.toolId, section.toolPresetId)}
       >
         <Wrench className="h-3.5 w-3.5" />
-        Open full {section.toolId.replace("-", " ")} tool
+        Open guided {section.toolId.replace("-", " ")} example
       </Button>
       <p className="mt-2 text-xs leading-5 text-muted">
         The full tool is optional. Opening it will not mark this stage complete.
@@ -518,7 +519,7 @@ export function LessonRenderer({
   lesson: GuitarLesson;
   state: GuitarLearningState;
   updateState: UpdateLearningState;
-  onOpenTool: (toolId: GuitarToolId) => void;
+  onOpenTool: (toolId: GuitarToolId, presetId?: string) => void;
   onOpenLesson?: (lessonId: string) => void;
   onExit: () => void;
   initialStage?: number;
@@ -865,6 +866,12 @@ export function LessonRenderer({
                 {objective}
               </span>
             ))}
+          </div>
+          <div className="mt-4">
+            <LessonGlossary
+              introduced={lesson.termsIntroduced ?? []}
+              assumed={lesson.assumedTerms ?? []}
+            />
           </div>
           <LessonConceptRoute
             conceptTitle={lesson.title}

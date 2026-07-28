@@ -2,46 +2,46 @@
 
 import {
   BookOpen,
-  Compass,
+  Dumbbell,
   LayoutDashboard,
-  Map,
+  Wrench,
 } from "lucide-react";
 
 export type GuitarStudioMode =
-  | "overview"
   | "learn"
-  | "explore"
-  | "learning-map";
+  | "practise"
+  | "tools"
+  | "progress";
 
 const MODES: Array<{
   id: GuitarStudioMode;
   label: string;
   shortDescription: string;
-  icon: typeof Map;
+  icon: typeof BookOpen;
 }> = [
-  {
-    id: "overview",
-    label: "Overview",
-    shortDescription: "Practice evidence",
-    icon: LayoutDashboard,
-  },
   {
     id: "learn",
     label: "Learn",
-    shortDescription: "Guided lessons",
+    shortDescription: "Beginner courses",
     icon: BookOpen,
   },
   {
-    id: "explore",
-    label: "Explore",
-    shortDescription: "Interactive tools",
-    icon: Compass,
+    id: "practise",
+    label: "Practise",
+    shortDescription: "Clear next actions",
+    icon: Dumbbell,
   },
   {
-    id: "learning-map",
-    label: "Learning Map",
-    shortDescription: "Prerequisite paths",
-    icon: Map,
+    id: "tools",
+    label: "Tools",
+    shortDescription: "Guided or sandbox",
+    icon: Wrench,
+  },
+  {
+    id: "progress",
+    label: "My Progress",
+    shortDescription: "Skills and history",
+    icon: LayoutDashboard,
   },
 ];
 

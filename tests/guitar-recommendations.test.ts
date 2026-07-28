@@ -67,7 +67,7 @@ describe("guitar recommendations", () => {
         "improvisation:minor-pentatonic-position-one",
     );
     expect(recommendation?.missingPrerequisiteIds).toEqual([
-      "improvisation:root-note-targeting",
+      "improvisation:tonal-centre",
     ]);
     expect(recommendation?.reasons.join(" ")).toContain("Complete");
   });

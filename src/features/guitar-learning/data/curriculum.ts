@@ -1,4 +1,8 @@
 import { categoryDefaultMidi } from "@/features/guitar-learning/lib/music-theory";
+import {
+  AUTHORED_GUITAR_LESSONS,
+  AUTHORED_GUITAR_PATHS,
+} from "@/features/guitar-learning/data/authored-curriculum";
 import type {
   GuitarCoach,
   GuitarLearningPath,
@@ -955,7 +959,7 @@ function buildSections(
   ];
 }
 
-const lessons: GuitarLesson[] = PATH_DEFINITIONS.flatMap((path) =>
+const legacyLessons: GuitarLesson[] = PATH_DEFINITIONS.flatMap((path) =>
   path.concepts.map((title, index) => {
     const id = `${path.id}:${slugify(title)}`;
     const previousTitle = path.concepts[index - 1];
@@ -1017,31 +1021,35 @@ const lessons: GuitarLesson[] = PATH_DEFINITIONS.flatMap((path) =>
         ? [`${path.id}:${slugify(nextTitle)}`]
         : [],
       alternativeExplanation: `Imagine ${title.toLowerCase()} as one control on a small effects panel. Hold the pulse and musical context steady, move only that control, and compare the two results. If you cannot hear the change yet, simplify the example before adding speed or notes.`,
+      publicationStatus: "legacy",
+      authored: false,
     };
   }),
 );
 
-export const GUITAR_LESSONS = lessons;
+export const GUITAR_LEGACY_LESSONS = legacyLessons;
+
+export const GUITAR_LESSONS = AUTHORED_GUITAR_LESSONS;
 
 export const GUITAR_LESSON_BY_ID = new Map(
-  GUITAR_LESSONS.map((lesson) => [lesson.id, lesson]),
+  [...GUITAR_LEGACY_LESSONS, ...GUITAR_LESSONS].map((lesson) => [
+    lesson.id,
+    lesson,
+  ]),
 );
 
-export const GUITAR_PATHS: GuitarLearningPath[] = PATH_DEFINITIONS.map(
-  (path) => ({
-    id: path.id,
-    title: path.title,
-    description: path.description,
-    coach: path.coach,
-    lessonIds: GUITAR_LESSONS.filter(
-      (lesson) => lesson.pathId === path.id,
-    ).map((lesson) => lesson.id),
-  }),
-);
+export const GUITAR_PATHS: GuitarLearningPath[] = AUTHORED_GUITAR_PATHS;
 
 export const REQUIRED_SEED_LESSON_IDS = REQUIRED_SEED_TITLES.map(
   (title) => {
-    const lesson = GUITAR_LESSONS.find(
+    const lesson = GUITAR_LESSON_BY_ID.get(
+      PATH_DEFINITIONS.flatMap((path) =>
+        path.concepts.map((concept) => [
+          concept,
+          `${path.id}:${slugify(concept)}`,
+        ] as const),
+      ).find(([concept]) => concept === title)?.[1] ?? "",
+    ) ?? GUITAR_LEGACY_LESSONS.find(
       (candidate) => candidate.title === title,
     );
     if (!lesson) {

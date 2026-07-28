@@ -96,8 +96,18 @@ const GuitarExploreMode = dynamic(
   },
 );
 
+const GuitarPracticeMode = dynamic(
+  () =>
+    import(
+      "@/features/guitar-learning/components/practice-mode"
+    ).then((module) => module.GuitarPracticeMode),
+  {
+    loading: () => <StudioPanelLoading label="Building today’s practice" />,
+  },
+);
+
 const MODE_INTROS: Record<
-  Exclude<GuitarStudioMode, "overview">,
+  GuitarStudioMode,
   { eyebrow: string; title: string; description: string }
 > = {
   learn: {
@@ -106,17 +116,23 @@ const MODE_INTROS: Record<
     description:
       "Follow a prerequisite-aware lesson, compare the sound, try it on the guitar, and confirm understanding through musical evidence.",
   },
-  explore: {
-    eyebrow: "Interactive studio",
-    title: "Touch the theory and hear it move",
+  practise: {
+    eyebrow: "Practice room",
+    title: "Know exactly what to do next",
     description:
-      "Experiment with the fretboard, rhythm, picking, harmony, phrasing, ear training, metronome, and drones without polluting your practice history.",
+      "Choose a short routine, tune up, train clean chord changes, or diagnose the exact problem you can hear and feel.",
   },
-  "learning-map": {
-    eyebrow: "Knowledge map",
-    title: "See the route behind the next note",
+  tools: {
+    eyebrow: "Interactive tools",
+    title: "Start guided, then explore freely",
     description:
-      "Inspect seven complete learning paths, understand every locked prerequisite, and override concepts you already know.",
+      "Use a lesson preset with only the controls you need, or switch to Sandbox when you are ready to experiment.",
+  },
+  progress: {
+    eyebrow: "Your evidence",
+    title: "See what is becoming reliable",
+    description:
+      "Review course mastery, practice history, clean tempos, weak areas, and the next prerequisite that will unlock progress.",
   },
 };
 
@@ -129,9 +145,10 @@ export default function GuitarPage() {
     tasks = [],
     addTask,
   } = useResolve();
-  const [mode, setMode] = useState<GuitarStudioMode>("overview");
+  const [mode, setMode] = useState<GuitarStudioMode>("learn");
   const [selectedToolId, setSelectedToolId] =
     useState<GuitarToolId>("fretboard");
+  const [selectedPresetId, setSelectedPresetId] = useState<string>();
   const [lessonToOpen, setLessonToOpen] = useState<string>();
   const [sessionToOpen, setSessionToOpen] = useState<string>();
   const [lessonStageById, setLessonStageById] = useState<
@@ -144,13 +161,17 @@ export default function GuitarPage() {
       const requestedMode = url.searchParams.get("mode");
       const requestedLesson = url.searchParams.get("lesson");
       const requestedSession = url.searchParams.get("session");
-      if (
-        requestedMode &&
-        ["overview", "learn", "explore", "learning-map"].includes(
-          requestedMode,
-        )
-      ) {
-        setMode(requestedMode as GuitarStudioMode);
+      const normalizedMode: Record<string, GuitarStudioMode> = {
+        overview: "progress",
+        learn: "learn",
+        explore: "tools",
+        "learning-map": "progress",
+        practise: "practise",
+        tools: "tools",
+        progress: "progress",
+      };
+      if (requestedMode && normalizedMode[requestedMode]) {
+        setMode(normalizedMode[requestedMode]);
       }
       if (requestedLesson) {
         setLessonToOpen(requestedLesson);
@@ -158,7 +179,7 @@ export default function GuitarPage() {
       }
       if (requestedSession) {
         setSessionToOpen(requestedSession);
-        setMode("overview");
+        setMode("progress");
       }
     }
     const handleRecord = (event: Event) => {
@@ -186,9 +207,10 @@ export default function GuitarPage() {
     );
   }
 
-  function openTool(toolId: GuitarToolId) {
+  function openTool(toolId: GuitarToolId, presetId?: string) {
     setSelectedToolId(toolId);
-    setMode("explore");
+    setSelectedPresetId(presetId);
+    setMode("tools");
   }
 
   function createLessonTask(lessonId: string, lessonTitle: string) {
@@ -226,42 +248,39 @@ export default function GuitarPage() {
           aria-label={`${mode.replace("-", " ")} guitar studio`}
           className="min-w-0"
         >
-          {mode === "overview" ? (
-            <GuitarOverview deepLinkedSessionId={sessionToOpen} />
-          ) : (
-            <>
-              <PageIntro
-                eyebrow={MODE_INTROS[mode].eyebrow}
-                title={MODE_INTROS[mode].title}
-                description={MODE_INTROS[mode].description}
-                action={
-                  mode === "learn" ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setMode("learning-map")}
-                    >
-                      <MapPinned className="h-4 w-4" />
-                      View prerequisites
-                    </Button>
-                  ) : mode === "explore" ? (
-                    <Badge variant="accent">
-                      <Compass className="mr-1 h-3.5 w-3.5" />
-                      15 working tools
-                    </Badge>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setMode("learn")}
-                    >
-                      <BookOpen className="h-4 w-4" />
-                      Return to Learn
-                    </Button>
-                  )
-                }
-              />
-              <div className="mt-6">
+          <>
+            <PageIntro
+              eyebrow={MODE_INTROS[mode].eyebrow}
+              title={MODE_INTROS[mode].title}
+              description={MODE_INTROS[mode].description}
+              action={
+                mode === "learn" ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setMode("progress")}
+                  >
+                    <MapPinned className="h-4 w-4" />
+                    View course map
+                  </Button>
+                ) : mode === "tools" ? (
+                  <Badge variant="accent">
+                    <Compass className="mr-1 h-3.5 w-3.5" />
+                    17 working tools
+                  </Badge>
+                ) : mode === "progress" ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setMode("learn")}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    Return to Learn
+                  </Button>
+                ) : undefined
+              }
+            />
+            <div className="mt-6">
                 {mode === "learn" && (
                   <GuitarLearnMode
                     key={lessonToOpen ?? "guitar-learn"}
@@ -299,18 +318,23 @@ export default function GuitarPage() {
                     }
                   />
                 )}
-                {mode === "explore" && (
-                  <GuitarExploreMode
-                    selectedToolId={selectedToolId}
-                    onSelectTool={setSelectedToolId}
+                {mode === "practise" && (
+                  <GuitarPracticeMode
+                    state={guitarLearning}
+                    updateState={updateGuitarLearning}
+                    onOpenTool={openTool}
                     onOpenLesson={(lessonId) => {
                       updateLessonDeepLink(lessonId);
                       setMode("learn");
                     }}
                   />
                 )}
-                {mode === "learning-map" && (
-                  <GuitarLearningMap
+                {mode === "tools" && (
+                  <GuitarExploreMode
+                    selectedToolId={selectedToolId}
+                    selectedPresetId={selectedPresetId}
+                    onSelectTool={setSelectedToolId}
+                    onSelectPreset={setSelectedPresetId}
                     state={guitarLearning}
                     updateState={updateGuitarLearning}
                     onOpenLesson={(lessonId) => {
@@ -319,9 +343,21 @@ export default function GuitarPage() {
                     }}
                   />
                 )}
-              </div>
-            </>
-          )}
+                {mode === "progress" && (
+                  <div className="space-y-6">
+                    <GuitarLearningMap
+                      state={guitarLearning}
+                      updateState={updateGuitarLearning}
+                      onOpenLesson={(lessonId) => {
+                        updateLessonDeepLink(lessonId);
+                        setMode("learn");
+                      }}
+                    />
+                    <GuitarOverview deepLinkedSessionId={sessionToOpen} />
+                  </div>
+                )}
+            </div>
+          </>
         </div>
       </div>
     </PageShell>

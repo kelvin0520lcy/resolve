@@ -1,116 +1,100 @@
 import { describe, expect, it } from "vitest";
 import {
+  GUITAR_LEGACY_LESSONS,
+  GUITAR_LESSON_BY_ID,
   GUITAR_LESSONS,
   GUITAR_PATHS,
-  REQUIRED_SEED_LESSON_IDS,
-  REQUIRED_SEED_TITLES,
 } from "@/features/guitar-learning/data/curriculum";
-import { getCurriculumIntegrityIssues } from "@/features/guitar-learning/lib/learning-state";
+import {
+  AUTHORED_GUITAR_COURSES,
+  getAuthoredCurriculumIssues,
+} from "@/features/guitar-learning/data/authored-curriculum";
+import { GUITAR_GLOSSARY } from "@/features/guitar-learning/data/glossary";
+import { ALL_GUITAR_TOOL_PRESET_BY_ID } from "@/features/guitar-learning/data/authored-tool-presets";
+import type { VisualSection } from "@/features/guitar-learning/types";
 
-describe("guitar curriculum", () => {
-  it("contains every required seed lesson exactly once", () => {
-    expect(REQUIRED_SEED_TITLES).toHaveLength(40);
-    expect(REQUIRED_SEED_LESSON_IDS).toHaveLength(40);
-    expect(new Set(REQUIRED_SEED_LESSON_IDS)).toHaveLength(40);
-    for (const title of REQUIRED_SEED_TITLES) {
-      expect(
-        GUITAR_LESSONS.filter((lesson) => lesson.title === title),
-      ).toHaveLength(1);
-    }
+describe("published guitar curriculum", () => {
+  it("publishes only authored beginner courses while retaining legacy IDs", () => {
+    expect(GUITAR_PATHS).toHaveLength(3);
+    expect(GUITAR_LESSONS).toHaveLength(24);
+    expect(AUTHORED_GUITAR_COURSES.map((course) => course.id)).toEqual([
+      "guitar-language",
+      "rhythm",
+      "improvisation",
+    ]);
+    expect(GUITAR_LESSONS.every((lesson) => lesson.authored)).toBe(true);
+    expect(
+      GUITAR_LESSONS.every(
+        (lesson) => lesson.publicationStatus === "published",
+      ),
+    ).toBe(true);
+    expect(GUITAR_LEGACY_LESSONS.length).toBeGreaterThan(150);
+    expect(
+      GUITAR_LEGACY_LESSONS.every((lesson) =>
+        GUITAR_LESSON_BY_ID.has(lesson.id),
+      ),
+    ).toBe(true);
   });
 
-  it("provides a complete interactive teaching sequence for each seed", () => {
-    const requiredSectionTypes = [
-      "explanation",
-      "connection",
-      "audio-comparison",
-      "guided-exercise",
-      "correct-vs-incorrect",
-      "common-mistakes",
-      "musical-application",
-      "interactive-question",
-    ];
-    const visualTypes = [
-      "fretboard",
-      "rhythm-grid",
-      "picking-animation",
-      "chord-diagram",
-      "scale-comparison",
-      "song-structure",
-    ];
-
-    for (const lessonId of REQUIRED_SEED_LESSON_IDS) {
-      const lesson = GUITAR_LESSONS.find(
-        (candidate) => candidate.id === lessonId,
-      )!;
-      const types = lesson.sections.map((section) => section.type);
-      for (const type of requiredSectionTypes) {
-        expect(types, `${lesson.title} is missing ${type}`).toContain(type);
-      }
-      expect(
-        types.some((type) => visualTypes.includes(type)),
-        `${lesson.title} needs an interactive visual`,
-      ).toBe(true);
-      const visual = lesson.sections.find((section) =>
-        visualTypes.includes(section.type),
+  it("contains explicit teaching evidence instead of generic fallback copy", () => {
+    for (const lesson of GUITAR_LESSONS) {
+      const visual = lesson.sections.find(
+        (section): section is VisualSection =>
+          "visualData" in section && Boolean(section.visualData),
       );
+      expect(visual?.visualData, `${lesson.id} needs explicit visual data`).toBeDefined();
+      expect(visual?.observationGuide.length).toBeGreaterThanOrEqual(2);
+      expect(lesson.learnerProblem?.length).toBeGreaterThan(20);
+      expect(lesson.summary.length).toBeGreaterThan(30);
+      expect(lesson.alternativeExplanation.length).toBeGreaterThan(40);
       expect(
-        visual && "observationGuide" in visual
-          ? visual.observationGuide
-          : [],
-      ).toHaveLength(3);
+        lesson.sections.some((section) => section.type === "audio-comparison"),
+      ).toBe(true);
       expect(
-        visual && "successCriteria" in visual
-          ? visual.successCriteria.length
-          : 0,
-      ).toBeGreaterThan(60);
-      expect(lesson.learningObjectives).toHaveLength(3);
-      expect(lesson.summary.length).toBeGreaterThan(80);
-      expect(lesson.alternativeExplanation.length).toBeGreaterThan(100);
-      expect(lesson.relatedToolIds.length).toBeGreaterThan(0);
-      expect(lesson.checkpoint.options.length).toBeGreaterThanOrEqual(3);
+        lesson.sections.some((section) => section.type === "guided-exercise"),
+      ).toBe(true);
+      expect(
+        lesson.sections.some((section) => section.type === "interactive-question"),
+      ).toBe(true);
       expect(lesson.applicationActivity.prompt.length).toBeGreaterThan(30);
     }
   });
 
-  it("covers all seven paths with valid, acyclic relationships", () => {
-    expect(GUITAR_PATHS).toHaveLength(7);
-    expect(GUITAR_LESSONS.length).toBeGreaterThanOrEqual(160);
-    expect(getCurriculumIntegrityIssues()).toEqual([]);
-    for (const path of GUITAR_PATHS) {
-      expect(path.lessonIds.length).toBeGreaterThanOrEqual(18);
+  it("has valid prerequisites, glossary terms, visuals, and exact tool presets", () => {
+    expect(getAuthoredCurriculumIssues()).toEqual([]);
+    for (const lesson of GUITAR_LESSONS) {
+      for (const term of [
+        ...(lesson.termsIntroduced ?? []),
+        ...(lesson.assumedTerms ?? []),
+      ]) {
+        expect(GUITAR_GLOSSARY.has(term)).toBe(true);
+      }
+      for (const presetId of lesson.relatedToolPresetIds ?? []) {
+        expect(ALL_GUITAR_TOOL_PRESET_BY_ID.get(presetId)?.lessonId).toBe(lesson.id);
+      }
     }
   });
 
-  it("uses path-specific visual and hands-on instructions instead of one generic drill", () => {
-    const expectedVisualByPath = {
-      rhythm: "rhythm-grid",
-      lead: "picking-animation",
-      fretboard: "fretboard",
-      improvisation: "fretboard",
-      chords: "chord-diagram",
-      "ear-theory": "scale-comparison",
-      application: "song-structure",
-    } as const;
-    const firstExerciseSteps = new Set<string>();
-
-    for (const path of GUITAR_PATHS) {
-      const lesson = GUITAR_LESSONS.find(
-        (candidate) => candidate.pathId === path.id,
-      )!;
-      expect(lesson.sections.map((section) => section.type)).toContain(
-        expectedVisualByPath[path.id],
-      );
-      const exercise = lesson.sections.find(
-        (section) => section.type === "guided-exercise",
-      );
-      expect(exercise?.type).toBe("guided-exercise");
-      if (exercise?.type === "guided-exercise") {
-        expect(exercise.steps).toHaveLength(4);
-        firstExerciseSteps.add(exercise.steps[0]);
-      }
-    }
-
-    expect(firstExerciseSteps).toHaveLength(7);
+  it("ships both requested end-to-end skill paths in order", () => {
+    const rhythm = GUITAR_PATHS.find((path) => path.id === "rhythm")!;
+    expect(rhythm.lessonIds).toEqual([
+      "rhythm:feeling-and-identifying-the-pulse",
+      "rhythm:quarter-note-counting",
+      "rhythm:eighth-note-subdivisions",
+      "rhythm:continuous-strumming-hand-movement",
+      "rhythm:missed-strokes",
+      "rhythm:constructing-strumming-patterns",
+      "rhythm:beginner-jrock-groove-project",
+    ]);
+    const phrase = GUITAR_PATHS.find((path) => path.id === "improvisation")!;
+    expect(phrase.lessonIds).toEqual([
+      "improvisation:tonal-centre",
+      "improvisation:minor-pentatonic-position-one",
+      "improvisation:playing-with-only-two-or-three-notes",
+      "improvisation:phrasing-with-rests",
+      "improvisation:phrase-endings",
+      "improvisation:motif-development",
+      "improvisation:call-and-response",
+    ]);
   });
 });

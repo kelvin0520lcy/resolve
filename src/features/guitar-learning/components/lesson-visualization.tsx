@@ -11,6 +11,7 @@ import {
   STANDARD_TUNING,
 } from "@/features/guitar-learning/lib/music-theory";
 import type { VisualSection } from "@/features/guitar-learning/types";
+import type { ExplicitLessonVisual } from "@/features/guitar-learning/types";
 
 function DiagramShell({
   label,
@@ -427,6 +428,434 @@ function AlternativeDiagram({ title }: { title: string }) {
   );
 }
 
+function ExplicitRhythmDiagram({
+  visual,
+}: {
+  visual: Extract<ExplicitLessonVisual, { kind: "rhythm-grid" }>;
+}) {
+  const eventBySlot = new Map(
+    visual.events.map((event) => [event.slot, event]),
+  );
+  const beatGroups = Array.from({ length: visual.beats }, (_unused, beat) =>
+    Array.from(
+      { length: visual.slotsPerBeat },
+      (_empty, withinBeat) => beat * visual.slotsPerBeat + withinBeat,
+    ),
+  );
+
+  return (
+    <DiagramShell
+      label={`Explicit ${visual.beats}-beat rhythm with ${visual.slotsPerBeat} timing position${visual.slotsPerBeat === 1 ? "" : "s"} per beat`}
+    >
+      {visual.pulseOnly && (
+        <div className="mb-4 flex justify-center" aria-hidden="true">
+          <span className="flex h-20 w-20 animate-pulse items-center justify-center rounded-full border-4 border-warning bg-warning/20 font-display text-2xl text-warning motion-reduce:animate-none">
+            TAP
+          </span>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {beatGroups.map((slots, beatIndex) => (
+          <div
+            key={`beat-${beatIndex}`}
+            className="rounded-xl border-2 border-foreground/20 bg-surface p-2"
+          >
+            <p className="mb-2 text-center text-[9px] font-black uppercase tracking-wide text-muted">
+              Beat {beatIndex + 1}
+            </p>
+            <div
+              className="grid gap-1"
+              style={{
+                gridTemplateColumns: `repeat(${visual.slotsPerBeat}, minmax(0, 1fr))`,
+              }}
+            >
+              {slots.map((slot) => {
+                const event = eventBySlot.get(slot);
+                const direction = visual.handDirections[slot];
+                const symbol =
+                  event?.type === "muted"
+                    ? "X"
+                    : event?.type === "played"
+                      ? event.accented
+                        ? ">●"
+                        : "●"
+                      : event?.type === "rest"
+                        ? "REST"
+                        : "MISS";
+                return (
+                  <div key={slot} className="min-w-0 text-center">
+                    <span className="block rounded-md bg-warning/15 px-1 py-1 text-xs font-black">
+                      {visual.countLabels[slot]}
+                    </span>
+                    <span className="mt-1 block text-[9px] font-black text-muted">
+                      {direction === "D" ? "Down ↓" : "Up ↑"}
+                    </span>
+                    <span
+                      className={`mt-1 flex min-h-10 items-center justify-center rounded-md border-2 px-1 text-[9px] font-black ${
+                        event?.type === "played"
+                          ? "border-accent bg-accent/12 text-accent"
+                          : event?.type === "muted"
+                            ? "border-cyan bg-cyan/12 text-cyan"
+                            : event?.type === "rest"
+                              ? "border-dotted border-warning text-warning"
+                              : "border-dashed border-border text-muted"
+                      }`}
+                    >
+                      {symbol}
+                    </span>
+                    {event?.chord && (
+                      <span className="mt-1 block truncate text-[9px] font-black">
+                        {event.chord}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-muted">
+        <span>● played</span>
+        <span>&gt;● accented</span>
+        <span>X muted contact</span>
+        <span>MISS hand moves, no contact</span>
+        <span>REST measured silence</span>
+      </div>
+    </DiagramShell>
+  );
+}
+
+function ExplicitFretboardDiagram({
+  visual,
+}: {
+  visual: Extract<ExplicitLessonVisual, { kind: "fretboard" }>;
+}) {
+  const notes = new Map(
+    visual.notes.map((note) => [`${note.string}:${note.fret}`, note]),
+  );
+  return (
+    <DiagramShell
+      label={`Explicit beginner fretboard from fret 0 to ${visual.fretCount}`}
+    >
+      <div
+        className="grid gap-0.5 text-center text-[8px] sm:gap-1 sm:text-[9px]"
+        style={{
+          gridTemplateColumns: `2.8rem repeat(${visual.fretCount + 1}, minmax(0, 1fr))`,
+        }}
+      >
+        <span className="font-black text-muted">STRING</span>
+        {Array.from({ length: visual.fretCount + 1 }, (_unused, fret) => (
+          <span
+            key={fret}
+            className={`font-black ${fret === 0 ? "text-warning" : "text-muted"}`}
+          >
+            {fret === 0 ? "0·NUT" : fret}
+          </span>
+        ))}
+        {[1, 2, 3, 4, 5, 6].map((string) => (
+          <div key={string} className="contents">
+            <span className="flex items-center gap-1 font-black text-muted">
+              <span>{string}</span>
+              <span
+                aria-hidden="true"
+                className="block flex-1 rounded-full bg-current"
+                style={{
+                  height: visual.showStringThickness
+                    ? `${0.5 + string * 0.28}px`
+                    : "1px",
+                }}
+              />
+            </span>
+            {Array.from({ length: visual.fretCount + 1 }, (_unused, fret) => {
+              const note = notes.get(`${string}:${fret}`);
+              return (
+                <span
+                  key={`${string}:${fret}`}
+                  className={`flex min-h-8 min-w-0 items-center justify-center rounded-md border px-0.5 font-black leading-3 ${
+                    note?.role === "root"
+                      ? "border-warning bg-warning text-[#18121f]"
+                      : note
+                        ? "border-accent/50 bg-accent/12 text-accent"
+                        : fret === 0
+                          ? "border-warning/30 bg-warning/5 text-muted"
+                          : "border-border bg-surface text-transparent"
+                  }`}
+                  title={note?.label}
+                >
+                  {note
+                    ? visual.showNoteNames === false
+                      ? note.role === "root"
+                        ? "HOME"
+                        : "●"
+                      : note.label
+                    : "·"}
+                </span>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[10px] font-bold text-muted">
+        String 1 is thin and high. String 6 is thick and low. Fret 0 means the
+        open string at the nut.
+      </p>
+    </DiagramShell>
+  );
+}
+
+function ExplicitChordDiagram({
+  visual,
+}: {
+  visual: Extract<ExplicitLessonVisual, { kind: "chord-diagram" }>;
+}) {
+  const byString = new Map(
+    visual.strings.map((instruction) => [
+      instruction.string,
+      instruction,
+    ]),
+  );
+  return (
+    <DiagramShell label={`Playable ${visual.chordName} chord diagram`}>
+      <div className="mx-auto max-w-sm">
+        <p className="text-center font-display text-xl">{visual.chordName}</p>
+        <p className="mt-1 text-center text-[10px] font-bold text-muted">
+          Starting fret {visual.startingFret}
+        </p>
+        <div className="mt-3 grid grid-cols-6 gap-1">
+          {([6, 5, 4, 3, 2, 1] as const).map((string) => {
+            const instruction = byString.get(string)!;
+            return (
+              <div key={string} className="text-center">
+                <span className="text-[10px] font-black">
+                  {instruction.fret === "muted"
+                    ? "X"
+                    : instruction.fret === "open"
+                      ? "O"
+                      : instruction.fret}
+                </span>
+                <div className="mt-1 flex min-h-24 flex-col justify-end rounded-lg border-2 border-foreground/20 bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_19%,color-mix(in_srgb,var(--foreground)_20%,transparent)_20%)] p-1">
+                  {typeof instruction.fret === "number" && (
+                    <span
+                      className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-black ${
+                        instruction.role === "root"
+                          ? "bg-warning text-[#18121f]"
+                          : "bg-accent text-white"
+                      }`}
+                    >
+                      {instruction.finger ?? "●"}
+                    </span>
+                  )}
+                </div>
+                <span className="mt-1 block text-[9px] font-black text-muted">
+                  S{string}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex flex-wrap justify-center gap-3 text-[10px] font-bold text-muted">
+          <span>O open</span>
+          <span>X do not play</span>
+          <span>Number in dot = finger</span>
+        </div>
+      </div>
+    </DiagramShell>
+  );
+}
+
+function ExplicitOrientationDiagram({
+  visual,
+}: {
+  visual: Extract<ExplicitLessonVisual, { kind: "guitar-orientation" }>;
+}) {
+  return (
+    <DiagramShell label="Guitar orientation with physical landmarks">
+      <div className="relative mx-auto flex min-h-36 max-w-3xl items-center">
+        <div className="h-10 w-20 rounded-l-2xl border-4 border-warning/70 bg-warning/15" />
+        <div className="relative h-5 flex-1 border-y-4 border-foreground/30 bg-surface">
+          <span className="absolute inset-x-0 top-1/2 h-px bg-foreground/40" />
+          <span className="absolute left-0 top-[-0.55rem] text-[9px] font-black text-warning">
+            NUT
+          </span>
+        </div>
+        <div className="h-32 w-36 rounded-[45%] border-4 border-accent/50 bg-accent/10">
+          <span className="mx-auto mt-10 block h-12 w-12 rounded-full border-4 border-foreground/20" />
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {visual.labels.map((label) => (
+          <div
+            key={label.name}
+            className="rounded-xl border border-border bg-surface p-3"
+          >
+            <p className="text-xs font-black">{label.name}</p>
+            <p className="mt-1 text-[10px] leading-4 text-muted">
+              {label.plainEnglish}
+            </p>
+          </div>
+        ))}
+      </div>
+    </DiagramShell>
+  );
+}
+
+function ExplicitPickingDiagram({
+  visual,
+}: {
+  visual: Extract<ExplicitLessonVisual, { kind: "picking" }>;
+}) {
+  return (
+    <DiagramShell label="Explicit pick direction, movement, and string contact">
+      <div className="grid gap-2 sm:grid-cols-4">
+        {visual.steps.map((step, index) => (
+          <div
+            key={`${step.label}-${index}`}
+            className="rounded-xl border-2 border-border bg-surface p-3 text-center"
+          >
+            <span
+              aria-hidden="true"
+              className="mx-auto block h-10 w-6 rotate-12 rounded-b-full rounded-t-md border-2 border-warning bg-warning/25"
+            />
+            <p className="mt-2 text-xs font-black">{step.label}</p>
+            <p className="mt-1 text-[10px] font-bold text-muted">
+              {step.direction === "D"
+                ? "Toward floor ↓"
+                : step.direction === "U"
+                  ? "Toward ceiling ↑"
+                  : "Relax between motions"}
+            </p>
+            <p className="mt-1 text-[9px] uppercase tracking-wide text-accent">
+              {step.contact}
+            </p>
+          </div>
+        ))}
+      </div>
+    </DiagramShell>
+  );
+}
+
+function ExplicitTabDiagram({
+  visual,
+}: {
+  visual: Extract<ExplicitLessonVisual, { kind: "tab" }>;
+}) {
+  return (
+    <DiagramShell label="Six-line tablature with explicit string and fret events">
+      <div className="space-y-2">
+        {visual.strings.map((stringName, displayIndex) => {
+          const string = displayIndex + 1;
+          return (
+            <div
+              key={`${stringName}-${string}`}
+              className="grid grid-cols-[1.5rem_repeat(4,minmax(0,1fr))] items-center gap-1"
+            >
+              <span className="text-[10px] font-black text-muted">
+                {stringName}
+              </span>
+              {[1, 2, 3, 4].map((beat) => {
+                const event = visual.events.find(
+                  (candidate) =>
+                    candidate.string === string &&
+                    candidate.beat === beat,
+                );
+                return (
+                  <span
+                    key={beat}
+                    className="flex min-h-8 items-center justify-center border-y border-foreground/25 text-xs font-black"
+                  >
+                    {event ? event.fret : "—"}
+                  </span>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-[10px] font-bold text-muted">
+        Top line = thin high E, string 1. Numbers are frets. Read left to right.
+      </p>
+    </DiagramShell>
+  );
+}
+
+function ExplicitPhraseDiagram({
+  visual,
+}: {
+  visual: Extract<ExplicitLessonVisual, { kind: "phrase-timeline" }>;
+}) {
+  return (
+    <DiagramShell label={`Explicit ${visual.beats}-beat phrase timeline`}>
+      <div
+        className="grid gap-1"
+        style={{
+          gridTemplateColumns: `repeat(${visual.beats}, minmax(0, 1fr))`,
+        }}
+      >
+        {Array.from({ length: visual.beats }, (_unused, index) => (
+          <span
+            key={index}
+            className="rounded-md bg-warning/15 py-1 text-center text-[10px] font-black"
+          >
+            {index + 1}
+          </span>
+        ))}
+      </div>
+      <div className="relative mt-2 min-h-32 rounded-xl border-2 border-border bg-surface p-2">
+        {visual.events.map((event, index) => (
+          <div
+            key={`${event.beat}-${event.label}-${index}`}
+            className={`absolute top-3 flex min-h-20 items-center justify-center rounded-lg border-2 px-2 text-center text-[9px] font-black leading-4 ${
+              event.role === "rest"
+                ? "border-dashed border-warning bg-warning/8 text-warning"
+                : event.role === "root"
+                  ? "border-warning bg-warning text-[#18121f]"
+                  : "border-accent/50 bg-accent/12 text-accent"
+            }`}
+            style={{
+              left: `${((event.beat - 1) / visual.beats) * 100}%`,
+              width: `${Math.max((event.duration / visual.beats) * 100, 8)}%`,
+            }}
+          >
+            <span>
+              {event.label}
+              {event.string && event.fret !== undefined
+                ? ` · S${event.string} F${event.fret}`
+                : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[10px] font-bold text-muted">
+        Block position shows when the note or rest begins; width shows how long
+        it lasts.
+      </p>
+    </DiagramShell>
+  );
+}
+
+function ExplicitDiagram({ visual }: { visual: ExplicitLessonVisual }) {
+  if (visual.kind === "rhythm-grid") {
+    return <ExplicitRhythmDiagram visual={visual} />;
+  }
+  if (visual.kind === "fretboard") {
+    return <ExplicitFretboardDiagram visual={visual} />;
+  }
+  if (visual.kind === "chord-diagram") {
+    return <ExplicitChordDiagram visual={visual} />;
+  }
+  if (visual.kind === "guitar-orientation") {
+    return <ExplicitOrientationDiagram visual={visual} />;
+  }
+  if (visual.kind === "picking") {
+    return <ExplicitPickingDiagram visual={visual} />;
+  }
+  if (visual.kind === "tab") {
+    return <ExplicitTabDiagram visual={visual} />;
+  }
+  return <ExplicitPhraseDiagram visual={visual} />;
+}
+
 export function LessonVisualization({
   section,
   conceptTitle,
@@ -437,6 +866,9 @@ export function LessonVisualization({
   alternative?: boolean;
 }) {
   if (alternative) return <AlternativeDiagram title={conceptTitle} />;
+  if (section.visualData) {
+    return <ExplicitDiagram visual={section.visualData} />;
+  }
   if (section.type === "rhythm-grid") {
     return <RhythmDiagram title={conceptTitle} />;
   }

@@ -93,7 +93,7 @@ export function GuitarLearnMode({
   sessions: GuitarPracticeSession[];
   lessonTaskIds?: string[];
   onCreateLessonTask?: (lessonId: string, lessonTitle: string) => void;
-  onOpenTool: (toolId: GuitarToolId) => void;
+  onOpenTool: (toolId: GuitarToolId, presetId?: string) => void;
   initialLessonId?: string;
   initialLessonStage?: number;
   onActiveLessonChange?: (lessonId?: string) => void;

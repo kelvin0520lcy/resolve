@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Headphones, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpenCheck,
+  Guitar,
+  Headphones,
+  Music2,
+  Sparkles,
+} from "lucide-react";
 import { Badge, ProgressBar } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +23,7 @@ import { PlacementCue } from "@/features/guitar-learning/components/placement-cu
 import {
   PLACEMENT_PATH_OPTIONS,
   PLACEMENT_QUESTIONS,
+  createPlacementResultForRoute,
   toPlacementAnswers,
 } from "@/features/guitar-learning/data/placement";
 import { calculatePlacementResult } from "@/features/guitar-learning/lib/learning-state";
@@ -42,65 +51,122 @@ export function PlacementAssessment({
         <div className="h-1.5 bg-gradient-to-r from-accent via-warning to-cyan" />
         <CardHeader>
           <Badge variant="accent" className="mb-2 w-fit">
-            Friendly placement · about 3 minutes
+            Choose your starting route · no exam required
           </Badge>
           <CardTitle className="text-2xl">
-            Find the first useful gap
+            Which guitarist sounds most like you?
           </CardTitle>
           <CardDescription>
-            This is not an exam. Pick the answer that describes what you can
-            do reliably today; the result only chooses a starting point and
-            you can override it later.
+            Start immediately with a clear route. Nothing is permanently
+            locked, and familiar lessons can be tested out later.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              [
-                "No microphone",
-                "Visual and listening cues let you test the skill before rating it.",
-              ],
-              ["No lost progress", "Strong concepts can be marked already known."],
-              ["No fixed track", "Change paths whenever your goal changes."],
-            ].map(([title, body]) => (
-              <div
-                key={title}
-                className="rounded-2xl border border-border bg-surface p-4"
-              >
-                <p className="font-black">{title}</p>
-                <p className="mt-1 text-xs leading-5 text-muted">{body}</p>
-              </div>
-            ))}
+          <div className="grid gap-3 lg:grid-cols-3">
+            <button
+              type="button"
+              className="rounded-2xl border-2 border-border bg-surface p-4 text-left transition hover:border-accent"
+              onClick={() =>
+                onComplete(createPlacementResultForRoute("new-to-guitar"))
+              }
+            >
+              <Guitar className="h-5 w-5 text-accent" aria-hidden="true" />
+              <span className="mt-3 block font-black">
+                I am new to guitar
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-muted">
+                Learn the instrument map, strings, tuning, diagrams, tab,
+                timing symbols, and a first complete groove.
+              </span>
+            </button>
+            <button
+              type="button"
+              className="sticker rounded-2xl border-2 border-accent bg-accent/12 p-4 text-left transition hover:-translate-y-0.5"
+              onClick={() =>
+                onComplete(createPlacementResultForRoute("songs-and-tabs"))
+              }
+            >
+              <Music2 className="h-5 w-5 text-accent" aria-hidden="true" />
+              <span className="mt-3 block font-black">
+                I play songs from chords or tabs, but theory confuses me
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-muted">
+                Recommended bridge: understand pulse and strumming, then turn
+                a scale box into short musical phrases.
+              </span>
+              <Badge variant="accent" className="mt-3">
+                Best match for this studio
+              </Badge>
+            </button>
+            <button
+              type="button"
+              className="rounded-2xl border-2 border-border bg-surface p-4 text-left transition hover:border-accent"
+              onClick={() =>
+                onComplete(createPlacementResultForRoute("theory-practice"))
+              }
+            >
+              <BookOpenCheck className="h-5 w-5 text-accent" aria-hidden="true" />
+              <span className="mt-3 block font-black">
+                I understand theory and want targeted practice
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-muted">
+                Start at the home-note and phrase bridge, then open the full
+                sandbox tools when you want deeper control.
+              </span>
+            </button>
           </div>
-          <fieldset>
-            <legend className="text-sm font-black">
-              What would you most like to improve?
-            </legend>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {PLACEMENT_PATH_OPTIONS.map((path) => (
-                <label
-                  key={path.id}
-                  className={`cursor-pointer rounded-xl border-2 px-3 py-2 text-sm font-bold transition ${
-                    preferredPathId === path.id
-                      ? "border-accent bg-accent/15 text-accent"
-                      : "border-border bg-surface hover:border-accent/60"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="placement-path"
-                    className="sr-only"
-                    checked={preferredPathId === path.id}
-                    onChange={() => setPreferredPathId(path.id)}
-                  />
-                  {path.label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <Button type="button" onClick={() => setStarted(true)}>
-            <Sparkles className="h-4 w-4" />
-            Start the soundcheck
+          <details className="rounded-2xl border border-border bg-surface p-4">
+            <summary className="cursor-pointer text-sm font-black">
+              Optional: take the longer skill check
+            </summary>
+            <p className="mt-2 text-xs leading-5 text-muted">
+              Use this only if the three direct routes are too broad. The
+              check takes about three minutes and can prioritise a practice
+              area.
+            </p>
+            <fieldset className="mt-4">
+              <legend className="text-sm font-black">
+                What would you most like to improve?
+              </legend>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {PLACEMENT_PATH_OPTIONS.map((path) => (
+                  <label
+                    key={path.id}
+                    className={`cursor-pointer rounded-xl border-2 px-3 py-2 text-sm font-bold transition ${
+                      preferredPathId === path.id
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "border-border bg-surface hover:border-accent/60"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="placement-path"
+                      className="sr-only"
+                      checked={preferredPathId === path.id}
+                      onChange={() => setPreferredPathId(path.id)}
+                    />
+                    {path.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <Button
+              type="button"
+              className="mt-4"
+              onClick={() => setStarted(true)}
+            >
+              <Sparkles className="h-4 w-4" />
+              Start the optional soundcheck
+            </Button>
+          </details>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() =>
+              onComplete(createPlacementResultForRoute("songs-and-tabs"))
+            }
+          >
+            Skip assessment and start the beginner bridge course
           </Button>
         </CardContent>
       </Card>

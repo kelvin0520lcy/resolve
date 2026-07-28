@@ -1,6 +1,8 @@
 import type {
+  GuitarLearnerRoute,
   GuitarPathId,
   PlacementAnswer,
+  PlacementResult,
 } from "@/features/guitar-learning/types";
 
 export type PlacementOption = {
@@ -231,4 +233,50 @@ export function toPlacementAnswers(
         ]
       : [];
   });
+}
+
+export function createPlacementResultForRoute(
+  learnerRoute: GuitarLearnerRoute,
+  now = new Date().toISOString(),
+): PlacementResult {
+  if (learnerRoute === "new-to-guitar") {
+    return {
+      recommendedPathId: "guitar-language",
+      recommendedLessonId: "guitar-language:guitar-orientation",
+      alreadyKnownLessonIds: [],
+      reviewLessonIds: [],
+      missingPrerequisiteIds: [],
+      relevantToolIds: ["tuner", "chord-trainer"],
+      explanation:
+        "Start with the physical map and reading language of the guitar. You can test out of any familiar lesson later.",
+      completedAt: now,
+      learnerRoute,
+    };
+  }
+  if (learnerRoute === "songs-and-tabs") {
+    return {
+      recommendedPathId: "rhythm",
+      recommendedLessonId: "rhythm:feeling-and-identifying-the-pulse",
+      alreadyKnownLessonIds: [],
+      reviewLessonIds: [],
+      missingPrerequisiteIds: [],
+      relevantToolIds: ["rhythm", "metronome", "fretboard"],
+      explanation:
+        "You already know how to copy material. Start with the beginner bridge that turns timing and scale shapes into ideas you understand.",
+      completedAt: now,
+      learnerRoute,
+    };
+  }
+  return {
+    recommendedPathId: "improvisation",
+    recommendedLessonId: "improvisation:tonal-centre",
+    alreadyKnownLessonIds: [],
+    reviewLessonIds: [],
+    missingPrerequisiteIds: [],
+    relevantToolIds: ["fretboard", "scales", "ear-training"],
+    explanation:
+      "Start with a short objective bridge from home note to phrase, then use the advanced tools for targeted practice.",
+    completedAt: now,
+    learnerRoute,
+  };
 }

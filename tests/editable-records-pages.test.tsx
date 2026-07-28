@@ -661,6 +661,9 @@ describe("editable user-created records", () => {
     render(<GuitarPage />);
 
     await user.click(
+      screen.getByRole("tab", { name: "My Progress" }),
+    );
+    await user.click(
       screen.getByRole("button", {
         name: "Edit practice session from 2026-07-24",
       }),

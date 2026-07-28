@@ -11,6 +11,7 @@ export type GuitarLessonCategory =
   | "application";
 
 export type GuitarPathId =
+  | "guitar-language"
   | "rhythm"
   | "lead"
   | "fretboard"
@@ -18,6 +19,45 @@ export type GuitarPathId =
   | "chords"
   | "ear-theory"
   | "application";
+
+export type GuitarLearnerRoute =
+  | "new-to-guitar"
+  | "songs-and-tabs"
+  | "theory-practice";
+
+export type GuitarLessonSkillType =
+  | "knowledge"
+  | "physical-technique"
+  | "rhythm"
+  | "ear"
+  | "creative-application"
+  | "project";
+
+export type GlossaryTermId =
+  | "pulse"
+  | "beat"
+  | "tempo"
+  | "bar"
+  | "rhythm"
+  | "subdivision"
+  | "downstroke"
+  | "upstroke"
+  | "missed-stroke"
+  | "rest"
+  | "accent"
+  | "muted-stroke"
+  | "root"
+  | "tonal-centre"
+  | "interval"
+  | "scale"
+  | "scale-degree"
+  | "chord-tone"
+  | "triad"
+  | "inversion"
+  | "arpeggio"
+  | "phrase"
+  | "motif"
+  | "articulation";
 
 export type GuitarToolId =
   | "fretboard"
@@ -34,7 +74,91 @@ export type GuitarToolId =
   | "ear-training"
   | "theory"
   | "metronome"
-  | "drone";
+  | "drone"
+  | "tuner"
+  | "chord-trainer";
+
+export type RhythmVisualEvent = {
+  slot: number;
+  type: "played" | "missed" | "muted" | "rest";
+  accented?: boolean;
+  palmMuted?: boolean;
+  chord?: string;
+};
+
+export type ExplicitLessonVisual =
+  | {
+      kind: "rhythm-grid";
+      beats: number;
+      slotsPerBeat: 1 | 2 | 4;
+      countLabels: string[];
+      handDirections: Array<"D" | "U">;
+      events: RhythmVisualEvent[];
+      pulseOnly?: boolean;
+    }
+  | {
+      kind: "fretboard";
+      fretCount: number;
+      root?: string;
+      notes: Array<{
+        string: 1 | 2 | 3 | 4 | 5 | 6;
+        fret: number;
+        label: string;
+        role?: "root" | "scale" | "target";
+        finger?: 1 | 2 | 3 | 4;
+      }>;
+      showStringThickness?: boolean;
+      showNoteNames?: boolean;
+    }
+  | {
+      kind: "chord-diagram";
+      chordName: string;
+      startingFret: number;
+      strings: Array<{
+        string: 1 | 2 | 3 | 4 | 5 | 6;
+        fret: number | "open" | "muted";
+        finger?: 1 | 2 | 3 | 4;
+        role?: "root" | "third" | "fifth" | "colour";
+      }>;
+    }
+  | {
+      kind: "guitar-orientation";
+      labels: Array<{
+        name: string;
+        plainEnglish: string;
+        position: "left" | "middle" | "right";
+      }>;
+    }
+  | {
+      kind: "picking";
+      steps: Array<{
+        label: string;
+        direction: "D" | "U" | "none";
+        contact: "played" | "missed" | "muted";
+      }>;
+    }
+  | {
+      kind: "tab";
+      strings: string[];
+      events: Array<{
+        string: 1 | 2 | 3 | 4 | 5 | 6;
+        fret: number;
+        beat: number;
+        label?: string;
+      }>;
+    }
+  | {
+      kind: "phrase-timeline";
+      beats: number;
+      events: Array<{
+        beat: number;
+        duration: number;
+        label: string;
+        string?: 1 | 2 | 3 | 4 | 5 | 6;
+        fret?: number;
+        role?: "root" | "scale" | "rest" | "motif";
+      }>;
+    };
 
 export type GuitarMasteryStatus =
   | "not_assessed"
@@ -96,6 +220,8 @@ export type VisualSection = LessonSectionBase & {
   prompt: string;
   observationGuide: string[];
   successCriteria: string;
+  visualData?: ExplicitLessonVisual;
+  toolPresetId?: string;
 };
 
 export type AudioComparisonSection = LessonSectionBase & {
@@ -194,6 +320,14 @@ export type GuitarLesson = {
   reviewLessonIds?: string[];
   unlocksConceptIds: string[];
   alternativeExplanation: string;
+  publicationStatus?: "published" | "legacy" | "draft";
+  authored?: boolean;
+  learnerProblem?: string;
+  skillType?: GuitarLessonSkillType;
+  termsIntroduced?: GlossaryTermId[];
+  assumedTerms?: GlossaryTermId[];
+  relatedToolPresetIds?: string[];
+  reviewSchedule?: number[];
 };
 
 export type GuitarLearningPath = {
@@ -233,6 +367,7 @@ export type PlacementResult = {
   relevantToolIds: GuitarToolId[];
   explanation: string;
   completedAt: string;
+  learnerRoute?: GuitarLearnerRoute;
 };
 
 export type GuitarLearningProfile = {
@@ -246,6 +381,8 @@ export type GuitarLearningProfile = {
   confusingConceptIds: string[];
   bookmarkedLessonIds: string[];
   hiddenRecommendationIds: string[];
+  learnerRoute?: GuitarLearnerRoute;
+  chordChangeBests?: Record<string, number>;
   updatedAt: string;
 };
 

@@ -25,7 +25,7 @@ describe("GuitarLearningMap", () => {
     render(<Harness />);
     await user.click(
       screen.getByRole("button", {
-        name: "Quarter-note counting, Locked",
+        name: "Count four beats, Locked",
       }),
     );
     expect(
@@ -38,7 +38,7 @@ describe("GuitarLearningMap", () => {
     );
     expect(
       screen.getByRole("button", {
-        name: "Quarter-note counting, Already known",
+        name: "Count four beats, Already known",
       }),
     ).toBeInTheDocument();
   });
@@ -48,20 +48,20 @@ describe("GuitarLearningMap", () => {
     render(<Harness />);
     expect(
       screen.getByRole("button", {
-        name: "Feeling and identifying the pulse, Ready",
+        name: "Find the repeating pulse, Ready",
       }),
     ).toBeInTheDocument();
     await user.click(
-      screen.getByRole("button", { name: /Lead Guitar/ }),
+      screen.getByRole("button", { name: /Guitar Language Without Jargon/ }),
     );
     expect(
       screen.getByRole("button", {
-        name: "Relaxed pick grip, Ready",
+        name: "Meet the guitar without jargon, Ready",
       }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
-        name: "Feeling and identifying the pulse, Ready",
+        name: "Find the repeating pulse, Ready",
       }),
     ).not.toBeInTheDocument();
   });

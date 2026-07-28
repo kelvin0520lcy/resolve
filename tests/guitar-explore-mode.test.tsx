@@ -2,6 +2,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { GuitarExploreMode } from "@/features/guitar-learning/components/explore-mode";
+import { createEmptyGuitarLearningState } from "@/features/guitar-learning/lib/learning-state";
+
+const state = createEmptyGuitarLearningState("test");
 
 describe("GuitarExploreMode guidance", () => {
   it("gives every tool a visible start, action, and success condition", () => {
@@ -9,7 +12,10 @@ describe("GuitarExploreMode guidance", () => {
       <GuitarExploreMode
         selectedToolId="fretboard"
         onSelectTool={vi.fn()}
+        onSelectPreset={vi.fn()}
         onOpenLesson={vi.fn()}
+        state={state}
+        updateState={vi.fn()}
       />,
     );
     expect(screen.getByText("1 · Set up")).toBeInTheDocument();
@@ -27,7 +33,10 @@ describe("GuitarExploreMode guidance", () => {
       <GuitarExploreMode
         selectedToolId="fretboard"
         onSelectTool={vi.fn()}
+        onSelectPreset={vi.fn()}
         onOpenLesson={onOpenLesson}
+        state={state}
+        updateState={vi.fn()}
       />,
     );
     await user.click(
@@ -37,7 +46,7 @@ describe("GuitarExploreMode guidance", () => {
     );
     await user.click(
       screen.getByRole("button", {
-        name: /Continuous strumming-hand movement/,
+        name: /Keep the strumming hand moving/,
       }),
     );
     expect(onOpenLesson).toHaveBeenCalledWith(

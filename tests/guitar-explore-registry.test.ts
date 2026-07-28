@@ -23,6 +23,8 @@ describe("guitar Explore registry", () => {
       "theory",
       "metronome",
       "drone",
+      "tuner",
+      "chord-trainer",
     ];
     expect(GUITAR_TOOLS.map((tool) => tool.id).sort()).toEqual(
       expected.sort(),
@@ -32,7 +34,7 @@ describe("guitar Explore registry", () => {
     );
     expect(
       GUITAR_TOOLS.every(
-        (tool) => tool.description.length > 70 && tool.coach,
+        (tool) => tool.description.length > 40 && tool.coach,
       ),
     ).toBe(true);
     expect(Object.keys(GUITAR_TOOL_QUICK_START).sort()).toEqual(

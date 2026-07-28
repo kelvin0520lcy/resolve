@@ -7,6 +7,7 @@ import type {
   GuitarLearningState,
   GuitarLesson,
   GuitarLessonProgress,
+  GuitarLearnerRoute,
   GuitarMasteryStatus,
   GuitarPathId,
   PlacementAnswer,
@@ -44,7 +45,26 @@ const TOOL_IDS = [
   "theory",
   "metronome",
   "drone",
+  "tuner",
+  "chord-trainer",
 ] as const;
+
+const ALL_PATH_IDS: GuitarPathId[] = [
+  "guitar-language",
+  "rhythm",
+  "lead",
+  "fretboard",
+  "improvisation",
+  "chords",
+  "ear-theory",
+  "application",
+];
+
+const LEARNER_ROUTES: GuitarLearnerRoute[] = [
+  "new-to-guitar",
+  "songs-and-tabs",
+  "theory-practice",
+];
 
 export function createEmptyGuitarLearningState(
   userId: string,
@@ -60,6 +80,7 @@ export function createEmptyGuitarLearningState(
       confusingConceptIds: [],
       bookmarkedLessonIds: [],
       hiddenRecommendationIds: [],
+      chordChangeBests: {},
       updatedAt: now,
     },
     progress: [],
@@ -101,7 +122,7 @@ export function normalizeGuitarLearningState(
   const profile = recordValue(stored.profile);
   const validLessonId = (candidate: string) =>
     GUITAR_LESSON_BY_ID.has(candidate);
-  const validPathIds = new Set(GUITAR_PATHS.map((path) => path.id));
+  const validPathIds = new Set(ALL_PATH_IDS);
   const validPathId = (candidate: string): candidate is GuitarPathId =>
     validPathIds.has(candidate as GuitarPathId);
   const preferredTuning = cleanStringArray(profile?.preferredTuning);
@@ -148,8 +169,14 @@ export function normalizeGuitarLearningState(
             typeof placement.completedAt === "string"
               ? placement.completedAt
               : now,
+          learnerRoute: LEARNER_ROUTES.includes(
+            placement.learnerRoute as GuitarLearnerRoute,
+          )
+            ? (placement.learnerRoute as GuitarLearnerRoute)
+            : undefined,
         }
       : undefined;
+  const chordChangeBests = recordValue(profile?.chordChangeBests);
 
   const progressByLessonId = new Map<string, GuitarLessonProgress>();
   if (Array.isArray(stored.progress)) {
@@ -244,6 +271,24 @@ export function normalizeGuitarLearningState(
       hiddenRecommendationIds: cleanStringArray(
         profile?.hiddenRecommendationIds,
         validLessonId,
+      ),
+      learnerRoute: LEARNER_ROUTES.includes(
+        profile?.learnerRoute as GuitarLearnerRoute,
+      )
+        ? (profile?.learnerRoute as GuitarLearnerRoute)
+        : placementResult?.learnerRoute,
+      chordChangeBests: Object.fromEntries(
+        Object.entries(chordChangeBests ?? {})
+          .filter(
+            ([key, score]) =>
+              key.length > 0 &&
+              key.length <= 80 &&
+              Number.isFinite(score),
+          )
+          .map(([key, score]) => [
+            key,
+            Math.max(0, Math.min(999, Math.round(Number(score)))),
+          ]),
       ),
       updatedAt:
         typeof profile?.updatedAt === "string"
@@ -526,6 +571,25 @@ export function toggleLessonBookmark(
   return touchProfile(state, now, { bookmarkedLessonIds: [...ids] });
 }
 
+export function recordChordChangeBest(
+  state: GuitarLearningState,
+  chordPair: string,
+  cleanChanges: number,
+  now = new Date().toISOString(),
+): GuitarLearningState {
+  const normalizedPair = chordPair.trim().toUpperCase();
+  const normalizedScore = Math.max(0, Math.floor(cleanChanges));
+  if (!normalizedPair || !Number.isFinite(normalizedScore)) return state;
+  const previous = state.profile.chordChangeBests?.[normalizedPair] ?? 0;
+  if (normalizedScore <= previous) return state;
+  return touchProfile(state, now, {
+    chordChangeBests: {
+      ...(state.profile.chordChangeBests ?? {}),
+      [normalizedPair]: normalizedScore,
+    },
+  });
+}
+
 export function hideLessonRecommendation(
   state: GuitarLearningState,
   lessonId: string,
@@ -650,6 +714,7 @@ export function applyPlacementResult(
   return touchProfile(next, result.completedAt, {
     placementCompleted: true,
     placementResult: result,
+    learnerRoute: result.learnerRoute,
     currentLessonId: result.recommendedLessonId,
     selectedPathIds: [
       ...new Set([

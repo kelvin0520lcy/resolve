@@ -12,6 +12,7 @@ const learningState = vi.hoisted(() => ({
     confusingConceptIds: [],
     bookmarkedLessonIds: [],
     hiddenRecommendationIds: [],
+    chordChangeBests: {},
     updatedAt: "2026-07-25T00:00:00Z",
   },
   progress: [],
@@ -72,31 +73,28 @@ beforeEach(() => {
 });
 
 describe("Guitar Studio page integration", () => {
-  it("preserves practice overview and exposes all new modes in one route", async () => {
+  it("exposes the four beginner-facing destinations in one route", async () => {
     const user = userEvent.setup();
     render(<GuitarPage />);
-    expect(screen.getByText("Make improvement audible")).toBeInTheDocument();
-    expect(screen.getByText("Practice assessment")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "Learn" }));
     expect(
       screen.getByText("Understand it, hear it, use it"),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText("Friendly placement · about 3 minutes"),
+      await screen.findByText("Choose your starting route · no exam required"),
     ).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("tab", { name: /Learning Map/ }),
+      screen.getByRole("tab", { name: /Practise/ }),
     );
     expect(
-      screen.getByText("See the route behind the next note"),
+      screen.getByText("Know exactly what to do next"),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText("See why each concept comes next"),
+      await screen.findByText("A practice session you can finish"),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: /Overview/ }));
+    await user.click(screen.getByRole("tab", { name: /My Progress/ }));
+    expect(screen.getByText("See what is becoming reliable")).toBeInTheDocument();
     expect(screen.getByText("Practice-area coverage")).toBeInTheDocument();
   });
 
