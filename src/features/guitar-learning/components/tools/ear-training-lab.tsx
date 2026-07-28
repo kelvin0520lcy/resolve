@@ -166,7 +166,7 @@ export function EarTrainingLab({
           </select>
         </label>
         <div className="self-end rounded-2xl border border-border bg-surface px-4 py-2">
-          <p className="text-[9px] font-black uppercase tracking-wide text-muted">
+          <p className="text-[11px] font-black uppercase tracking-wide text-muted">
             Last {recent.length || 0}
           </p>
           <p className="font-display text-xl">{Math.round(accuracy)}%</p>

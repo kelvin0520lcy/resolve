@@ -198,7 +198,7 @@ export function PlacementAssessment({
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-accent">
               {question.eyebrow}
             </p>
             <CardTitle className="mt-1">

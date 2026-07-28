@@ -172,7 +172,7 @@ function MiniFretboardMap({
                 >
                   {noteSet.has(position.note) && (
                     <span
-                      className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-black sm:h-6 sm:w-6 sm:text-[11px] ${
+                      className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black sm:h-6 sm:w-6 sm:text-[11px] ${
                         position.note === root
                           ? "bg-accent text-white"
                           : "bg-warning text-[#18121f]"
@@ -556,7 +556,7 @@ function ProgressionPanel({ root }: { root: string }) {
               })
             }
           >
-            <span className="text-[10px] font-black uppercase tracking-wide text-accent">
+            <span className="text-[11px] font-black uppercase tracking-wide text-accent">
               {chord.roman} · {chord.function}
             </span>
             <span className="font-display mt-2 block text-2xl">
@@ -771,7 +771,7 @@ function TheoryPanel({
               <span className="font-display mt-1 block text-lg">
                 {degree.root}
               </span>
-              <span className="block text-[10px] text-muted">
+              <span className="block text-[11px] text-muted">
                 {degree.quality} · {degree.function}
               </span>
             </button>

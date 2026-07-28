@@ -23,17 +23,20 @@ function Harness({
   onOpenTool = vi.fn(),
   initialStage,
   onStageChange,
+  initialState,
 }: {
   activeLesson?: GuitarLesson;
   onOpenTool?: (toolId: GuitarToolId, presetId?: string) => void;
   initialStage?: number;
   onStageChange?: (stage: number) => void;
+  initialState?: GuitarLearningState;
 }) {
   const [state, setState] = useState<GuitarLearningState>(() =>
-    openGuitarLesson(
-      createEmptyGuitarLearningState("learner"),
-      activeLesson.id,
-    ),
+    initialState ??
+      openGuitarLesson(
+        createEmptyGuitarLearningState("learner"),
+        activeLesson.id,
+      ),
   );
   return (
     <LessonRenderer
@@ -65,6 +68,39 @@ describe("LessonRenderer authored flow", () => {
     expect(screen.getAllByText("1/5 lesson stages")).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "Explain differently" }));
     expect(screen.getByText(lesson.alternativeExplanation)).toBeInTheDocument();
+  });
+
+  it("keeps the mastery checklist visible and actionable below desktop width", async () => {
+    const user = userEvent.setup();
+    const readyState = openGuitarLesson(
+      createEmptyGuitarLearningState("learner"),
+      lesson.id,
+    );
+    readyState.progress = [
+      {
+        lessonId: lesson.id,
+        status: "learning",
+        attempts: 1,
+        completedSectionIds: lesson.sections
+          .filter((section) => section.required)
+          .map((section) => section.id),
+        checkpointScore: 1,
+        applicationCompleted: true,
+        applicationResult: "achieved",
+      },
+    ];
+
+    render(<Harness initialState={readyState} />);
+
+    expect(screen.getByTestId("lesson-support-column")).not.toHaveClass(
+      "hidden",
+    );
+    const confirmButton = screen.getByRole("button", {
+      name: "Confirm understanding",
+    });
+    expect(confirmButton).toBeEnabled();
+    await user.click(confirmButton);
+    expect(screen.getByText("Lesson understood")).toBeInTheDocument();
   });
 
   it("opens the exact guided preset from the authored visual", async () => {

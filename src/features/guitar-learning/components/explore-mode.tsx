@@ -583,6 +583,7 @@ function MobileToolPicker({
 export function GuitarExploreMode({
   selectedToolId,
   selectedPresetId,
+  initialToolMode = "guided",
   onSelectTool,
   onSelectPreset,
   onOpenLesson,
@@ -591,6 +592,7 @@ export function GuitarExploreMode({
 }: {
   selectedToolId: GuitarToolId;
   selectedPresetId?: string;
+  initialToolMode?: "guided" | "sandbox";
   onSelectTool: (toolId: GuitarToolId) => void;
   onSelectPreset: (presetId: string) => void;
   onOpenLesson: (lessonId: string) => void;
@@ -599,7 +601,8 @@ export function GuitarExploreMode({
     updater: (current: GuitarLearningState) => GuitarLearningState,
   ) => void;
 }) {
-  const [toolMode, setToolMode] = useState<"guided" | "sandbox">("guided");
+  const [toolMode, setToolMode] =
+    useState<"guided" | "sandbox">(initialToolMode);
   const [guidedResetNonce, setGuidedResetNonce] = useState(0);
   const activeTool =
     GUITAR_TOOLS.find((tool) => tool.id === selectedToolId) ??

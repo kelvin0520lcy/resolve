@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import nextConfig, { getLocalDevOrigins } from "../next.config";
 
 describe("mobile development origins", () => {
@@ -50,6 +51,11 @@ describe("mobile development origins", () => {
 
   it("places discovered LAN addresses in Next's development allowlist", () => {
     expect(nextConfig.allowedDevOrigins).toEqual(getLocalDevOrigins());
+  });
+
+  it("keeps custom Next output out of Tailwind source discovery", () => {
+    const ignoreRules = readFileSync(".gitignore", "utf8");
+    expect(ignoreRules).toContain("/.next-*/");
   });
 
   it("sets baseline production security headers", async () => {

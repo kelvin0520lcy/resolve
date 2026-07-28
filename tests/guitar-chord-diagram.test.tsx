@@ -30,6 +30,12 @@ describe("GuitarChordDiagram", () => {
       diagram.querySelectorAll('line[y1="48"][y2="208"]'),
     ).toHaveLength(6);
     expect(
+      diagram.querySelector('line[x1="40"][y1="48"][y2="208"]'),
+    ).toHaveAttribute("stroke-width", "2.4");
+    expect(
+      diagram.querySelector('line[x1="200"][y1="48"][y2="208"]'),
+    ).toHaveAttribute("stroke-width", "1.5");
+    expect(
       screen.getByLabelText(
         "String 5, fret 3, finger 3, root note",
       ),

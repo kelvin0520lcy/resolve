@@ -99,7 +99,7 @@ export function GuitarChordDiagram({
             y1={FRET_TOP}
             y2={FRET_TOP + DISPLAYED_FRETS * FRET_HEIGHT}
             stroke="currentColor"
-            strokeWidth={1.5 + index * 0.18}
+            strokeWidth={2.4 - index * 0.18}
             opacity="0.48"
           />
         ))}

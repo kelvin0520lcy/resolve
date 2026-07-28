@@ -342,14 +342,14 @@ export function FretboardExplorer({
               gridTemplateColumns: `3.5rem repeat(${fretCount + 1}, minmax(2.35rem, 1fr))`,
             }}
           >
-            <div className="bg-[#201925] p-1 text-center text-[10px] text-muted">
+            <div className="bg-[#201925] p-1 text-center text-[11px] text-muted">
               String
             </div>
             {frets.map((fret) => (
               <div
                 key={`fret-label-${fret}`}
                 role="columnheader"
-                className="bg-[#201925] p-1 text-center text-[10px] font-bold text-muted"
+                className="bg-[#201925] p-1 text-center text-[11px] font-bold text-muted"
               >
                 {fret}
               </div>
@@ -378,7 +378,7 @@ export function FretboardExplorer({
                       key={`${stringIndex}-${fret}`}
                       type="button"
                       role="gridcell"
-                      className="relative flex min-h-10 items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#6c5037,#422f23)] px-0.5 text-[10px] font-black focus:z-10"
+                      className="relative flex min-h-10 items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#6c5037,#422f23)] px-0.5 text-[11px] font-black focus:z-10"
                       aria-label={`${position.note}${position.octave}, string ${6 - stringIndex}, fret ${fret}, ${getIntervalName(root, position.note)}`}
                       onClick={() => {
                         setQuizFeedback(
@@ -513,7 +513,7 @@ export function FretboardExplorer({
         </p>
         <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
           {customTuning.map((note, index) => (
-            <label key={index} className="text-[10px] font-black">
+            <label key={index} className="text-[11px] font-black">
               String {6 - index}
               <input
                 className={`${fieldClassName} mt-1 px-2`}

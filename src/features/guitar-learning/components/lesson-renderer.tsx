@@ -86,7 +86,7 @@ function SectionFrame({
       className="rounded-[22px] border-2 border-border bg-surface p-4 sm:p-6"
       aria-labelledby={`lesson-section-${title.replaceAll(" ", "-")}`}
     >
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-accent">
         {eyebrow}
       </p>
       <h3
@@ -318,7 +318,7 @@ function VisualLessonStage({
         <ol className="mt-3 space-y-2">
           {section.observationGuide.map((instruction, index) => (
             <li key={instruction} className="flex gap-3 text-sm leading-6">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[10px] font-black text-white">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-black text-white">
                 {index + 1}
               </span>
               <span>{instruction}</span>
@@ -493,6 +493,100 @@ function MusicalApplication({
         </div>
       </fieldset>
     </SectionFrame>
+  );
+}
+
+function StudioChecklist({
+  completedRequiredCount,
+  requiredCount,
+  requirements,
+  understood,
+  nextLessonId,
+  onConfirm,
+  onOpenLesson,
+}: {
+  completedRequiredCount: number;
+  requiredCount: number;
+  requirements: ReturnType<typeof getLessonCompletionRequirements>;
+  understood: boolean;
+  nextLessonId?: string;
+  onConfirm: () => void;
+  onOpenLesson?: (lessonId: string) => void;
+}) {
+  return (
+    <Card data-testid="studio-checklist">
+      <CardHeader>
+        <CardTitle>Studio checklist</CardTitle>
+        <CardDescription>
+          Confirm the idea only after you can explain, recognise, and use it.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {[
+          [
+            requirements.incompleteSectionIds.length === 0,
+            `${completedRequiredCount}/${requiredCount} lesson stages`,
+          ],
+          [
+            requirements.checkpointPassed,
+            "Concept checkpoint passed",
+          ],
+          [
+            requirements.applicationCompleted,
+            "Musical application tried",
+          ],
+        ].map(([complete, label]) => (
+          <div
+            key={String(label)}
+            className="flex items-center gap-2"
+          >
+            {complete ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+            ) : (
+              <CircleHelp className="h-4 w-4 shrink-0 text-muted" />
+            )}
+            <span>{label}</span>
+          </div>
+        ))}
+        <Button
+          type="button"
+          className="mt-2 w-full"
+          disabled={!requirements.canMarkUnderstood}
+          onClick={onConfirm}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          Confirm understanding
+        </Button>
+        {!requirements.canMarkUnderstood && (
+          <p className="text-xs leading-5 text-muted">
+            Finish all three checklist items before confirming
+            understanding.
+          </p>
+        )}
+        {understood && (
+          <div className="rounded-xl border border-success/25 bg-success/10 p-3">
+            <p className="text-xs font-black text-success">
+              Lesson understood
+            </p>
+            {nextLessonId && onOpenLesson ? (
+              <Button
+                type="button"
+                size="sm"
+                className="mt-3 w-full"
+                onClick={() => onOpenLesson(nextLessonId)}
+              >
+                Next lesson
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <p className="mt-1 text-xs leading-5 text-muted">
+                Return to Learn to choose the next recommendation.
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1039,125 +1133,69 @@ export function LessonRenderer({
           </div>
         </div>
 
-        <aside className="hidden space-y-4 lg:block">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lesson route</CardTitle>
-              <CardDescription>
-                Jump to a stage without losing completed work.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ol className="max-h-72 space-y-1 overflow-y-auto pr-1">
-                {stageLabels.map((label, index) => {
-                  const section = lesson.sections[index];
-                  const complete = section
-                    ? completedSectionIds.has(section.id)
-                    : index === lesson.sections.length
-                      ? requirements.checkpointPassed
-                      : requirements.applicationCompleted;
-                  return (
-                    <li key={`${label}-${index}`}>
-                      <button
-                        type="button"
-                        aria-current={index === stage ? "step" : undefined}
-                        onClick={() => goToStage(index)}
-                        className={`flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-xs leading-5 transition ${
-                          index === stage
-                            ? "bg-accent/12 font-black text-accent"
-                            : "hover:bg-surface-muted"
-                        }`}
-                      >
-                        {complete ? (
-                          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
-                        ) : (
-                          <span className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-border text-[8px] font-black">
-                            {index + 1}
-                          </span>
-                        )}
-                        <span>{label}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-            </CardContent>
-          </Card>
+        <aside
+          data-testid="lesson-support-column"
+          className="space-y-4 lg:sticky lg:top-4 lg:self-start"
+        >
+          <div className="hidden lg:block">
+            <Card>
+              <CardHeader>
+                <CardTitle>Lesson route</CardTitle>
+                <CardDescription>
+                  Jump to a stage without losing completed work.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ol className="max-h-72 space-y-1 overflow-y-auto pr-1">
+                  {stageLabels.map((label, index) => {
+                    const section = lesson.sections[index];
+                    const complete = section
+                      ? completedSectionIds.has(section.id)
+                      : index === lesson.sections.length
+                        ? requirements.checkpointPassed
+                        : requirements.applicationCompleted;
+                    return (
+                      <li key={`${label}-${index}`}>
+                        <button
+                          type="button"
+                          aria-current={index === stage ? "step" : undefined}
+                          onClick={() => goToStage(index)}
+                          className={`flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-xs leading-5 transition ${
+                            index === stage
+                              ? "bg-accent/12 font-black text-accent"
+                              : "hover:bg-surface-muted"
+                          }`}
+                        >
+                          {complete ? (
+                            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+                          ) : (
+                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border text-[11px] font-black">
+                              {index + 1}
+                            </span>
+                          )}
+                          <span>{label}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </CardContent>
+            </Card>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Studio checklist</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {[
-                [
-                  requirements.incompleteSectionIds.length === 0,
-                  `${completedRequiredCount}/${requiredCount} lesson stages`,
-                ],
-                [
-                  requirements.checkpointPassed,
-                  "Concept checkpoint passed",
-                ],
-                [
-                  requirements.applicationCompleted,
-                  "Musical application tried",
-                ],
-              ].map(([complete, label]) => (
-                <div
-                  key={String(label)}
-                  className="flex items-center gap-2"
-                >
-                  {complete ? (
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
-                  ) : (
-                    <CircleHelp className="h-4 w-4 shrink-0 text-muted" />
-                  )}
-                  <span>{label}</span>
-                </div>
-              ))}
-              <Button
-                type="button"
-                className="mt-2 w-full"
-                disabled={!requirements.canMarkUnderstood}
-                onClick={() =>
-                  updateState((current) =>
-                    markLessonUnderstood(current, lesson.id),
-                  )
-                }
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Confirm understanding
-              </Button>
-              {!requirements.canMarkUnderstood && (
-                <p className="text-xs leading-5 text-muted">
-                  Finish all three checklist items before confirming
-                  understanding.
-                </p>
-              )}
-              {progress?.status === "understood" && (
-                <div className="rounded-xl border border-success/25 bg-success/10 p-3">
-                  <p className="text-xs font-black text-success">
-                    Lesson understood
-                  </p>
-                  {nextLessonId && onOpenLesson ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="mt-3 w-full"
-                      onClick={() => onOpenLesson(nextLessonId)}
-                    >
-                      Next lesson
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  ) : (
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      Return to Learn to choose the next recommendation.
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <StudioChecklist
+            completedRequiredCount={completedRequiredCount}
+            requiredCount={requiredCount}
+            requirements={requirements}
+            understood={progress?.status === "understood"}
+            nextLessonId={nextLessonId}
+            onOpenLesson={onOpenLesson}
+            onConfirm={() =>
+              updateState((current) =>
+                markLessonUnderstood(current, lesson.id),
+              )
+            }
+          />
 
           <Card>
             <CardHeader>

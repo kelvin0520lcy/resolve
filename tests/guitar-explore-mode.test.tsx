@@ -85,6 +85,31 @@ describe("GuitarExploreMode guidance", () => {
     );
   });
 
+  it("opens directly in sandbox mode when a caller requests it", async () => {
+    render(
+      <GuitarExploreMode
+        selectedToolId="rhythm"
+        selectedPresetId="lesson:rhythm:feeling-and-identifying-the-pulse"
+        initialToolMode="sandbox"
+        onSelectTool={vi.fn()}
+        onSelectPreset={vi.fn()}
+        onOpenLesson={vi.fn()}
+        state={state}
+        updateState={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "sandbox" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      await screen.findByRole("button", { name: "Place on the grid" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Find the repeating pulse"),
+    ).not.toBeInTheDocument();
+  });
+
   it("resets the current guided example instead of selecting the same preset", async () => {
     const user = userEvent.setup();
     render(

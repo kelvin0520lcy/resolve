@@ -18,7 +18,7 @@
 
 # next.js
 /.next/
-/.next-e2e/
+/.next-*/
 /out/
 
 # production
@@ -44,3 +44,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+firebase-debug.log

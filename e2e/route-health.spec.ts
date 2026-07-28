@@ -13,6 +13,7 @@ const routes = [
   "/weekly",
   "/habits",
   "/guitar",
+  "/guitar-preview",
   "/academics",
   "/analytics",
   "/career",

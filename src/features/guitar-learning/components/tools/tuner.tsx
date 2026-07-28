@@ -368,7 +368,7 @@ export function GuitarTuner({
         className="rounded-[24px] border-2 border-border bg-surface p-5 text-center"
         aria-live="polite"
       >
-        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted">
           {listening ? `Listening in ${mode.replace("-", " ")} mode` : "Microphone is off"}
         </p>
         <p className="font-display mt-2 text-5xl">
@@ -399,14 +399,14 @@ export function GuitarTuner({
               />
             )}
           </div>
-          <div className="mt-2 flex justify-between text-[10px] font-bold text-muted">
+          <div className="mt-2 flex justify-between text-[11px] font-bold text-muted">
             <span>Lower</span>
             <span>{current ? `${Math.round(current.cents)} cents` : "Centre"}</span>
             <span>Higher</span>
           </div>
         </div>
         {frequency && (
-          <p className="mt-3 text-[10px] text-muted">
+          <p className="mt-3 text-[11px] text-muted">
             {frequency.toFixed(1)} Hz · target {current?.label}
           </p>
         )}

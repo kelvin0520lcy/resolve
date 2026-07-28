@@ -2,17 +2,39 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { GuitarPracticeMode } from "@/features/guitar-learning/components/practice-mode";
+import { GuitarLearnMode } from "@/features/guitar-learning/components/learn-mode";
 import { GuitarTuner } from "@/features/guitar-learning/components/tools/tuner";
 import { ChordChangeTrainer } from "@/features/guitar-learning/components/tools/chord-change-trainer";
 import { GuitarGlossarySearch } from "@/features/guitar-learning/components/glossary";
 import { createPlacementResultForRoute } from "@/features/guitar-learning/data/placement";
 import {
+  applyPlacementResult,
   createEmptyGuitarLearningState,
   recordChordChangeBest,
   recordLessonCheckpoint,
 } from "@/features/guitar-learning/lib/learning-state";
 
 describe("beginner-first Guitar Studio", () => {
+  it("eagerly loads the above-the-fold lesson coach artwork", () => {
+    const state = applyPlacementResult(
+      createEmptyGuitarLearningState("learner"),
+      createPlacementResultForRoute("new-to-guitar"),
+    );
+    render(
+      <GuitarLearnMode
+        state={state}
+        updateState={vi.fn()}
+        goals={[]}
+        sessions={[]}
+        onOpenTool={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByAltText(/coaching illustration/),
+    ).toHaveAttribute("loading", "eager");
+  });
+
   it.each([
     ["new-to-guitar", "guitar-language", "guitar-language:guitar-orientation"],
     ["songs-and-tabs", "rhythm", "rhythm:feeling-and-identifying-the-pulse"],

@@ -306,6 +306,7 @@ export function GuitarLearnMode({
                 alt={`${recommendedLesson.coach} coaching illustration`}
                 fill
                 sizes="320px"
+                loading="eager"
                 className="object-contain object-bottom"
               />
             )}

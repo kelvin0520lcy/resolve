@@ -175,7 +175,7 @@ function FretboardDiagram({ title }: { title: string }) {
 
   return (
     <DiagramShell label={`Seven-fret interval map in A for ${title}`}>
-      <div className="mb-2 grid grid-cols-[1.7rem_repeat(8,minmax(1.35rem,1fr))] gap-0.5 text-center text-[10px] font-black text-muted sm:grid-cols-[2rem_repeat(8,minmax(1.8rem,1fr))] sm:gap-1 sm:text-[11px]">
+      <div className="mb-2 grid grid-cols-[1.7rem_repeat(8,minmax(1.35rem,1fr))] gap-0.5 text-center text-[11px] font-black text-muted sm:grid-cols-[2rem_repeat(8,minmax(1.8rem,1fr))] sm:gap-1">
         <span>STR</span>
         {Array.from({ length: 8 }, (_unused, fret) => (
           <span key={fret}>{fret}</span>
@@ -344,7 +344,7 @@ function ScaleComparison({ title }: { title: string }) {
           );
         })}
       </div>
-      <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[9px] font-black">
+      <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-black">
         {["R", "2", "♭3 / 3", "4", "5", "♭6 / 6", "♭7 / 7"].map(
           (degree, index) => (
             <span
@@ -378,10 +378,10 @@ function SongStructure({ title }: { title: string }) {
                 : "border-accent/30 bg-accent/8"
             }`}
           >
-            <span className="text-[9px] font-black text-muted">
+            <span className="text-[11px] font-black text-muted">
               {index + 1}
             </span>
-            <p className="mt-1 text-[10px] font-black sm:text-xs">{section}</p>
+            <p className="mt-1 text-[11px] font-black sm:text-xs">{section}</p>
           </div>
         ))}
       </div>
@@ -392,7 +392,7 @@ function SongStructure({ title }: { title: string }) {
           ["CONNECT", "What happens across the boundary?"],
         ].map(([label, body]) => (
           <div key={label} className="rounded-xl border border-border bg-surface p-3">
-            <p className="text-[9px] font-black text-accent">{label}</p>
+            <p className="text-[11px] font-black text-accent">{label}</p>
             <p className="mt-1 text-xs leading-5">{body}</p>
           </div>
         ))}
@@ -412,7 +412,7 @@ function AlternativeDiagram({ title }: { title: string }) {
         ].map(([label, body], index) => (
           <div key={label} className="contents">
             <div className="rounded-xl border-2 border-warning/45 bg-warning/10 p-3 text-center">
-              <p className="text-[9px] font-black text-warning">{label}</p>
+              <p className="text-[11px] font-black text-warning">{label}</p>
               <p className="mt-1 text-xs font-bold leading-5">{body}</p>
             </div>
             {index < 2 && (
@@ -539,7 +539,7 @@ function ExplicitFretboardDiagram({
       label={`Explicit beginner fretboard from fret 0 to ${visual.fretCount}`}
     >
       <div
-        className="grid gap-0.5 text-center text-[10px] sm:gap-1 sm:text-[11px]"
+        className="grid gap-0.5 text-center text-[11px] sm:gap-1"
         style={{
           gridTemplateColumns: `2.8rem repeat(${visual.fretCount + 1}, minmax(0, 1fr))`,
         }}

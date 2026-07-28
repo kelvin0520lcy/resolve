@@ -11,6 +11,8 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:3200",
     trace: "on-first-retry",
   },
+  snapshotPathTemplate:
+    "{testDir}/__screenshots__/{testFileName}/{arg}{ext}",
   projects: [
     {
       name: "production-chromium",
@@ -23,7 +25,7 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      "env NEXT_PUBLIC_FIREBASE_API_KEY= NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN= NEXT_PUBLIC_FIREBASE_PROJECT_ID= NEXT_PUBLIC_FIREBASE_APP_ID= npm run start -- -p 3200",
+      "env ENABLE_GUITAR_PREVIEW=true NEXT_PUBLIC_FIREBASE_API_KEY= NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN= NEXT_PUBLIC_FIREBASE_PROJECT_ID= NEXT_PUBLIC_FIREBASE_APP_ID= npm run start -- -p 3200",
     url: "http://127.0.0.1:3200",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
