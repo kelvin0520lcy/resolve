@@ -82,6 +82,51 @@ async function expectProductionTypographyToFit(
   expect(metrics.fontFamily).not.toContain("Resolve Snapshot");
   expect(metrics.clippedText).toEqual([]);
   expect(metrics.offscreenText).toEqual([]);
+
+  const hierarchy = await page.evaluate(() => {
+    const previewStage = document.querySelector<HTMLElement>(
+      '[data-testid="guitar-preview-stage"]',
+    );
+    const heading = previewStage?.querySelector<HTMLElement>("h1");
+    const description =
+      heading?.nextElementSibling instanceof HTMLElement
+        ? heading.nextElementSibling
+        : null;
+    const activeTabLabel = document.querySelector<HTMLElement>(
+      '[aria-label="Guitar Studio sections"] [role="tab"][aria-selected="true"] span > span:first-child',
+    );
+
+    const styleOf = (element: HTMLElement | null) => {
+      if (!element) return null;
+      const style = getComputedStyle(element);
+      return {
+        fontFamily: style.fontFamily,
+        fontSize: Number.parseFloat(style.fontSize),
+        fontWeight: Number.parseInt(style.fontWeight, 10),
+      };
+    };
+
+    return {
+      heading: styleOf(heading ?? null),
+      description: styleOf(description),
+      activeTabLabel: styleOf(activeTabLabel),
+    };
+  });
+
+  expect(hierarchy.heading).not.toBeNull();
+  expect(hierarchy.description).not.toBeNull();
+  expect(hierarchy.activeTabLabel).not.toBeNull();
+  expect(hierarchy.heading!.fontFamily).not.toBe(
+    hierarchy.description!.fontFamily,
+  );
+  expect(hierarchy.heading!.fontSize).toBeGreaterThan(
+    hierarchy.description!.fontSize + 8,
+  );
+  expect(hierarchy.description!.fontWeight).toBeGreaterThanOrEqual(500);
+  expect(hierarchy.activeTabLabel!.fontWeight).toBeGreaterThanOrEqual(
+    800,
+  );
+
   const rendered = await page.screenshot({
     animations: "disabled",
     caret: "hide",
