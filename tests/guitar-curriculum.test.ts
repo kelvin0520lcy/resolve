@@ -132,23 +132,29 @@ describe("published guitar curriculum", () => {
     ).toBe("achieved");
   });
 
-  it("authors project evidence outcomes explicitly while retaining inference as a fallback", () => {
+  it("authors every application outcome explicitly and keeps multi-part evidence honest", () => {
+    for (const lesson of GUITAR_LESSONS) {
+      expect(
+        lesson.applicationActivity.outcomes,
+        `${lesson.id} needs one authored result per option`,
+      ).toHaveLength(lesson.applicationActivity.options.length);
+    }
+
     for (const lessonId of [
+      "guitar-language:guitar-orientation",
+      "guitar-language:standard-tuning-and-tuner",
+      "guitar-language:pick-grip-and-depth",
       "guitar-language:first-two-chord-groove",
+      "rhythm:missed-strokes",
+      "rhythm:constructing-strumming-patterns",
       "rhythm:beginner-jrock-groove-project",
+      "improvisation:playing-with-only-two-or-three-notes",
       "improvisation:call-and-response",
     ]) {
       expect(
         GUITAR_LESSON_BY_ID.get(lessonId)?.applicationActivity.outcomes,
       ).toEqual(["partial", "partial", "achieved"]);
     }
-
-    const inferredLesson = GUITAR_LESSON_BY_ID.get(
-      "improvisation:playing-with-only-two-or-three-notes",
-    )!;
-    expect(inferredLesson.applicationActivity.outcomes).toHaveLength(
-      inferredLesson.applicationActivity.options.length,
-    );
   });
 
   it("keeps every troubleshooter destination valid and tool-compatible", () => {

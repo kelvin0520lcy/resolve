@@ -106,6 +106,7 @@ export const RHYTHM_YOU_CAN_SEE_LESSONS = [
       body: "Tap through eight seconds of silence, then play one muted stroke without changing speed.",
       prompt: "Did the returning stroke land where you expected?",
       options: ["Yes", "Close", "I lost the pulse"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "You maintained a pulse before adding a rhythm.",
     },
     alternativeExplanation:
@@ -196,6 +197,7 @@ export const RHYTHM_YOU_CAN_SEE_LESSONS = [
       body: "Play four muted downstrokes, then change the fretting-hand shape on the next beat 1.",
       prompt: "Where did the change happen?",
       options: ["On beat 1", "Between beats", "After the count stopped"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "You used beats and a bar to place a real change.",
     },
     alternativeExplanation:
@@ -298,6 +300,7 @@ export const RHYTHM_YOU_CAN_SEE_LESSONS = [
       body: "Strum a muted Down on numbers and Up on ands for one bar.",
       prompt: "Could you keep all eight positions even?",
       options: ["Three bars", "One bar", "Not yet"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "You turned one pulse into eight usable timing positions.",
     },
     alternativeExplanation:
@@ -397,6 +400,7 @@ export const RHYTHM_YOU_CAN_SEE_LESSONS = [
       body: "Play eight quiet muted strokes, then let only the numbered downstrokes ring.",
       prompt: "Did the hidden up motion stay visible?",
       options: ["Yes for three bars", "For one bar", "It stopped"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "The strumming hand became a visible timing guide.",
     },
     alternativeExplanation:
@@ -491,6 +495,7 @@ export const RHYTHM_YOU_CAN_SEE_LESSONS = [
       body: "Loop the six-stroke pattern on one chord, then change chord on the next beat 1.",
       prompt: "What stayed steady?",
       options: ["The hand path", "The count", "Both"],
+      outcomes: ["partial", "partial", "achieved"],
       completionMessage: "Silence became a controlled movement instead of a timing break.",
     },
     alternativeExplanation:
@@ -586,6 +591,7 @@ export const RHYTHM_YOU_CAN_SEE_LESSONS = [
       body: "Loop the pattern on G, then move to C after a complete bar.",
       prompt: "Which evidence was strongest?",
       options: ["Three matching bars", "Visible missed strokes", "Both"],
+      outcomes: ["partial", "partial", "achieved"],
       completionMessage: "You built the famous shorthand from its real timing structure.",
     },
     alternativeExplanation:

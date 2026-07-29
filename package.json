@@ -12,6 +12,7 @@
     "test:rules": "env XDG_CONFIG_HOME=.firebase-config FIREBASE_CLI_DISABLE_UPDATE_CHECK=true firebase emulators:exec --only firestore \"vitest run tests/firestore-rules.test.ts\"",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:guitar-visual": "playwright test e2e/guitar-preview-pixel.spec.ts --config=playwright.production.config.ts",
     "test:e2e:production": "env NEXT_PUBLIC_FIREBASE_API_KEY= NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN= NEXT_PUBLIC_FIREBASE_PROJECT_ID= NEXT_PUBLIC_FIREBASE_APP_ID= npm run build && playwright test --config=playwright.production.config.ts",
     "test:e2e:deployed": "playwright test --config=playwright.deployed.config.ts"
   },

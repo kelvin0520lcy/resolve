@@ -21,7 +21,6 @@ import {
 } from "@/features/guitar-learning/data/authored-tool-presets";
 import type {
   GuitarLearningPath,
-  GuitarApplicationResult,
   GuitarLesson,
   VisualSection,
 } from "@/features/guitar-learning/types";
@@ -44,46 +43,6 @@ const SUPPLEMENTAL_LESSON_IDS = [
 
 function slugFromId(id: string) {
   return id.split(":").slice(1).join(":");
-}
-
-export function inferApplicationOutcome(
-  option: string,
-): GuitarApplicationResult {
-  const value = option.toLowerCase();
-  if (
-    [
-      "not yet",
-      "i lost",
-      "it stopped",
-      "need the",
-      "needs another",
-      "need a slower",
-      "need to reposition",
-      "after the count stopped",
-      "fewer;",
-    ].some((marker) => value.includes(marker))
-  ) {
-    return "not_yet";
-  }
-  if (
-    [
-      "close",
-      "sometimes",
-      "mostly",
-      "one bar",
-      "for one bar",
-      "once",
-      "one buzzed",
-      "after one check",
-      "after another listen",
-      "only the",
-      "between beats",
-      "between counts",
-    ].some((marker) => value.includes(marker))
-  ) {
-    return "partial";
-  }
-  return "achieved";
 }
 
 function visualSectionType(
@@ -193,9 +152,7 @@ function buildPublishedLesson(
     applicationActivity: {
       prompt: `${definition.musicalApplication.body} ${definition.musicalApplication.prompt}`,
       options: definition.musicalApplication.options,
-      outcomes:
-        definition.musicalApplication.outcomes ??
-        definition.musicalApplication.options.map(inferApplicationOutcome),
+      outcomes: definition.musicalApplication.outcomes,
       completionMessage: definition.musicalApplication.completionMessage,
     },
     relatedToolIds: [preset.toolId],
@@ -297,6 +254,15 @@ export function getAuthoredCurriculumIssues(
     }
     if (!lesson.applicationActivity.prompt.trim()) {
       issues.push(`${lesson.id} is missing a practical application.`);
+    }
+    if (
+      !lesson.applicationActivity.outcomes ||
+      lesson.applicationActivity.outcomes.length !==
+        lesson.applicationActivity.options.length
+    ) {
+      issues.push(
+        `${lesson.id} needs one explicit application outcome per option.`,
+      );
     }
     for (const termId of [
       ...(lesson.termsIntroduced ?? []),

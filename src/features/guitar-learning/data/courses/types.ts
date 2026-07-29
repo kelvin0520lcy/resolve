@@ -57,7 +57,11 @@ export type AuthoredLessonDefinition = {
     body: string;
     prompt: string;
     options: [string, string, ...string[]];
-    outcomes?: GuitarApplicationResult[];
+    outcomes: [
+      GuitarApplicationResult,
+      GuitarApplicationResult,
+      ...GuitarApplicationResult[],
+    ];
     completionMessage: string;
   };
   alternativeExplanation: string;

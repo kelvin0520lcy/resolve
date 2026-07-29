@@ -79,6 +79,7 @@ export const SCALE_TO_PHRASE_LESSONS = [
       body: "Create three two-note journeys that all finish on A.",
       prompt: "Could you hear the arrival before reading the label?",
       options: ["Three times", "Once", "Not yet"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "You used the root as an audible home rather than a diagram label.",
     },
     alternativeExplanation:
@@ -171,6 +172,7 @@ export const SCALE_TO_PHRASE_LESSONS = [
       body: "Play any four scale notes and make the fifth note an A root.",
       prompt: "Did the final A sound like an intentional ending?",
       options: ["Yes", "Sometimes", "I need the backing again"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "The scale position became a map organised around home.",
     },
     alternativeExplanation:
@@ -252,6 +254,7 @@ export const SCALE_TO_PHRASE_LESSONS = [
       body: "Create a four-beat original phrase with A, C, and D and repeat it accurately.",
       prompt: "What made your phrase recognisable?",
       options: ["Its rhythm", "Its ending", "Both"],
+      outcomes: ["partial", "partial", "achieved"],
       completionMessage: "Three scale notes became one repeatable musical sentence.",
     },
     alternativeExplanation:
@@ -333,6 +336,7 @@ export const SCALE_TO_PHRASE_LESSONS = [
       body: "Play a two-beat idea, leave two beats, and repeat it four times over Am.",
       prompt: "Did every repeat return on beat 1?",
       options: ["Four times", "Most times", "Not yet"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "Silence became part of the phrase design.",
     },
     alternativeExplanation:
@@ -414,6 +418,7 @@ export const SCALE_TO_PHRASE_LESSONS = [
       body: "Create one settled phrase ending on A and one open phrase ending on D.",
       prompt: "Could you make both intentions audible?",
       options: ["Both", "Only the settled ending", "Not yet"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "Your final note became a deliberate punctuation choice.",
     },
     alternativeExplanation:
@@ -499,6 +504,7 @@ export const SCALE_TO_PHRASE_LESSONS = [
       body: "Build an A–A–B–A sequence where B changes only the ending.",
       prompt: "Was the return to A recognisable?",
       options: ["Immediately", "After another listen", "Not yet"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "One tiny idea now creates structure through repetition and variation.",
     },
     alternativeExplanation:
@@ -713,6 +719,7 @@ export const SCALE_TO_PHRASE_LESSONS = [
         "End a short three-note phrase by bending G into the A home note.",
       prompt: "What happened when the phrase arrived?",
       options: ["The bend centred on A", "It was close", "It needs another slow pass"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage:
         "You used a measured bend as a pitched phrase ending rather than a random effect.",
     },

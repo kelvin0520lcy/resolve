@@ -76,6 +76,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Give yourself three spoken directions and follow them on the guitar.",
       prompt: "Which instruction could you follow confidently?",
       options: ["Pick near the bridge", "Touch the nut", "Both"],
+      outcomes: ["partial", "partial", "achieved"],
       completionMessage: "The guitar now has a physical map you can use in every later lesson.",
     },
     alternativeExplanation:
@@ -161,6 +162,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Play strings 6, 4, 2, then 1 as separate open notes.",
       prompt: "Could you reach the requested strings without brushing neighbours?",
       options: ["Yes, cleanly", "Mostly", "I need a slower repeat"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "String numbers and names now point to the same physical strings.",
     },
     alternativeExplanation:
@@ -246,6 +248,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Play an open E chord before and after tuning and compare the stability.",
       prompt: "What improved after tuning?",
       options: ["The chord sounded settled", "Beating between strings reduced", "Both"],
+      outcomes: ["partial", "partial", "achieved"],
       completionMessage: "You established a reliable starting sound before practising.",
     },
     alternativeExplanation:
@@ -325,6 +328,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Play open G, fretted A, then open G as a three-note answer.",
       prompt: "Did every A begin and end cleanly?",
       options: ["Yes", "One buzzed", "I need to reposition"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "You used one clean fretted note inside a musical idea.",
     },
     alternativeExplanation:
@@ -404,6 +408,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Play four muted Down-Up pairs at an even walking speed.",
       prompt: "What remained stable?",
       options: ["Grip", "Small movement", "Both"],
+      outcomes: ["partial", "partial", "achieved"],
       completionMessage: "You controlled both pick direction and depth.",
     },
     alternativeExplanation:
@@ -488,6 +493,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Play C once as a block, then pick each intended string separately.",
       prompt: "How many intended strings rang?",
       options: ["Five", "Four", "Fewer; I will diagnose them"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "The diagram became a playable and testable set of instructions.",
     },
     alternativeExplanation:
@@ -568,6 +574,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Play the three-note line, leave one beat, then repeat it.",
       prompt: "Could you restart on the same string without searching?",
       options: ["Yes", "After one check", "Not yet"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "You read a short tab as a timed string-and-fret route.",
     },
     alternativeExplanation:
@@ -648,6 +655,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Create a four-step texture: ringing D, ringing U, muted X, silent return.",
       prompt: "Could a listener distinguish X from the blank?",
       options: ["Clearly", "Sometimes", "Not yet"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "Written strumming symbols now correspond to exact hand actions.",
     },
     alternativeExplanation:
@@ -742,6 +750,7 @@ export const GUITAR_LANGUAGE_LESSONS = [
       body: "Play one muted downstroke on each beat for two bars, then change chord on the next beat 1.",
       prompt: "Where did the chord change land?",
       options: ["On the next beat 1", "Between counts", "I lost the restart"],
+      outcomes: ["achieved", "partial", "not_yet"],
       completionMessage: "The count now organises a real guitar change.",
     },
     alternativeExplanation:

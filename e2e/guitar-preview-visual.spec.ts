@@ -27,10 +27,15 @@ const previewStates = [
   "lesson-visual",
   "lesson-checkpoint",
   "lesson-application",
+  "lesson-completed",
+  "practice",
   "rhythm-guided",
+  "rhythm-sandbox",
   "chord-trainer",
   "sandbox-tool",
   "progress",
+  "partial",
+  "completed",
 ] as const;
 
 for (const previewState of previewStates) {
@@ -144,3 +149,60 @@ for (const previewState of previewStates) {
     );
   });
 }
+
+test("the complete preview page protects its selector, navigation, and opening content", async ({
+  page,
+}) => {
+  await page.goto("/guitar-preview");
+  await page.getByLabel("Preview state").selectOption("learn");
+  await page.addStyleTag({
+    content: "nextjs-portal { display: none !important; }",
+  });
+
+  const main = page.getByRole("main");
+  const navigation = page.getByRole("navigation", {
+    name: "Guitar Studio sections",
+  });
+  await expect(page.getByLabel("Preview state")).toBeVisible();
+  await expect(navigation).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Understand it, hear it, use it",
+    }),
+  ).toBeVisible();
+  await expect(main).not.toHaveCSS("overflow-x", "scroll");
+
+  if (process.env.CI) {
+    const shell = await main.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      navigationWidth:
+        element
+          .querySelector('[aria-label="Guitar Studio sections"]')
+          ?.getBoundingClientRect().width ?? 0,
+    }));
+    expect(shell.scrollWidth).toBeLessThanOrEqual(shell.clientWidth + 1);
+    expect(shell.navigationWidth).toBeGreaterThan(300);
+    const rendered = await page.screenshot({
+      animations: "disabled",
+      caret: "hide",
+      fullPage: true,
+    });
+    expect(rendered.byteLength).toBeGreaterThan(10_000);
+    return;
+  }
+
+  await expect(page).toHaveScreenshot(
+    `guitar-preview-full-page-${
+      (page.viewportSize()?.width ?? 1280) < 768
+        ? "mobile"
+        : "desktop"
+    }.png`,
+    {
+      animations: "disabled",
+      caret: "hide",
+      fullPage: true,
+      maxDiffPixelRatio: 0.03,
+    },
+  );
+});
