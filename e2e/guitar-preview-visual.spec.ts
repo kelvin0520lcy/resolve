@@ -10,13 +10,6 @@ const snapshotFont = readFileSync(
 ).toString("base64");
 
 const snapshotFontStyles = `
-  @font-face {
-    font-family: "Resolve Snapshot";
-    src: url("data:font/ttf;base64,${snapshotFont}") format("truetype");
-    font-style: normal;
-    font-weight: 100 900;
-  }
-
   [data-testid="guitar-preview-stage"],
   [data-testid="guitar-preview-stage"] * {
     font-family: "Resolve Snapshot", sans-serif !important;
@@ -45,6 +38,19 @@ for (const previewState of previewStates) {
     page,
   }) => {
     await page.goto("/guitar-preview");
+    await page.evaluate(async (fontData) => {
+      const source = `url("data:font/ttf;base64,${fontData}")`;
+      await Promise.all(
+        [400, 500, 600, 700, 800, 900].map(async (weight) => {
+          const font = new FontFace("Resolve Snapshot", source, {
+            style: "normal",
+            weight: String(weight),
+          });
+          await font.load();
+          document.fonts.add(font);
+        }),
+      );
+    }, snapshotFont);
     await page.addStyleTag({ content: snapshotFontStyles });
     await page.getByLabel("Preview state").selectOption(previewState);
     await page.addStyleTag({
