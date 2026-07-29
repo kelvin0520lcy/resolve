@@ -69,6 +69,9 @@ test("deployed Guitar Studio preview is public and navigable", async ({
   expect(response).not.toBeNull();
   expect(response!.status()).toBe(200);
   expect(response!.request().redirectedFrom()).toBeNull();
+  expect(response!.headers()["permissions-policy"]).toBe(
+    "camera=(), geolocation=(), microphone=(self)",
+  );
   expect(new URL(page.url()).pathname).toBe("/guitar-preview");
 
   await expect(page.getByLabel("Preview state")).toBeVisible();
