@@ -60,3 +60,25 @@ test("deployed landing page and build identity are healthy", async ({
     "/terms",
   );
 });
+
+test("deployed Guitar Studio preview is public and navigable", async ({
+  page,
+}) => {
+  const response = await page.goto("/guitar-preview");
+
+  expect(response).not.toBeNull();
+  expect(response!.status()).toBe(200);
+  expect(response!.request().redirectedFrom()).toBeNull();
+  expect(new URL(page.url()).pathname).toBe("/guitar-preview");
+
+  await expect(page.getByLabel("Preview state")).toBeVisible();
+  const navigation = page.getByRole("navigation", {
+    name: "Guitar Studio sections",
+  });
+  await expect(navigation.getByRole("tab")).toHaveCount(4);
+  await expect(
+    page.getByRole("heading", {
+      name: "Understand it, hear it, use it",
+    }),
+  ).toBeVisible();
+});

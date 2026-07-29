@@ -28,7 +28,7 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      "env RESOLVE_NEXT_DIST_DIR=.next-e2e ENABLE_GUITAR_PREVIEW=true NEXT_PUBLIC_FIREBASE_API_KEY= NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN= NEXT_PUBLIC_FIREBASE_PROJECT_ID= NEXT_PUBLIC_FIREBASE_APP_ID= npm run dev -- -p 3100",
+      "env RESOLVE_NEXT_DIST_DIR=.next-e2e NEXT_PUBLIC_FIREBASE_API_KEY= NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN= NEXT_PUBLIC_FIREBASE_PROJECT_ID= NEXT_PUBLIC_FIREBASE_APP_ID= npm run dev -- -p 3100",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
