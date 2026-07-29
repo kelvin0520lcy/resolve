@@ -1,28 +1,29 @@
 import { defineConfig, devices } from "@playwright/test";
 
+/**
+ * Strict Guitar Studio pixel references are captured in the pinned Linux
+ * Playwright container used by guitar-visual.yml. Keep this suite separate
+ * from the cross-platform behavior tests in the general Playwright configs.
+ */
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: [
-    "deployed-smoke.spec.ts",
-    "guitar-preview-pixel.spec.ts",
-  ],
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 2 : 0,
+  retries: 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: "http://127.0.0.1:3200",
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
   },
   snapshotPathTemplate:
     "{testDir}/__screenshots__/{testFileName}/{arg}{ext}",
   projects: [
     {
-      name: "production-chromium",
+      name: "guitar-visual-desktop",
       use: { ...devices["Desktop Chrome"] },
     },
     {
-      name: "production-mobile-chromium",
+      name: "guitar-visual-mobile",
       use: { ...devices["Pixel 7"] },
     },
   ],
