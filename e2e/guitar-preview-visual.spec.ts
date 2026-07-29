@@ -1,4 +1,28 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const snapshotFont = readFileSync(
+  join(
+    process.cwd(),
+    "node_modules/next/dist/compiled/@vercel/og/Geist-Regular.ttf",
+  ),
+).toString("base64");
+
+const snapshotFontStyles = `
+  @font-face {
+    font-family: "Resolve Snapshot";
+    src: url("data:font/ttf;base64,${snapshotFont}") format("truetype");
+    font-style: normal;
+    font-weight: 100 900;
+  }
+
+  [data-testid="guitar-preview-stage"],
+  [data-testid="guitar-preview-stage"] * {
+    font-family: "Resolve Snapshot", sans-serif !important;
+    font-synthesis: none !important;
+  }
+`;
 
 const previewStates = [
   "placement",
@@ -17,6 +41,11 @@ for (const previewState of previewStates) {
     page,
   }) => {
     await page.goto("/guitar-preview");
+    await page.addStyleTag({ content: snapshotFontStyles });
+    await page.evaluate(async () => {
+      await document.fonts.load('16px "Resolve Snapshot"');
+      await document.fonts.ready;
+    });
     await page.getByLabel("Preview state").selectOption(previewState);
     await page.addStyleTag({
       content: "nextjs-portal { display: none !important; }",
