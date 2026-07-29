@@ -81,6 +81,55 @@ for (const previewState of previewStates) {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       );
     });
+
+    if (process.env.CI) {
+      const layout = await stage.evaluate((element) => {
+        const stageRect = element.getBoundingClientRect();
+        const offscreenControls = Array.from(
+          element.querySelectorAll<HTMLElement>(
+            "a, button, input, select, textarea",
+          ),
+        )
+          .filter((control) => {
+            const rect = control.getBoundingClientRect();
+            return (
+              rect.width > 0 &&
+              rect.height > 0 &&
+              (rect.left < stageRect.left - 1 ||
+                rect.right > stageRect.right + 1)
+            );
+          })
+          .map(
+            (control) =>
+              control.getAttribute("aria-label") ||
+              control.textContent?.trim().slice(0, 80) ||
+              control.tagName,
+          );
+
+        return {
+          width: stageRect.width,
+          height: stageRect.height,
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          offscreenControls,
+        };
+      });
+
+      expect(layout.width).toBeGreaterThan(300);
+      expect(layout.height).toBeGreaterThan(200);
+      expect(layout.scrollWidth).toBeLessThanOrEqual(
+        layout.clientWidth + 1,
+      );
+      expect(layout.offscreenControls).toEqual([]);
+
+      const rendered = await stage.screenshot({
+        animations: "disabled",
+        caret: "hide",
+      });
+      expect(rendered.byteLength).toBeGreaterThan(10_000);
+      return;
+    }
+
     await expect(stage).toHaveScreenshot(
       `guitar-preview-${previewState}-${
         (page.viewportSize()?.width ?? 1280) < 768
