@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  waitForStableVisualFrame,
+  waitForVisibleImages,
+} from "./support/visual-readiness";
 
 const snapshotFont = readFileSync(
   join(
@@ -64,11 +68,7 @@ for (const previewState of previewStates) {
 
     const stage = page.getByTestId("guitar-preview-stage");
     await expect(stage).toBeVisible();
-    await page.waitForFunction(() =>
-      Array.from(document.images)
-        .filter((image) => image.loading !== "lazy")
-        .every((image) => image.complete),
-    );
+    await waitForVisibleImages(page);
     await page.waitForFunction(() =>
       Array.from(document.querySelectorAll('[role="status"]')).every(
         (status) =>
@@ -81,11 +81,8 @@ for (const previewState of previewStates) {
           document.fonts.load(`${weight} 16px "Resolve Snapshot"`),
         ),
       );
-      await document.fonts.ready;
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
     });
+    await waitForStableVisualFrame(page);
 
     if (process.env.CI) {
       const layout = await stage.evaluate((element) => {

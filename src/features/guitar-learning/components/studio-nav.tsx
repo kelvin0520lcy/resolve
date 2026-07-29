@@ -82,7 +82,10 @@ export function GuitarStudioNav({
             >
               <Icon className="h-4 w-4 shrink-0" />
               <span>
-                <span className="block text-xs font-black uppercase tracking-wide">
+                <span
+                  data-testid="guitar-tab-label"
+                  className="block text-xs font-black uppercase tracking-wide"
+                >
                   {item.label}
                 </span>
                 <span className="mt-0.5 block text-xs font-bold text-muted">

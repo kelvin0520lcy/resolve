@@ -42,10 +42,16 @@ export function PageIntro({
         <p className="tape-label mb-3 inline-flex -rotate-1 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em]">
           エピソード記録 / Episode log · {eyebrow}
         </p>
-        <h1 className="font-display relative text-3xl leading-none tracking-wide sm:text-4xl">
+        <h1
+          data-testid="page-intro-heading"
+          className="font-display relative text-3xl leading-none tracking-wide sm:text-4xl"
+        >
           {title}
         </h1>
-        <p className="relative mt-3 max-w-xl text-sm font-medium leading-6 text-[#5d5267]">
+        <p
+          data-testid="page-intro-description"
+          className="relative mt-3 max-w-xl text-sm font-medium leading-6 text-[#5d5267]"
+        >
           {description}
         </p>
       </div>

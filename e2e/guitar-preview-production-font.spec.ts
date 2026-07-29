@@ -1,4 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import {
+  waitForStableVisualFrame,
+  waitForVisibleImages,
+} from "./support/visual-readiness";
 
 const productionFontStates = [
   "learn",
@@ -15,18 +19,14 @@ async function waitForPreview(page: Page, previewState: string) {
   await page.getByLabel("Preview state").selectOption(previewState);
   const stage = page.getByTestId("guitar-preview-stage");
   await expect(stage).toBeVisible();
+  await waitForVisibleImages(page);
   await page.waitForFunction(() =>
     Array.from(document.querySelectorAll('[role="status"]')).every(
       (status) =>
         !status.textContent?.includes("Setting up the studio tool"),
     ),
   );
-  await page.evaluate(async () => {
-    await document.fonts.ready;
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-    );
-  });
+  await waitForStableVisualFrame(page);
   return stage;
 }
 
@@ -87,13 +87,14 @@ async function expectProductionTypographyToFit(
     const previewStage = document.querySelector<HTMLElement>(
       '[data-testid="guitar-preview-stage"]',
     );
-    const heading = previewStage?.querySelector<HTMLElement>("h1");
-    const description =
-      heading?.nextElementSibling instanceof HTMLElement
-        ? heading.nextElementSibling
-        : null;
+    const heading = previewStage?.querySelector<HTMLElement>(
+      '[data-testid="page-intro-heading"]',
+    );
+    const description = previewStage?.querySelector<HTMLElement>(
+      '[data-testid="page-intro-description"]',
+    );
     const activeTabLabel = document.querySelector<HTMLElement>(
-      '[aria-label="Guitar Studio sections"] [role="tab"][aria-selected="true"] span > span:first-child',
+      '[aria-label="Guitar Studio sections"] [role="tab"][aria-selected="true"] [data-testid="guitar-tab-label"]',
     );
 
     const styleOf = (element: HTMLElement | null) => {
@@ -108,7 +109,7 @@ async function expectProductionTypographyToFit(
 
     return {
       heading: styleOf(heading ?? null),
-      description: styleOf(description),
+      description: styleOf(description ?? null),
       activeTabLabel: styleOf(activeTabLabel),
     };
   });
@@ -122,6 +123,8 @@ async function expectProductionTypographyToFit(
   expect(hierarchy.heading!.fontSize).toBeGreaterThan(
     hierarchy.description!.fontSize + 8,
   );
+  // The display heading intentionally derives hierarchy from its condensed
+  // family and larger size; Impact reports a numerical weight of 400.
   expect(hierarchy.description!.fontWeight).toBeGreaterThanOrEqual(500);
   expect(hierarchy.activeTabLabel!.fontWeight).toBeGreaterThanOrEqual(
     800,
