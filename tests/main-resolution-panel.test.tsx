@@ -94,6 +94,25 @@ describe("semester resolutions panel", () => {
     });
   });
 
+  it("keeps typed text and the cancel action legible on the paper editor", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(
+      screen.getByRole("button", { name: "Add resolution" }),
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "New semester resolution" }),
+    ).toHaveStyle({
+      color: "var(--ink)",
+      caretColor: "var(--ink)",
+    });
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveStyle({
+      color: "var(--ink)",
+    });
+  });
+
   it("edits an individual resolution", async () => {
     const user = userEvent.setup();
     const { onUpdate } = renderPanel();

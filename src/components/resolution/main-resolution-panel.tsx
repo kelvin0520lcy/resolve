@@ -203,6 +203,7 @@ export function MainResolutionPanel({
                 : "What should this semester change?"}
               <textarea
                 className={`${textAreaClassName} mt-2 min-h-24 bg-white/80 text-base font-semibold leading-7 text-[#18121f]`}
+                style={{ color: "var(--ink)", caretColor: "var(--ink)" }}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 autoFocus
@@ -227,6 +228,7 @@ export function MainResolutionPanel({
                   size="sm"
                   variant="ghost"
                   onClick={closeEditor}
+                  style={{ color: "var(--ink)" }}
                 >
                   Cancel
                 </Button>

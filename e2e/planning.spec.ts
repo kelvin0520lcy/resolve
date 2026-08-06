@@ -33,6 +33,31 @@ test("keeps selected week in the URL", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Current week" })).toBeVisible();
 });
 
+test("keeps resolution editor text readable on its paper surface", async ({
+  page,
+}) => {
+  await page.goto("/dashboard");
+
+  const initialEditor = page.getByLabel("New semester resolution", {
+    exact: true,
+  });
+  await initialEditor.fill("Build a steady semester rhythm");
+  await page
+    .getByRole("button", { name: "Add resolution", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Add resolution", exact: true })
+    .click();
+
+  const editor = page.getByLabel("New semester resolution", { exact: true });
+  await editor.fill("Readable draft text");
+  const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+
+  await expect(editor).toHaveCSS("color", "rgb(24, 18, 31)");
+  await expect(editor).toHaveCSS("caret-color", "rgb(24, 18, 31)");
+  await expect(cancel).toHaveCSS("color", "rgb(24, 18, 31)");
+});
+
 test("public landing and sign-in do not overflow a mobile viewport", async ({
   page,
 }) => {
