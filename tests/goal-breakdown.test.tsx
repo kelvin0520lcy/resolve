@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { GoalBreakdown } from "@/components/goals/goal-breakdown";
+import { offsetDate } from "@/lib/date";
 import type { Goal, Milestone } from "@/types";
+
+const stepDeadline = offsetDate(7);
 
 const goal: Goal = {
   id: "goal-1",
@@ -14,7 +17,7 @@ const goal: Goal = {
   priority: "high",
   measurementType: "milestone",
   startDate: "2026-07-25",
-  deadline: "2026-09-30",
+  deadline: offsetDate(30),
   status: "active",
   createdAt: "2026-07-25T00:00:00.000Z",
   updatedAt: "2026-07-25T00:00:00.000Z",
@@ -46,13 +49,13 @@ describe("goal breakdown", () => {
     );
     await user.type(
       screen.getByLabelText("Due (optional)"),
-      "2026-08-10",
+      stepDeadline,
     );
     await user.click(screen.getByRole("button", { name: "Add step" }));
 
     expect(addMilestone).toHaveBeenCalledWith("goal-1", {
       title: "Learn the first song",
-      deadline: "2026-08-10",
+      deadline: stepDeadline,
     });
   });
 
@@ -74,7 +77,7 @@ describe("goal breakdown", () => {
         id: "step-2",
         goalId: "goal-1",
         title: "Learn the first song",
-        deadline: "2026-08-10",
+        deadline: stepDeadline,
         completed: false,
         order: 2,
       },
@@ -198,7 +201,7 @@ describe("goal breakdown", () => {
       id: "step-1",
       goalId: "goal-1",
       title: "Choose songs",
-      deadline: "2026-08-10",
+      deadline: stepDeadline,
       completed: false,
       order: 1,
     };
@@ -228,7 +231,7 @@ describe("goal breakdown", () => {
 
     expect(updateMilestone).toHaveBeenCalledWith("step-1", {
       title: "Choose three songs",
-      deadline: "2026-08-10",
+      deadline: stepDeadline,
     });
   });
 });
